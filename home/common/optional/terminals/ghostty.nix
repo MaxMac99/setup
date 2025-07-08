@@ -1,5 +1,9 @@
-{ pkgs, lib, hostSpec, ... }:
-let
+{
+  pkgs,
+  lib,
+  hostSpec,
+  ...
+}: let
   ghosttySettings = {
     font-family = "SFMono Nerd Font";
     font-size = 16;
@@ -9,14 +13,13 @@ let
     fullscreen = true;
     cursor-style = "block";
   };
-in
-{
+in {
   programs.ghostty = {
     # currently broken on darwin
     enable = !hostSpec.isDarwin;
     settings = ghosttySettings;
   };
   home.file.".config/ghostty/config" = lib.mkIf hostSpec.isDarwin {
-    source = (pkgs.formats.toml { }).generate "settings" ghosttySettings;
+    source = (pkgs.formats.toml {}).generate "settings" ghosttySettings;
   };
 }

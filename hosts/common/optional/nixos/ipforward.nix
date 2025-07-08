@@ -1,7 +1,4 @@
-{ pkgs
-, ...
-}:
-{
+{pkgs, ...}: {
   systemd.services.ipforward = {
     description = "Forwards IPv4 through Wireguard to the internal network";
     serviceConfig = {

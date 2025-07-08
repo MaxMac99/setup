@@ -1,14 +1,16 @@
-{ inputs
-, config
-, lib
-, isDarwin
-, ...
-}:
-let
-  platform = if isDarwin then "darwin" else "nixos";
-  platformModules = "${platform}Modules";
-in
 {
+  inputs,
+  config,
+  lib,
+  isDarwin,
+  ...
+}: let
+  platform =
+    if isDarwin
+    then "darwin"
+    else "nixos";
+  platformModules = "${platform}Modules";
+in {
   imports = lib.flatten [
     inputs.home-manager.${platformModules}.home-manager
     inputs.sops-nix.${platformModules}.sops
@@ -36,8 +38,8 @@ in
     settings = {
       connect-timeout = 5;
 
-      allowed-users = [ "@admin" "${config.hostSpec.username}" ];
-      trusted-users = [ "@admin" "${config.hostSpec.username}" ];
+      allowed-users = ["@admin" "${config.hostSpec.username}"];
+      trusted-users = ["@admin" "${config.hostSpec.username}"];
       experimental-features = [
         "nix-command"
         "flakes"
@@ -47,7 +49,11 @@ in
     optimise.automatic = true;
     gc = {
       automatic = true;
-      interval = { Weekday = 0; Hour = 2; Minute = 0; };
+      interval = {
+        Weekday = 0;
+        Hour = 2;
+        Minute = 0;
+      };
       options = "--delete-older-than 1w";
     };
   };

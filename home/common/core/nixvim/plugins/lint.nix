@@ -1,21 +1,18 @@
-{ pkgs
-, ...
-}:
-{
+{pkgs, ...}: {
   programs.nixvim.plugins.lint = {
     enable = true;
     lazyLoad = {
       enable = true;
-      settings.event = [ "BufReadPre" "BufNewFile" ];
+      settings.event = ["BufReadPre" "BufNewFile"];
     };
     lintersByFt = {
-      nix = [ "statix" ];
-      lua = [ "selene" ];
-      javascript = [ "eslint_d" ];
-      typescript = [ "eslint_d" ];
-      json = [ "jsonlint" ];
-      markdown = [ "markdownlint" ];
-      swift = [ "swiftlint" ];
+      nix = ["statix"];
+      lua = ["selene"];
+      javascript = ["eslint_d"];
+      typescript = ["eslint_d"];
+      json = ["jsonlint"];
+      markdown = ["markdownlint"];
+      swift = ["swiftlint"];
     };
     luaConfig.post = ''
       local lint_augroup = vim.api.nvim_create_augroup('lint', { clear = true })

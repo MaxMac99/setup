@@ -1,7 +1,4 @@
-{ lib
-, ...
-}:
-{
+{lib, ...}: {
   nixpkgs.hostPlatform = "aarch64-darwin";
 
   imports = lib.flatten [

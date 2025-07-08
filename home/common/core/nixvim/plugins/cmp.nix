@@ -35,14 +35,23 @@
           '';
         };
         sources = [
-          { name = "cmp-nvim-lsp"; }
-          { name = "async_path"; }
-          { name = "nvim_lsp_signature_help"; }
-          { name = "nvim_lsp"; keyword_length = 3; }
-          { name = "nvim_lua"; keyword_length = 2; }
-          { name = "luasnip"; }
-          { name = "copilot"; }
-          { name = "buffer"; keyword_length = 2; }
+          {name = "cmp-nvim-lsp";}
+          {name = "async_path";}
+          {name = "nvim_lsp_signature_help";}
+          {
+            name = "nvim_lsp";
+            keyword_length = 3;
+          }
+          {
+            name = "nvim_lua";
+            keyword_length = 2;
+          }
+          {name = "luasnip";}
+          {name = "copilot";}
+          {
+            name = "buffer";
+            keyword_length = 2;
+          }
         ];
       };
     };

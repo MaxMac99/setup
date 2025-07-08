@@ -1,12 +1,11 @@
-{ hostSpec
-, lib
-, pkgs
-, ...
-}:
-let
-  flakeRoot = lib.custom.relativeToRoot "./.";
-in
 {
+  hostSpec,
+  lib,
+  pkgs,
+  ...
+}: let
+  flakeRoot = lib.custom.relativeToRoot "./.";
+in {
   programs.nixvim = {
     plugins = {
       lspconfig.enable = true;
@@ -36,7 +35,7 @@ in
               expr = "import <nixpkgs> { }";
             };
             formatting = {
-              command = [ "nixfmt" ];
+              command = ["nixfmt"];
             };
             options = {
               nixos = {

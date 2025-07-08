@@ -1,9 +1,9 @@
 # Autoformat
-{ lib
-, pkgs
-, ...
-}:
 {
+  lib,
+  pkgs,
+  ...
+}: {
   programs.nixvim.plugins.conform-nvim = {
     enable = true;
     lazyLoad = {
@@ -64,7 +64,7 @@
         };
         eslint_d = {
           command = lib.getExe pkgs.nodePackages.eslint_d;
-          args = [ "--fix-to-stdout" "--stdin" "--stdin-filename" "$FILENAME" ];
+          args = ["--fix-to-stdout" "--stdin" "--stdin-filename" "$FILENAME"];
           stdin = true;
           timeoutMs = 5000;
         };

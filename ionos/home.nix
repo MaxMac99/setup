@@ -1,6 +1,8 @@
-{ config, pkgs, ... }:
-
 {
+  config,
+  pkgs,
+  ...
+}: {
   home.username = "max";
   home.homeDirectory = "/home/max";
 
@@ -30,7 +32,7 @@
     autosuggestion.enable = true;
     oh-my-zsh = {
       enable = true;
-      plugins = [ "git" "dirhistory" "docker" "docker-compose" "jsontools" ];
+      plugins = ["git" "dirhistory" "docker" "docker-compose" "jsontools"];
       theme = "robbyrussell";
     };
     shellAliases = {

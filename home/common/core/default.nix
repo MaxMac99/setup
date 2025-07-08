@@ -1,13 +1,15 @@
-{ config
-, lib
-, pkgs
-, hostSpec
-, ...
-}:
-let
-  platform = if hostSpec.isDarwin then "darwin" else "nixos";
-in
 {
+  config,
+  lib,
+  pkgs,
+  hostSpec,
+  ...
+}: let
+  platform =
+    if hostSpec.isDarwin
+    then "darwin"
+    else "nixos";
+in {
   imports = lib.flatten [
     ./fonts.nix
     ./git.nix
@@ -15,7 +17,8 @@ in
     ./zoxide.nix
     ./bat.nix
     ./zsh.nix
-    ./nixvim
+    # ./nixvim
+    ./nvf
   ];
 
   programs.home-manager.enable = true;
@@ -45,6 +48,7 @@ in
       htop
       maven
       temurin-bin-21
+      zoom-us
     ];
   };
 }

@@ -1,6 +1,4 @@
-{ pkgs, ... }:
-
-let
+{pkgs, ...}: let
   tokyo-theme = pkgs.tmuxPlugins.mkTmuxPlugin {
     pluginName = "tokyo-night";
     version = "1.5.5";
@@ -12,8 +10,7 @@ let
       sha256 = "sha256-ATaSfJSg/Hhsd4LwoUgHkAApcWZV3O3kLOn61r1Vbag=";
     };
   };
-in
-{
+in {
   home.packages = [
     pkgs.nowplaying-cli
   ];
@@ -26,6 +23,8 @@ in
     newSession = true;
     shortcut = "a";
     terminal = "screen-256color";
+    escapeTime = 300;
+    focusEvents = true;
     extraConfig = ''
       # split panes horizontal by -
       bind - split-window -v
@@ -39,7 +38,7 @@ in
           'send -Mt=' \
           'if-shell -t= "#{?alternate_on,true,false} || echo \"#{tmux_commands_with_legacy_scroll}\" | grep -q \"#{pane_current_command}\"" \
             "send -t= Up Up Up" "copy-mode -et="'
-      
+
       bind-key -T root WheelDownPane \
         if-shell -Ft = '#{?pane_in_mode,1,#{mouse_any_flag}}' \
           'send -Mt=' \

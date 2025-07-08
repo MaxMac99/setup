@@ -1,8 +1,8 @@
-{ inputs
-, config
-, ...
-}:
 {
+  inputs,
+  config,
+  ...
+}: {
   users.users.${config.hostSpec.username} = {
     home = "/Users/${config.hostSpec.username}";
   };
@@ -34,6 +34,7 @@
       "docker"
       "elgato-stream-deck"
       "focusrite-control"
+      "macfuse"
     ];
     taps = builtins.attrNames config.nix-homebrew.taps;
     onActivation = {

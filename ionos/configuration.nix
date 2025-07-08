@@ -1,11 +1,14 @@
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   imports = [
     ./hardware-configuration.nix
   ];
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.experimental-features = ["nix-command" "flakes"];
   nix.gc = {
     automatic = true;
     dates = "weekly";
@@ -28,11 +31,11 @@
   networking.hostName = "ionos";
   networking.domain = "";
   # Open ports in the firewall.
-  networking.firewall.allowedTCPPorts = [ 22 80 443 ];
-  networking.firewall.allowedUDPPorts = [ 56527 ];
+  networking.firewall.allowedTCPPorts = [22 80 443];
+  networking.firewall.allowedUDPPorts = [56527];
   networking.wireguard.interfaces = {
     wg0 = {
-      ips = [ "192.168.178.201/24" "fda8:a1db:5685::201/64" ];
+      ips = ["192.168.178.201/24" "fda8:a1db:5685::201/64"];
       listenPort = 56527;
       privateKeyFile = "/home/max/.wireguard/private_key";
 
@@ -40,7 +43,7 @@
         {
           publicKey = "ulBtv6Iou8HKpJzeJS9YALlZTSKE1+W+fZCEzM3hGiw=";
           presharedKeyFile = "/home/max/.wireguard/preshared_key";
-          allowedIPs = [ "192.168.178.0/24" "fda8:a1db:5685::/64" ];
+          allowedIPs = ["192.168.178.0/24" "fda8:a1db:5685::/64"];
           endpoint = "bzwkhrd8hexv5q4g.myfritz.net:56527";
           persistentKeepalive = 25;
         }
@@ -50,7 +53,7 @@
 
   users.users.max = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "docker" ]; # Enable ‘sudo’ for the user.
+    extraGroups = ["wheel" "docker"]; # Enable ‘sudo’ for the user.
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGn3D12oPl2/DO5fdKseTbJCD74ozEOjljPcI0sDNHKl maxvissing@Maxs-MacBook-Pro.local"
     ];

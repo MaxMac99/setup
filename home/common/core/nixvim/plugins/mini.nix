@@ -5,7 +5,7 @@
       ai = {
         n_lines = 500;
       };
-      surround = { };
+      surround = {};
       statusline = {
         use_icons = true;
         section_location = ''

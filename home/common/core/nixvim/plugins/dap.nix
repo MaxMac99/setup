@@ -1,16 +1,14 @@
-{ pkgs
-, ...
-}:
-let
-  typescriptConfigurations = [{
-    type = "pwa-node";
-    request = "launch";
-    name = "Launch file";
-    program = "\${file}";
-    cwd = "\${workspaceFolder}";
-  }];
-in
-{
+{pkgs, ...}: let
+  typescriptConfigurations = [
+    {
+      type = "pwa-node";
+      request = "launch";
+      name = "Launch file";
+      program = "\${file}";
+      cwd = "\${workspaceFolder}";
+    }
+  ];
+in {
   programs.nixvim = {
     plugins = {
       dap = {
@@ -128,7 +126,6 @@ in
     #       return
     #     end
 
-
     #     -- dapUI does not exists or not focused
     #     -- close neotree first
     #     for _, win in ipairs(vim.api.nvim_list_wins()) do
@@ -153,7 +150,6 @@ in
     #       end
     #     end, 100)
     #   end
-
 
     #   _G.FUNCS.switch_dapui_window = function()
     #     local dapui_filetypes = {
@@ -204,7 +200,6 @@ in
     #       vim.api.nvim_set_current_win(dapui_wins[next_index])
     #     end
     #   end
-
 
     #   vim.api.nvim_create_autocmd("FileType", {
     #     pattern = {
