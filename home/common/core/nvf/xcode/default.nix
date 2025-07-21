@@ -26,6 +26,11 @@
       chmod +x $out/bin/xcode-build-server
     '';
   };
+  codelldb = import ./codelldb.nix {
+    stdenv = pkgs.stdenv;
+    unzip = pkgs.unzip;
+    fetchurl = pkgs.fetchurl;
+  };
   xcodebuild = pkgs.vimUtils.buildVimPlugin {
     name = "xcodebuild.nvim";
     src = pkgs.fetchFromGitHub {
@@ -52,7 +57,10 @@ in {
   programs.nvf.settings.vim.extraPlugins = {
     xcodebuild = {
       package = xcodebuild;
-      setup = "require('xcodebuild').setup()";
+      setup = ''
+        require('xcodebuild').setup()
+        require('xcodebuild.integrations.dap').setup("${codelldb}/extension/adapter/codelldb")
+      '';
     };
   };
   home.packages = with pkgs; [

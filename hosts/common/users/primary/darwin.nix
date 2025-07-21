@@ -31,7 +31,7 @@
       "ghostty"
       "arc"
       "displaylink"
-      "docker"
+      "docker-desktop"
       "elgato-stream-deck"
       "focusrite-control"
       "macfuse"
