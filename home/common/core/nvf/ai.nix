@@ -29,6 +29,11 @@
         setupModule = "CopilotChat";
         lazy = false;
       };
+      "claudecode.nvim" = {
+        package = pkgs.vimPlugins.claudecode-nvim;
+        setupModule = "claudecode";
+        lazy = false;
+      };
     };
   };
 }

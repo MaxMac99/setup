@@ -29,6 +29,7 @@ in {
     stateVersion = lib.mkDefault "23.05";
     packages = with pkgs; [
       pwgen
+      claude-code
       exiftool
       curl
       jq
