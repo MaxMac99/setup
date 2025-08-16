@@ -58,7 +58,13 @@ in {
     xcodebuild = {
       package = xcodebuild;
       setup = ''
-        require('xcodebuild').setup()
+        require('xcodebuild').setup({
+          integrations = {
+            xcodebuild_offline = {
+              enabled = true,
+            },
+          }
+        })
         require('xcodebuild.integrations.dap').setup("${codelldb}/extension/adapter/codelldb")
       '';
     };

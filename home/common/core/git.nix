@@ -1,7 +1,6 @@
 {pkgs, ...}: {
   programs.git = {
     enable = true;
-    package = pkgs.gitFull;
     userEmail = "max_vissing@yahoo.de";
     userName = "Max Vissing";
     lfs.enable = true;

@@ -30,8 +30,8 @@
     casks = [
       "ghostty"
       "arc"
-      "displaylink"
       "docker-desktop"
+      "displaylink"
       "elgato-stream-deck"
       "focusrite-control"
       "macfuse"

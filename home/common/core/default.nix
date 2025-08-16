@@ -28,6 +28,8 @@ in {
     homeDirectory = lib.mkDefault config.hostSpec.home;
     stateVersion = lib.mkDefault "23.05";
     packages = with pkgs; [
+      pwgen
+      exiftool
       curl
       jq
       nix-tree

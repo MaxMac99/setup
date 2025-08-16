@@ -117,7 +117,7 @@
       readchar
     ];
   };
-  pylzss = python.pkgs.buildPythonPackage rec {
+  pylzssOld = python.pkgs.buildPythonPackage rec {
     pname = "pylzss";
     version = "0.3.4";
     pyproject = true;
@@ -189,7 +189,7 @@
       asn1Old
       click
       pycryptodome
-      pylzss
+      pylzssOld
     ];
   };
   remotezip2 = python.pkgs.buildPythonPackage rec {
@@ -208,11 +208,11 @@
   };
   ipsw-parser = python.pkgs.buildPythonPackage rec {
     pname = "ipsw_parser";
-    version = "1.4.3";
+    version = "1.4.4";
     pyproject = true;
     src = pkgs.fetchPypi {
       inherit pname version;
-      sha256 = "sha256-RF6QLbYtR1Hlj6RWjRAHR7Cg58hU4sL165iddJ1Vz3Y=";
+      sha256 = "sha256-JuDBh/Jb/rRgwOTBaHjlgybWHdvdhWTfRTHPWCQPuVE=";
     };
     nativeBuildInputs = with python.pkgs; [
       setuptools
@@ -232,7 +232,7 @@
   };
   qh3 = python.pkgs.buildPythonPackage rec {
     pname = "qh3";
-    version = "1.5.2";
+    version = "1.5.3";
     format = "pyproject";
     src = pkgs.fetchFromGitHub {
       owner = "jawah";
@@ -257,11 +257,11 @@
   };
   developer-disk-image = python.pkgs.buildPythonPackage rec {
     pname = "developer_disk_image";
-    version = "0.0.4";
+    version = "0.2.0";
     pyproject = true;
     src = pkgs.fetchPypi {
       inherit pname version;
-      sha256 = "sha256-ur6yyNSW2WDI/51iUneilZ/WwRTsoS57TRK+GraCUas=";
+      sha256 = "sha256-21aLIuwznYtWsprptCAjDq4yL+ab50zZn9Dv+w7y4o8=";
     };
     nativeBuildInputs = with python.pkgs; [
       setuptools
@@ -291,11 +291,11 @@
   };
   pytun-pmd3 = python.pkgs.buildPythonPackage rec {
     pname = "pytun_pmd3";
-    version = "2.0.10";
+    version = "2.2.2";
     pyproject = true;
     src = pkgs.fetchPypi {
       inherit pname version;
-      sha256 = "sha256-LXGUmiFi6AzUUKnzyjRHo70SP5MhYZlYdHeRHfzNUGg=";
+      sha256 = "sha256-NE/YOCGbbjP/rXgQkPEp1OOrOd6ThbXgSCc/F2lvIVo=";
     };
     nativeBuildInputs = with python.pkgs; [
       setuptools
@@ -319,7 +319,7 @@
   };
   pymobiledevice3 = python.pkgs.buildPythonApplication rec {
     pname = "pymobiledevice3";
-    version = "4.21.1";
+    version = "4.22.1";
 
     src = pkgs.fetchFromGitHub {
       owner = "doronz88";

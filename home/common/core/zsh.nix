@@ -7,8 +7,6 @@
   programs.zsh = {
     enable = true;
 
-    # relative to ~
-    dotDir = ".config/zsh";
     enableCompletion = true;
     syntaxHighlighting.enable = true;
     autocd = true;

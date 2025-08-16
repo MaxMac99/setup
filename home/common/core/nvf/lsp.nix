@@ -24,7 +24,6 @@
     servers = {
       "sourcekit-lsp" = {
         cmd = ["xcrun" "sourcekit-lsp"];
-        # cmd = ["${pkgs.sourcekit-lsp}/bin/sourcekit-lsp"];
         filetypes = ["swift"];
         root_dir = lib.generators.mkLuaInline ''
           function(buf_nr, on_dir)
