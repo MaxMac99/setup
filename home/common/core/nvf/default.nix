@@ -91,8 +91,8 @@
 
       theme = {
         enable = true;
-        name = "tokyonight";
-        style = "storm";
+        name = "onedark";
+        style = "deep";
       };
 
       undoFile.enable = true;

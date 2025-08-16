@@ -7,7 +7,7 @@
   ghosttySettings = {
     font-family = "SFMono Nerd Font";
     font-size = 16;
-    theme = "tokyonight";
+    theme = "Dark Pastel";
     # background-opacity = 0.9;
     # background-blur = true;
     fullscreen = true;
