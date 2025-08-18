@@ -12,6 +12,20 @@
       liveGrep = "<leader>sg";
       helpTags = "<leader>sh";
       resume = "<leader>sr";
+      findProjects = "<leader>sp";
+      gitBranches = "<leader>svb";
+      gitBufferCommits = "<leader>svcb";
+      gitCommits = "<leader>svcw";
+      gitStash = "<leader>svx";
+      gitStatus = "<leader>svs";
+      lspDefinitions = "<leader>sld";
+      lspDocumentSymbols = "<leader>slsd";
+      lspImplementations = "<leader>sli";
+      lspReferences = "<leader>slr";
+      lspTypeDefinitions = "<leader>slt";
+      lspWorkspaceSymbols = "<leader>slsw";
+      open = "<leader>so";
+      treesitter = "<leader>st";
     };
     extensions = [
       {

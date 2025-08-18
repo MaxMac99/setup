@@ -15,7 +15,7 @@
 
     mappings = {
       codeAction = "<leader>ca";
-      format = "<leader>f";
+      format = "<leader>cf";
       goToDeclaration = "gD";
       goToDefinition = "gd";
       renameSymbol = "<leader>rn";

@@ -31,6 +31,18 @@
   programs.nvf = {
     enable = true;
     settings.vim = {
+      autocmds = [
+        {
+          enable = true;
+          event = ["TextYankPost"];
+          callback = lib.generators.mkLuaInline ''
+            function()
+            vim.highlight.on_yank()
+            end
+          '';
+        }
+      ];
+
       mini.ai = {
         enable = true;
       };
