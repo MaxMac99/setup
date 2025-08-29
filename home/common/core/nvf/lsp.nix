@@ -17,7 +17,8 @@
       codeAction = "<leader>ca";
       format = "<leader>cf";
       goToDeclaration = "gD";
-      goToDefinition = "gd";
+      goToDefinition = null; # via Telescope
+      listReferences = null; # via Telescope
       renameSymbol = "<leader>rn";
     };
 

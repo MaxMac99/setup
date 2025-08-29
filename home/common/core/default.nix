@@ -28,6 +28,8 @@ in {
     homeDirectory = lib.mkDefault config.hostSpec.home;
     stateVersion = lib.mkDefault "23.05";
     packages = with pkgs; [
+      gh
+      nodejs_24
       pwgen
       claude-code
       exiftool

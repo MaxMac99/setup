@@ -21,6 +21,9 @@
             prev = null;
           };
         };
+        setupOpts = {
+          copilot_node_command = "${pkgs.nodejs-slim.out}/bin/node";
+        };
       };
     };
     lazy.plugins = {
@@ -35,5 +38,11 @@
         lazy = false;
       };
     };
+    extraPackages = with pkgs; [
+      nodejs-slim
+      gh
+      lynx
+      lua51Packages.tiktoken_core
+    ];
   };
 }

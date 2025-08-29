@@ -23,8 +23,15 @@
           "path"
           "snippets"
           "buffer"
-          "copilot"
         ];
+        sources.providers = {
+          copilot = {
+            name = "copilot";
+            module = "blink-copilot";
+            score_offset = 100;
+            async = true;
+          };
+        };
         completion.menu.draw.columns = lib.generators.mkLuaInline ''          {
                     { 'kind_icon' },
                     { 'label', 'label_description', gap = 2 },

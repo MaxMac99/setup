@@ -54,7 +54,7 @@
       group = "[L]sp";
       icon = "";
     };
-    "<leader>sld" = {
+    "gd" = {
       desc = "[D]efinitions";
       icon = "";
     };
@@ -62,7 +62,7 @@
       desc = "[I]mplementations";
       icon = "";
     };
-    "<leader>slr" = {
+    "gr" = {
       desc = "[R]eferences";
       icon = "";
     };

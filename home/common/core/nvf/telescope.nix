@@ -18,10 +18,10 @@
       gitCommits = "<leader>svcw";
       gitStash = "<leader>svx";
       gitStatus = "<leader>svs";
-      lspDefinitions = "<leader>sld";
+      lspDefinitions = "gd";
       lspDocumentSymbols = "<leader>slsd";
       lspImplementations = "<leader>sli";
-      lspReferences = "<leader>slr";
+      lspReferences = "gr";
       lspTypeDefinitions = "<leader>slt";
       lspWorkspaceSymbols = "<leader>slsw";
       open = "<leader>so";
