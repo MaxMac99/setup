@@ -17,6 +17,7 @@ in {
     ./zoxide.nix
     ./bat.nix
     ./zsh.nix
+    ./ssh.nix
     ./nvf
   ];
 

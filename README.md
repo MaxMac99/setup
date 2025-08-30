@@ -17,9 +17,16 @@
    sudo darwin-rebuild switch --flake .#<YOUR_HOSTNAME>
    ```
 
+### GitHub
+
+In order to check out this repo create a new SSH-Key named `id_github` and
+register it at GitHub.
+
+For Kopf3 you need to create a separate SSH-Key named `id_kopf3_github`. You can
+register it later with `gh auth login`.
+
 ## Updates
 
 ```sh
 nix flake update
 ```
-
