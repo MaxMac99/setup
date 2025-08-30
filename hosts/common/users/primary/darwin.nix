@@ -35,6 +35,8 @@
       "elgato-stream-deck"
       "focusrite-control"
       "macfuse"
+      "logi-options+"
+      "logitune"
     ];
     taps = builtins.attrNames config.nix-homebrew.taps;
     onActivation = {
