@@ -12,6 +12,7 @@
     # background-blur = true;
     fullscreen = true;
     cursor-style = "block";
+    scrollback-limit = 10000;
   };
 in {
   programs.ghostty = {
