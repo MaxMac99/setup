@@ -32,6 +32,7 @@
       #      bindkey '^ ' autosuggest-accept   # ctrl+space
 
       export GITHUB_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
+      export PULUMI_ACCESS_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
     '';
 
     oh-my-zsh = {
