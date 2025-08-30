@@ -44,21 +44,10 @@
     darwin,
     home-manager,
     nix-homebrew,
-    homebrew-bundle,
-    homebrew-core,
-    homebrew-cask,
     mac-app-util,
     ...
   } @ inputs: let
     inherit (self) outputs;
-
-    #
-    # ========= Architectures =========
-    #
-    forAllSystems = nixpkgs.lib.genAttrs [
-      "x86_64-linux"
-      "aarch64-darwin"
-    ];
 
     # ========== Extend lib with lib.custom ==========
     # NOTE: This approach allows lib.custom to propagate into hm
@@ -81,12 +70,7 @@
               mac-app-util.darwinModules.default
               nix-homebrew.darwinModules.nix-homebrew
               (
-                {
-                  pkgs,
-                  config,
-                  inputs,
-                  ...
-                }: {
+                {config, ...}: {
                   # To enable it for all users:
                   home-manager.sharedModules = [
                     mac-app-util.homeManagerModules.default

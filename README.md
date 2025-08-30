@@ -25,6 +25,34 @@ register it at GitHub.
 For Kopf3 you need to create a separate SSH-Key named `id_kopf3_github`. You can
 register it later with `gh auth login`.
 
+### Secrets
+
+For secret management we are using sops-nix.
+
+1. Create a device SSH-Key named `id_ed25519`.
+2. Create age-key
+   ```sh
+   mkdir -p ~/.config/sops/age
+   ssh-to-age -private-key -i ~/.ssh/id_ed25519 > ~/.config/sops/age/keys.txt
+   ```
+3. Add permissions
+   ```sh
+   ssh-to-age < ~/.ssh/id_ed25519.pub
+   ```
+   Copy the output in the [.sops.yaml]() to the specific group.
+4. Edit secrets
+   ```sh
+   sops secrets/common.yaml
+   ```
+
+#### Add device
+
+1. Add permissions to [.sops.yaml]().
+2. Re-encrypt secrets
+   ```sh
+   sops updatekeys secrets/common.yaml
+   ```
+
 ## Updates
 
 ```sh

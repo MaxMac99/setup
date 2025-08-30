@@ -1,0 +1,7 @@
+keys:
+  - &maxs-macbook-pro age1crme8auc0sjgeu0r85w5lt04ey59me7jx4945zje4lnj3ctf2pzs8tc288
+creation_rules:
+  - path_regex: secrets/common.yaml
+    key_groups:
+      - age:
+        - *maxs-macbook-pro

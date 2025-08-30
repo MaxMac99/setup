@@ -1,9 +1,4 @@
-{
-  config,
-  pkgs,
-  lib,
-  ...
-}: {
+{config, ...}: {
   programs.zsh = {
     enable = true;
 
@@ -35,6 +30,8 @@
       #      bindkey '^I' forward-word         # tab
       #      bindkey '^[[Z' backward-word      # shift+tab
       #      bindkey '^ ' autosuggest-accept   # ctrl+space
+
+      export GITHUB_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
     '';
 
     oh-my-zsh = {

@@ -2,15 +2,11 @@
   config,
   lib,
   pkgs,
-  hostSpec,
+  inputs,
   ...
-}: let
-  platform =
-    if hostSpec.isDarwin
-    then "darwin"
-    else "nixos";
-in {
+}: {
   imports = lib.flatten [
+    inputs.sops-nix.homeManagerModules.sops
     ./fonts.nix
     ./git.nix
     ./tmux.nix
@@ -27,7 +23,14 @@ in {
     username = lib.mkDefault config.hostSpec.username;
     homeDirectory = lib.mkDefault config.hostSpec.home;
     stateVersion = lib.mkDefault "23.05";
+    sessionVariables = {
+      EDITOR = "nvim";
+      XDG_CONFIG_HOME = "$HOME/.config";
+    };
     packages = with pkgs; [
+      sops
+      age
+      ssh-to-age
       gh
       nodejs_24
       pwgen
@@ -55,5 +58,13 @@ in {
       temurin-bin-21
       zoom-us
     ];
+  };
+
+  sops = {
+    defaultSopsFile = lib.custom.relativeToRoot "secrets/common.yaml";
+    defaultSopsFormat = "yaml";
+    age.keyFile = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
+    secrets."kopf3/github-token" = {};
+    secrets."kopf3/pulumi-token" = {};
   };
 }
