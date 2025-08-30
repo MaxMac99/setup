@@ -111,6 +111,11 @@
         Clicking = true;
         TrackpadRightClick = true;
       };
+      CustomUserPreferences = {
+        NSGlobalDomain = {
+          NSStatusItemSpacing = 8;
+        };
+      };
     };
   };
 }
