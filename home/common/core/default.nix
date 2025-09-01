@@ -57,7 +57,6 @@
       maven
       temurin-bin-21
       yarn
-      filezilla
       zoom-us
     ];
   };
