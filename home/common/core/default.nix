@@ -51,9 +51,8 @@
       statix
       dotenv-cli
       pulumi
-      pulumiPackages.pulumi-nodejs
       google-cloud-sdk
-      azure-cli
+      pulumiPackages.pulumi-nodejs
       htop
       maven
       temurin-bin-21
