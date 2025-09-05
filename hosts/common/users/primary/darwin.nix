@@ -30,6 +30,7 @@
     casks = [
       "ghostty"
       "arc"
+      "zen"
       "docker-desktop"
       "displaylink"
       "elgato-stream-deck"
