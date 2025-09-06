@@ -12,6 +12,7 @@
     "affinity-photo"
     "bambu-studio"
     "autodesk-fusion"
+    "vlc"
   ];
 
   hostSpec = {
