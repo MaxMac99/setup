@@ -83,11 +83,11 @@
   };
   pycrashreport = python.pkgs.buildPythonPackage rec {
     pname = "pycrashreport";
-    version = "1.2.6";
+    version = "1.2.7";
     pyproject = true;
     src = pkgs.fetchPypi {
       inherit pname version;
-      sha256 = "sha256-fUqlI8NMYzV9zzUgROV8g/ZBfXFrxSEsxK+HE1c6SlU=";
+      sha256 = "sha256-j01S0yksHsR5+sWJYz0Ud9GfvrarAZYJaTicapxj7X8=";
     };
     nativeBuildInputs = with python.pkgs; [
       setuptools
@@ -232,17 +232,17 @@
   };
   qh3 = python.pkgs.buildPythonPackage rec {
     pname = "qh3";
-    version = "1.5.3";
+    version = "1.5.4";
     format = "pyproject";
     src = pkgs.fetchFromGitHub {
       owner = "jawah";
       repo = "qh3";
       rev = "v${version}";
-      sha256 = "sha256-4sgXvS/anKIHDJrYZhwcrmtzVU7XXAwAIpmiR2WHvuo=";
+      sha256 = "sha256-VlqkZk+7803dzwMBFpsSSQUSVu5/1jKouwuK7jNuMGU=";
     };
     cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
       inherit pname version src;
-      hash = "sha256-k4IG2kITRFNAXdPrsCr6VMAQxwb4NPmBXUz7jSvS/O4=";
+      hash = "sha256-Dgx7CSH+XyVZSVHAcr65QULsY//rxgeQe5jYQQkSjHc=";
     };
     nativeBuildInputs = with pkgs; [
       rustPlatform.cargoSetupHook
@@ -291,11 +291,11 @@
   };
   pytun-pmd3 = python.pkgs.buildPythonPackage rec {
     pname = "pytun_pmd3";
-    version = "2.2.2";
+    version = "3.0.2";
     pyproject = true;
     src = pkgs.fetchPypi {
       inherit pname version;
-      sha256 = "sha256-NE/YOCGbbjP/rXgQkPEp1OOrOd6ThbXgSCc/F2lvIVo=";
+      sha256 = "sha256-w/7FN8TiX+fXxjGaeM8fHrviAU0Jqc/YSX1Y/5TpEoU=";
     };
     nativeBuildInputs = with python.pkgs; [
       setuptools
@@ -319,13 +319,13 @@
   };
   pymobiledevice3 = python.pkgs.buildPythonApplication rec {
     pname = "pymobiledevice3";
-    version = "4.22.1";
+    version = "4.25.1";
 
     src = pkgs.fetchFromGitHub {
       owner = "doronz88";
       repo = "pymobiledevice3";
-      rev = "972c29f9f7d9ed9f7675d59235e556b68fbfafdc";
-      sha256 = "sha256-eMZhWoLn0Z/meNpSGCP+ZNH5dh4Z9W20TO7NrdCOmMU=";
+      rev = "v${version}";
+      sha256 = "sha256-F8XLxvwHCowbJhKjbtoUufWUzfbhcx4GzkQtkW1E4vo=";
     };
     format = "pyproject";
 
