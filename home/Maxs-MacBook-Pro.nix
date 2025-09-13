@@ -1,4 +1,4 @@
-{...}: {
+{pkgs, ...}: {
   imports = [
     common/core
 
@@ -10,5 +10,8 @@
     common/optional/ides/intellij.nix
     common/optional/ides/rust-rover.nix
     common/optional/discord.nix
+  ];
+  home.packages = with pkgs; [
+    ffmpeg_6
   ];
 }
