@@ -46,7 +46,6 @@
       fzf
       eza
       cargo
-      rustc
       nixpkgs-fmt
       selene
       statix
