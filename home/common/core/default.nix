@@ -56,6 +56,7 @@
       htop
       maven
       temurin-bin-21
+      openapi-generator-cli
       yarn
       zoom-us
     ];
