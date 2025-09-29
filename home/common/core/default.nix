@@ -15,6 +15,7 @@
     ./zsh.nix
     ./ssh.nix
     ./nvf
+    ./gcloud.nix
   ];
 
   programs.home-manager.enable = true;
@@ -52,7 +53,6 @@
       dotenv-cli
       pulumi
       pulumiPackages.pulumi-nodejs
-      google-cloud-sdk
       azure-cli
       htop
       maven
