@@ -1,4 +1,8 @@
-{lib, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: {
   nixpkgs.hostPlatform = "aarch64-darwin";
 
   imports = lib.flatten [
@@ -7,7 +11,8 @@
     ])
   ];
 
-  homebrew.casks = [
+  homebrew.casks = with pkgs; [
+    tunnelblick
   ];
 
   hostSpec = {
