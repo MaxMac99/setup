@@ -6,9 +6,16 @@
           (texlive)
           scheme-medium
           latexmk
+          minted # Add this for the minted package
+          fvextra # Recommended: better line breaking for minted
+          ifplatform
+          xstring
+          framed
           ;
       })
       texlab # Optional: LSP server for additional features
+      python3
+      python3Packages.pygments
     ];
     extraPlugins = {
       vimtex = {
@@ -34,6 +41,7 @@
               '-synctex=1',
               '-interaction=nonstopmode',
               '-pdf',
+              '-shell-escape',
             },
           }
 
