@@ -42,6 +42,26 @@
             end
           '';
         }
+        {
+          enable = true;
+          event = ["FocusGained" "BufEnter" "CursorHold" "CursorHoldI"];
+          callback = lib.generators.mkLuaInline ''
+            function()
+            if vim.fn.mode() ~= 'c' then
+              vim.cmd('checktime')
+            end
+            end
+          '';
+        }
+        {
+          enable = true;
+          event = ["FileChangedShellPost"];
+          callback = lib.generators.mkLuaInline ''
+            function()
+            vim.notify("File changed on disk. Buffer reloaded!", vim.log.levels.WARN)
+            end
+          '';
+        }
       ];
 
       mini.ai = {
@@ -60,6 +80,7 @@
       };
 
       options = {
+        autoread = true;
         breakindent = true;
         cursorline = true;
         hidden = true;

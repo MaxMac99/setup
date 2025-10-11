@@ -65,6 +65,30 @@
       desc = "Move to upper window";
     }
     {
+      mode = "t";
+      key = "<C-h>";
+      action = "<C-\\><C-n><C-w>h";
+      desc = "Move to left window from terminal";
+    }
+    {
+      mode = "t";
+      key = "<C-l>";
+      action = "<C-\\><C-n><C-w>l";
+      desc = "Move to right window from terminal";
+    }
+    {
+      mode = "t";
+      key = "<C-j>";
+      action = "<C-\\><C-n><C-w>j";
+      desc = "Move to lower window from terminal";
+    }
+    {
+      mode = "t";
+      key = "<C-k>";
+      action = "<C-\\><C-n><C-w>k";
+      desc = "Move to upper window from terminal";
+    }
+    {
       mode = "n";
       key = "<Esc>";
       action = "<cmd>nohlsearch<CR>";
