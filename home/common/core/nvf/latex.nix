@@ -6,8 +6,9 @@
           (texlive)
           scheme-medium
           latexmk
-          minted # Add this for the minted package
+          minted
           fvextra # Recommended: better line breaking for minted
+          upquote # Required by fvextra/minted
           ifplatform
           xstring
           framed
