@@ -17,6 +17,7 @@
     ./git.nix
     ./keymaps.nix
     ./languages.nix
+    ./latex.nix
     ./lsp.nix
     ./persisted.nix
     ./tabline.nix
