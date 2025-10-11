@@ -38,7 +38,6 @@
       "macfuse"
       "logi-options+"
       "logitune"
-      "skim"
     ];
     taps = builtins.attrNames config.nix-homebrew.taps;
     onActivation = {

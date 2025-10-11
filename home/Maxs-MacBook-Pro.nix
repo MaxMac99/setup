@@ -13,5 +13,21 @@
   ];
   home.packages = with pkgs; [
     ffmpeg_6
+    (texlive.combine {
+      inherit
+        (texlive)
+        scheme-medium
+        latexmk
+        minted
+        fvextra
+        upquote
+        ifplatform
+        xstring
+        framed
+        enumitem
+        ;
+    })
+    python3
+    python3Packages.pygments
   ];
 }

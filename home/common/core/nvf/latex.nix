@@ -1,22 +1,7 @@
 {pkgs, ...}: {
   programs.nvf.settings.vim = {
     extraPackages = with pkgs; [
-      (texlive.combine {
-        inherit
-          (texlive)
-          scheme-medium
-          latexmk
-          minted
-          fvextra # Recommended: better line breaking for minted
-          upquote # Required by fvextra/minted
-          ifplatform
-          xstring
-          framed
-          ;
-      })
       texlab # Optional: LSP server for additional features
-      python3
-      python3Packages.pygments
     ];
     extraPlugins = {
       vimtex = {
@@ -24,11 +9,6 @@
         setup = ''
           -- Set tex flavor to LaTeX
           vim.g.tex_flavor = 'latex'
-
-          -- PDF viewer configuration for macOS
-          vim.g.vimtex_view_method = 'skim'
-          vim.g.vimtex_view_skim_sync = 1       -- Forward search after compilation
-          vim.g.vimtex_view_skim_activate = 1   -- Focus Skim after viewing
 
           -- Compiler configuration
           vim.g.vimtex_compiler_method = 'latexmk'
