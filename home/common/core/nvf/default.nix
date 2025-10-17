@@ -1,33 +1,39 @@
 {
   inputs,
   lib,
-  pkgs,
+  config,
+  hostSpec,
   ...
 }: {
-  imports = [
-    inputs.nvf.homeManagerModules.nvf
-    ./ai.nix
-    ./autocomplete.nix
-    ./autopairs.nix
-    ./binds.nix
-    ./comments.nix
-    ./debugger.nix
-    ./filetree.nix
-    ./formatter.nix
-    ./git.nix
-    ./keymaps.nix
-    ./languages.nix
-    ./latex.nix
-    ./lsp.nix
-    ./persisted.nix
-    ./tabline.nix
-    ./telescope.nix
-    ./treesitter.nix
-    ./ui.nix
-    ./utility.nix
-    ./visuals.nix
-    ./xcode
-  ];
+  imports =
+    [
+      inputs.nvf.homeManagerModules.nvf
+      ./autocomplete.nix
+      ./autopairs.nix
+      ./binds.nix
+      ./comments.nix
+      ./debugger.nix
+      ./filetree.nix
+      ./formatter.nix
+      ./git.nix
+      ./keymaps.nix
+      ./languages.nix
+      ./lsp.nix
+      ./persisted.nix
+      ./tabline.nix
+      ./telescope.nix
+      ./treesitter.nix
+      ./ui.nix
+      ./utility.nix
+      ./visuals.nix
+    ]
+    ++ lib.optionals (!hostSpec.isMinimal) [
+      ./ai.nix
+    ]
+    ++ lib.optionals hostSpec.isDarwin [
+      ./latex.nix
+      ./xcode
+    ];
 
   programs.nvf = {
     enable = true;

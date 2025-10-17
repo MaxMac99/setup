@@ -1,4 +1,9 @@
-{pkgs, ...}: let
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}: let
   tokyo-theme = pkgs.tmuxPlugins.mkTmuxPlugin {
     pluginName = "tokyo-night";
     version = "1.5.5";
@@ -11,7 +16,7 @@
     };
   };
 in {
-  home.packages = [
+  home.packages = lib.optionals (!config.hostSpec.isMinimal && !config.hostSpec.isServer && config.hostSpec.isDarwin) [
     pkgs.nowplaying-cli
   ];
   programs.tmux = {

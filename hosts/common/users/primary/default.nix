@@ -6,11 +6,10 @@
   lib,
   ...
 }: let
-  hostSpec = config.hostSpec;
+  inherit (config) hostSpec;
   pubKeys = lib.filesystem.listFilesRecursive ./keys;
 in
   {
-    system.primaryUser = hostSpec.username;
     users.users.${hostSpec.username} = {
       name = hostSpec.username;
       shell = pkgs.zsh; # default shell
@@ -33,7 +32,7 @@ in
     home-manager = {
       extraSpecialArgs = {
         inherit pkgs inputs;
-        hostSpec = config.hostSpec;
+        inherit (config) hostSpec;
       };
       users.${hostSpec.username}.imports = lib.flatten [
         (

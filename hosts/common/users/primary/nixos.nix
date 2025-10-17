@@ -1,4 +1,8 @@
-{config, ...}: let
+{
+  config,
+  lib,
+  ...
+}: let
   hostSpec = config.hostSpec;
   ifTheyExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
 in {
@@ -14,7 +18,5 @@ in {
       ])
     ];
   };
-  users.defaultUserShell = pkgs.zsh;
-
-  programs.git.enable = true;
+  security.sudo.wheelNeedsPassword = false;
 }

@@ -29,11 +29,6 @@
           user = "max";
           identityFile = "~/.ssh/id_ionos_vps";
         };
-        "devpi" = lib.hm.dag.entryAfter ["*"] {
-          hostname = "192.168.178.185";
-          user = "pi";
-          identityFile = "~/.ssh/id_devpi";
-        };
         "borkenpi4" = lib.hm.dag.entryAfter ["*"] {
           hostname = "192.168.178.118";
           user = "pi";
@@ -43,6 +38,13 @@
           hostname = "192.168.178.97";
           user = "root";
           identityFile = "~/.ssh/id_maxdata";
+        };
+        "hetzner" = lib.hm.dag.entryAfter ["*"] {
+          hostname = "u499100.your-storagebox.de";
+          user = "u499100";
+          port = 23;
+          identitiesOnly = true;
+          identityFile = "~/.ssh/id_hetzner";
         };
       };
   };

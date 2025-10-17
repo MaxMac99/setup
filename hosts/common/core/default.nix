@@ -14,6 +14,7 @@ in {
   imports = lib.flatten [
     inputs.home-manager.${platformModules}.home-manager
     inputs.sops-nix.${platformModules}.sops
+    ./${platform}.nix
 
     (map lib.custom.relativeToRoot [
       "modules/common"
@@ -26,7 +27,12 @@ in {
     handle = "MaxMac99";
   };
 
-  networking.hostName = config.hostSpec.hostName;
+  time.timeZone = "Europe/Berlin";
+
+  networking = {
+    inherit (config.hostSpec) hostName;
+    domain = "";
+  };
 
   # Force home-manager to use global packages
   home-manager.useGlobalPkgs = true;
@@ -49,11 +55,6 @@ in {
     optimise.automatic = true;
     gc = {
       automatic = true;
-      interval = {
-        Weekday = 0;
-        Hour = 2;
-        Minute = 0;
-      };
       options = "--delete-older-than 1w";
     };
   };

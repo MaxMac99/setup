@@ -1,4 +1,4 @@
-{pkgs, ...}: {
+{config, lib, ...}: {
   programs.git = {
     enable = true;
     userEmail = "max_vissing@yahoo.de";
@@ -21,7 +21,7 @@
       pull.rebase = true;
       rebase.autoStash = true;
     };
-    includes = [
+    includes = lib.optionals config.hostSpec.isWork [
       {
         condition = "gitdir:~/kopf3/";
         path = "~/.gitconfig-kopf3";
@@ -29,8 +29,10 @@
     ];
   };
 
-  home.file.".gitconfig-kopf3".text = ''
-    [user]
-      email = max.vissing@kopf3.de
-  '';
+  home.file = lib.optionalAttrs config.hostSpec.isWork {
+    ".gitconfig-kopf3".text = ''
+      [user]
+        email = max.vissing@kopf3.de
+    '';
+  };
 }

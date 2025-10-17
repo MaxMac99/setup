@@ -1,6 +1,11 @@
 {
   description = "Configuration for all Nix managed devices";
 
+  nixConfig = {
+    extra-substituters = [ "https://cache.saumon.network/proxmox-nixos" ];
+    extra-trusted-public-keys = [ "proxmox-nixos:D9RYSWpQQC/msZUWphOY2I5RLH5Dd6yQcaHIuug7dWM=" ];
+  };
+
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     darwin = {
@@ -35,6 +40,10 @@
     nvf = {
       url = "github:notashelf/nvf";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+    proxmox-nixos = {
+      url = "github:SaumonNet/proxmox-nixos";
+      inputs.nixpkgs-unstable.follows = "nixpkgs";
     };
   };
 
@@ -93,10 +102,15 @@
           value = nixpkgs.lib.nixosSystem {
             specialArgs = {
               inherit inputs outputs lib;
-              isDarwin = true;
+              isDarwin = false;
             };
             modules = [
               home-manager.nixosModules.home-manager
+              (
+                {config, ...}: {
+                  nixpkgs.config.allowUnfree = true;
+                }
+              )
               ./hosts/nixos/${host}
             ];
           };

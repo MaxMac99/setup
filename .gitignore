@@ -1,1 +1,12 @@
 result
+
+# Pulumi
+pulumi/.pulumi/
+pulumi/**/node_modules/
+pulumi/**/.pulumi/
+pulumi/**/Pulumi.*.yaml
+*.pulumi.json
+
+# Pulumi state (if using local state)
+**/.pulumi/stacks/
+**/.pulumi/backups/

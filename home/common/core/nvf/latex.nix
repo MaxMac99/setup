@@ -1,4 +1,22 @@
 {pkgs, ...}: {
+  home.packages = with pkgs; [
+    (texlive.combine {
+      inherit
+        (texlive)
+        scheme-medium
+        latexmk
+        minted
+        fvextra
+        upquote
+        ifplatform
+        xstring
+        framed
+        enumitem
+        ;
+    })
+    python3
+    python3Packages.pygments
+  ];
   programs.nvf.settings.vim = {
     extraPackages = with pkgs; [
       texlab # Optional: LSP server for additional features
