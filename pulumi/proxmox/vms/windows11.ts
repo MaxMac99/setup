@@ -121,7 +121,7 @@ export function createWindows11VM(config: Windows11Config = defaultConfig) {
 
         // SATA controller (better Windows compatibility for migrations)
         // Note: Can switch to VirtIO SCSI after installing VirtIO drivers in Windows
-        scsiHardware: "virtio-scsi-pci",
+        scsiHardware: "virtio-scsi-single",
 
         // Machine type - Q35 (matching Unraid)
         machine: "q35",
@@ -141,7 +141,7 @@ export function createWindows11VM(config: Windows11Config = defaultConfig) {
 
         // Start on boot
         onBoot: true,
-        started: false, // Don't auto-start until disk is restored
+        started: true, // Don't auto-start until disk is restored
 
         // Operating system type
         operatingSystem: {
