@@ -113,6 +113,17 @@ runcmd:
   - systemctl restart k3s
 `;
 
+    // Create cloud-init snippet file
+    const cloudInitSnippet = new proxmox.storage.File(`cloud-init-${config.vmName}`, {
+        nodeName: ProxmoxConfig.nodeName,
+        datastoreId: "local",
+        contentType: "snippets",
+        sourceRaw: {
+            data: cloudInitUserData,
+            fileName: `cloud-init-${config.vmName}.yaml`,
+        },
+    });
+
     return new proxmox.vm.VirtualMachine(`k3s-${config.vmName}`, {
         nodeName: ProxmoxConfig.nodeName,
         name: config.vmName,
@@ -172,8 +183,7 @@ runcmd:
                 username: "max",
                 keys: config.sshKeys,
             },
-            // Use inline user data instead of snippet file to avoid SSH requirement
-            userData: cloudInitUserData,
+            userDataFileId: cloudInitSnippet.id,
         },
 
         // Start on boot
