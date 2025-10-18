@@ -31,7 +31,7 @@ in {
 
   networking = {
     inherit (config.hostSpec) hostName;
-    domain = "";
+    domain = lib.mkDefault config.networkConfig.domain;
   };
 
   # Force home-manager to use global packages
