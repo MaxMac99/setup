@@ -35,8 +35,9 @@ main() {
 
     cd "$PROJECT_ROOT"
 
-    log_info "Building Proxmox image using nixos-generators..."
+    log_info "Building QCOW2 image using nixos-generators..."
     log_info "Configuration: hosts/nixos/k3s-template"
+    log_info "Format: qcow2 (Proxmox compatible)"
     log_info "Output: $OUTPUT_DIR"
     log_info ""
 
@@ -44,12 +45,12 @@ main() {
     log_info "Running nixos-generators (this may take 5-10 minutes)..."
 
     nix run github:nix-community/nixos-generators -- \
-        --format proxmox \
+        --format qcow \
         --flake .#k3s-template \
         -o "$OUTPUT_DIR"
 
     # Find the generated image
-    local image_file=$(ls -t "$OUTPUT_DIR"/*.vma.zst 2>/dev/null | head -n 1)
+    local image_file=$(ls -t "$OUTPUT_DIR"/nixos.qcow2 2>/dev/null | head -n 1)
 
     if [ -z "$image_file" ]; then
         log_error "Build failed - no image found in $OUTPUT_DIR/"

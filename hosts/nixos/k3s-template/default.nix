@@ -7,7 +7,7 @@
       "modules/nixos/k3s-base.nix"
     ])
     ++ [
-      ./hardware-configuration.nix
+      (modulesPath + "/profiles/qemu-guest.nix")
     ];
 
   # System platform
@@ -23,21 +23,22 @@
     isMinimal = true;
   };
 
-  # Bootloader
+  # Bootloader - Simple GRUB setup for Proxmox (nixos-generators handles the rest)
   boot = {
-    loader = {
-      systemd-boot.enable = true;
-      efi.canTouchEfiVariables = true;
+    loader.grub = {
+      enable = lib.mkDefault true;
+      device = lib.mkDefault "/dev/vda";
     };
     kernelPackages = pkgs.linuxPackages_latest;
   };
 
-  # Networking (time zone is set in hosts/common/core)
+  # Networking (time zone set in hosts/common/core)
   networking = {
     hostId = "00000000"; # Placeholder - cloud-init will set unique IDs
     useDHCP = false; # Static IPs configured via cloud-init
     firewall.enable = false; # K3S manages its own firewall rules
     nameservers = config.networkConfig.dns.servers;
+    fqdn = "k3s-template.local"; # Set explicitly to avoid evaluation issues
   };
 
   # Enable cloud-init for VM customization

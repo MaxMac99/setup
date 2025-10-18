@@ -297,14 +297,25 @@ cd setup
 nix flake update
 
 # Build the template (takes 5-10 minutes)
-./scripts/build-k3s-image.sh
+./pulumi/proxmox/scripts/build-nixos-image.sh
+```
+
+This builds a QCOW2 image from your `k3s-template` configuration.
+
+Then deploy it as a template:
+
+```bash
+# Deploy the template to Proxmox
+./pulumi/proxmox/scripts/deploy-template.sh
 ```
 
 This will:
-1. Use nixos-generators to build a Proxmox image from your `k3s-template` configuration
-2. Save it to `/var/lib/vz/dump/`
-3. Restore as VM template with ID 9000
-4. Template includes NixOS + k3s pre-installed
+1. Use nixos-generators to build a QCOW2 image from your `k3s-template` configuration
+2. Create VM 9000 on Proxmox
+3. Import the QCOW2 disk
+4. Configure the VM (VirtIO, networking, etc.)
+5. Convert to template
+6. Template includes NixOS + k3s pre-installed
 
 **One-time setup!** You only need to rebuild the template when you change the base NixOS configuration.
 

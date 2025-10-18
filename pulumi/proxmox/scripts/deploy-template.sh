@@ -39,7 +39,7 @@ main() {
     fi
 
     # Find the image
-    local image_file=$(ls -t "$IMAGE_DIR"/*.vma.zst 2>/dev/null | head -n 1)
+    local image_file=$(ls -t "$IMAGE_DIR"/nixos.qcow2 2>/dev/null | head -n 1)
 
     if [ -z "$image_file" ]; then
         log_error "No image found in $IMAGE_DIR/"
@@ -58,9 +58,27 @@ main() {
         qm destroy $TEMPLATE_ID || true
     fi
 
-    # Restore as VM
-    log_info "Restoring image as VM $TEMPLATE_ID..."
-    qmrestore "$image_file" $TEMPLATE_ID --storage "$STORAGE"
+    # Create new VM
+    log_info "Creating VM $TEMPLATE_ID..."
+    qm create $TEMPLATE_ID \
+        --name "k3s-template" \
+        --memory 2048 \
+        --cores 2 \
+        --net0 virtio,bridge=vmbr0
+
+    # Import the disk
+    log_info "Importing disk..."
+    qm importdisk $TEMPLATE_ID "$image_file" "$STORAGE"
+
+    # Configure the VM to use the imported disk
+    log_info "Configuring VM..."
+    qm set $TEMPLATE_ID \
+        --scsihw virtio-scsi-pci \
+        --scsi0 "${STORAGE}:vm-${TEMPLATE_ID}-disk-0" \
+        --boot order=scsi0 \
+        --serial0 socket \
+        --vga serial0 \
+        --agent enabled=1
 
     # Convert to template
     log_info "Converting to template..."
