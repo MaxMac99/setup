@@ -35,25 +35,37 @@ main() {
 
     cd "$PROJECT_ROOT"
 
+    # Create writable output directory
+    mkdir -p "$OUTPUT_DIR"
+
     log_info "Building QCOW2 image using nixos-generators..."
     log_info "Configuration: hosts/nixos/k3s-template"
     log_info "Format: qcow2 (Proxmox compatible)"
     log_info "Output: $OUTPUT_DIR"
     log_info ""
 
-    # Build the image
+    # Build the image (creates a symlink in OUTPUT_DIR)
     log_info "Running nixos-generators (this may take 5-10 minutes)..."
 
     nix run github:nix-community/nixos-generators -- \
         --format qcow \
         --flake .#k3s-template \
-        -o "$OUTPUT_DIR"
+        -o "$OUTPUT_DIR/result"
 
-    # Find the generated image
-    local image_file=$(ls -t "$OUTPUT_DIR"/nixos.qcow2 2>/dev/null | head -n 1)
+    # The result is a symlink to the nix store
+    # We need to copy the actual qcow2 file to a writable location
+    if [ ! -L "$OUTPUT_DIR/result" ]; then
+        log_error "Build failed - no result symlink found"
+        exit 1
+    fi
 
-    if [ -z "$image_file" ]; then
-        log_error "Build failed - no image found in $OUTPUT_DIR/"
+    log_info "Copying image to writable location..."
+    cp -L "$OUTPUT_DIR/result/nixos.qcow2" "$OUTPUT_DIR/nixos.qcow2"
+
+    local image_file="$OUTPUT_DIR/nixos.qcow2"
+
+    if [ ! -f "$image_file" ]; then
+        log_error "Build failed - no image found at $image_file"
         exit 1
     fi
 
