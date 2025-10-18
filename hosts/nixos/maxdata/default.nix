@@ -93,17 +93,9 @@
   # Configure sudo for Proxmox Pulumi provider
   # Provider v0.48.0+ requires specific sudo permission for file uploads
   # See: https://github.com/bpg/terraform-provider-proxmox/releases/tag/v0.48.0
-  security.sudo.extraRules = [
-    {
-      users = [ "max" ];
-      commands = [
-        {
-          command = "/usr/bin/tee /var/lib/vz/*";
-          options = [ "NOPASSWD" ];
-        }
-      ];
-    }
-  ];
+  security.sudo.extraConfig = ''
+    max ALL=(root) NOPASSWD: /usr/bin/tee /var/lib/vz/*
+  '';
 
   # Enable the OpenSSH daemon
   services.openssh.openFirewall = true;
