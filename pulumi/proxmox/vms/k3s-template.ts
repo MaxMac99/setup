@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as command from "@pulumi/command";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 /**
  * K3S Template Builder and Deployer
@@ -14,10 +15,12 @@ import * as path from "path";
  */
 
 const TEMPLATE_ID = 9000;
-const STORAGE = "tank";
-const IMAGE_DIR = "/var/lib/vz/dump/nixos-k3s-template";
+const STORAGE = "fast";
+const IMAGE_DIR = process.env.HOME + "/nixos-k3s-template";
 
-// Get script paths
+// Get script paths (ES module compatible)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const buildScript = path.join(__dirname, "../scripts/build-nixos-image.sh");
 const deployScript = path.join(__dirname, "../scripts/deploy-template.sh");
 

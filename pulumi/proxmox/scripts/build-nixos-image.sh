@@ -25,8 +25,8 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Configuration
-OUTPUT_DIR="${OUTPUT_DIR:-/var/lib/vz/dump/nixos-k3s-template}"
+# Configuration - use user's home by default, can override with OUTPUT_DIR env var
+OUTPUT_DIR="${OUTPUT_DIR:-$HOME/nixos-k3s-template}"
 
 main() {
     log_info "========================================"

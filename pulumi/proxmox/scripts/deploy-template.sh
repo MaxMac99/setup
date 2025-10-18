@@ -24,8 +24,8 @@ log_error() {
 
 # Configuration from environment or defaults
 TEMPLATE_ID="${TEMPLATE_ID:-9000}"
-STORAGE="${STORAGE:-tank}"
-IMAGE_DIR="${IMAGE_DIR:-/var/lib/vz/dump/nixos-k3s-template}"
+STORAGE="${STORAGE:-fast}"
+IMAGE_DIR="${IMAGE_DIR:-$HOME/nixos-k3s-template}"
 
 main() {
     log_info "========================================"
