@@ -98,7 +98,7 @@
 
   # Allow user to write to snippets directory without sudo
   systemd.tmpfiles.rules = [
-    "d /var/lib/vz/snippets 0755 ${config.hostSpec.username} root -"
+    "d /var/lib/vz/snippets 0755 ${hostSpec.username} root -"
   ];
 
   # Enable the OpenSSH daemon
