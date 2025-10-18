@@ -90,15 +90,19 @@
     ln -sfn ${pkgs.bash}/bin/bash /usr/bin/bash
   '';
 
-  # Configure sudo to include /usr/bin in secure_path
-  # Required for Proxmox Pulumi provider
-  security.sudo.extraConfig = ''
-    Defaults secure_path="/usr/bin:/usr/local/bin:/usr/local/sbin:/run/wrappers/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin"
-  '';
-
-  # Allow user to write to snippets directory without sudo
-  systemd.tmpfiles.rules = [
-    "d /var/lib/vz/snippets 0755 max root -"
+  # Configure sudo for Proxmox Pulumi provider
+  # Provider v0.48.0+ requires specific sudo permission for file uploads
+  # See: https://github.com/bpg/terraform-provider-proxmox/releases/tag/v0.48.0
+  security.sudo.extraRules = [
+    {
+      users = [ "max" ];
+      commands = [
+        {
+          command = "/usr/bin/tee /var/lib/vz/*";
+          options = [ "NOPASSWD" ];
+        }
+      ];
+    }
   ];
 
   # Enable the OpenSSH daemon
