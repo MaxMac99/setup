@@ -40,7 +40,7 @@ export interface K3sNodeConfig {
 // K3S cluster shared configuration
 const K3S_TOKEN = pulumi.output(pulumi.secret("K10YOUR_SHARED_SECRET_TOKENxx")); // Change this!
 const SSH_KEYS = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... max@maxdata", // Replace with your key
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMEZtPDynBeLhBBVpFugAD14CHoHJicGJXVKzm+mu3Kc max@maxdata", // Replace with your key
 ];
 
 export const k3sNodeConfigs: K3sNodeConfig[] = [
