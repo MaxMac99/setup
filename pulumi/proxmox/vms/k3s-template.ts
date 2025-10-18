@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 
 const TEMPLATE_ID = 9000;
 const STORAGE = "fast";
-const IMAGE_DIR = process.env.HOME + "/nixos-k3s-template";
+const IMAGE_DIR = "/tmp/nixos-k3s-template";
 
 // Get script paths (ES module compatible)
 const __filename = fileURLToPath(import.meta.url);
