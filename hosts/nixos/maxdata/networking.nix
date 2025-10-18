@@ -27,11 +27,11 @@
 
   systemd.network.networks."30-vmbr0" = {
     matchConfig.Name = "vmbr0";
-    # Optional: Static IP on bridge
+    # Static IP on bridge from networkConfig
      networkConfig = {
-       Address = "192.168.178.2/24";
-       Gateway = "192.168.178.1";
-       DNS = [ "192.168.178.1" "1.1.1.1" ];
+       Address = "${config.networkConfig.staticIPs.maxdata}/24";
+       Gateway = config.networkConfig.gateway;
+       DNS = config.networkConfig.dns.servers;
        IPv6AcceptRA = true;
      };
   };
@@ -70,6 +70,6 @@
   # Hostname resolution
   # IMPORTANT: Proxmox requires hostname to resolve to non-loopback IP
   networking.extraHosts = ''
-    192.168.178.2 maxdata.local maxdata
+    ${config.networkConfig.staticIPs.maxdata} maxdata.${config.networkConfig.domain} maxdata
   '';
 }

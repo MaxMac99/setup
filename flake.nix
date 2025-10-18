@@ -45,6 +45,10 @@
       url = "github:SaumonNet/proxmox-nixos";
       inputs.nixpkgs-unstable.follows = "nixpkgs";
     };
+    nixos-generators = {
+      url = "github:nix-community/nixos-generators";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {

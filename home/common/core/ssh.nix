@@ -35,9 +35,9 @@
           identityFile = "~/.ssh/id_borkenpi4";
         };
         "maxdata" = lib.hm.dag.entryAfter ["*"] {
-          hostname = "192.168.178.97";
-          user = "root";
-          identityFile = "~/.ssh/id_maxdata";
+          hostname = "192.168.178.2";
+          user = "max";
+          identityFile = "~/.ssh/id_ed25519";
         };
         "hetzner" = lib.hm.dag.entryAfter ["*"] {
           hostname = "u499100.your-storagebox.de";

@@ -8,7 +8,8 @@ This project manages Proxmox VMs declaratively using Pulumi and TypeScript.
 proxmox/
 ├── index.ts              # Main entry point
 ├── vms/                  # VM configurations
-│   └── windows11.ts      # Windows 11 VM configuration
+│   ├── windows11.ts      # Windows 11 VM configuration
+│   └── k3s.ts            # K3S cluster node configurations
 ├── package.json          # Node.js dependencies
 ├── tsconfig.json         # TypeScript configuration
 └── Pulumi.yaml          # Pulumi project configuration
@@ -257,6 +258,312 @@ The Guest Agent provides better VM integration with Proxmox:
 4. Double-click `qemu-ga-x86_64.msi`
 5. Follow the installation wizard (default settings are fine)
 6. Service starts automatically after installation
+
+## K3S Cluster
+
+### Configuration
+
+The K3S cluster consists of 3 NixOS-based nodes:
+
+| Node | VM ID | Role | CPU | Memory | Disk | Storage |
+|------|-------|------|-----|--------|------|---------|
+| k3s-node1 | 201 | Control Plane + Worker | 2 vCPUs | 6GB | 32GB | fast |
+| k3s-node2 | 202 | Control Plane + Worker | 2 vCPUs | 6GB | 32GB | fast |
+| k3s-node3 | 203 | Control Plane + Worker | 2 vCPUs | 6GB | 32GB | fast |
+
+All nodes use:
+- **UEFI boot** for modern boot process
+- **VirtIO SCSI** for best performance (Linux native support)
+- **VirtIO-Net** for networking
+- **QEMU Guest Agent** for Proxmox integration
+
+### Deployment Steps
+
+The deployment uses **nixos-generators** to create a Proxmox template, then Pulumi clones that template for each node. This is fast and follows Proxmox best practices.
+
+#### Step 1: Build the NixOS Template
+
+**On your Proxmox host**, run the build script:
+
+```bash
+# SSH to Proxmox
+ssh root@192.168.178.2
+
+# Clone your configuration repository
+git clone https://github.com/YOUR_USERNAME/setup.git
+cd setup
+
+# Update flake
+nix flake update
+
+# Build the template (takes 5-10 minutes)
+./scripts/build-k3s-image.sh
+```
+
+This will:
+1. Use nixos-generators to build a Proxmox image from your `k3s-template` configuration
+2. Save it to `/var/lib/vz/dump/`
+3. Restore as VM template with ID 9000
+4. Template includes NixOS + k3s pre-installed
+
+**One-time setup!** You only need to rebuild the template when you change the base NixOS configuration.
+
+#### Step 2: Configure Pulumi
+
+**On your local machine:**
+
+1. Update SSH keys in `pulumi/proxmox/vms/k3s.ts` (line 38):
+   ```typescript
+   const SSH_KEYS = [
+       "ssh-ed25519 AAAA... your-actual-key",
+   ];
+   ```
+
+2. Update k3s token in `pulumi/proxmox/vms/k3s.ts` (line 36):
+   ```typescript
+   const K3S_TOKEN = pulumi.output(pulumi.secret("your-strong-secret-token"));
+   ```
+
+#### Step 3: Deploy with Pulumi
+
+```bash
+cd pulumi/proxmox
+
+# Preview what will be created
+pulumi preview
+
+# Deploy the cluster (clones template 3x, takes ~30 seconds)
+pulumi up
+```
+
+Pulumi will:
+1. Clone template 9000 three times (for nodes 201, 202, 203)
+2. Customize each clone via cloud-init:
+   - Set hostname
+   - Configure SSH keys
+   - Set k3s token and cluster settings
+3. Start all VMs
+4. Cloud-init configures k3s automatically
+
+**Total time: ~1 minute** (vs 30-45 minutes with manual installation)
+
+#### Step 4: Verify Cluster
+
+Wait ~2 minutes for k3s to initialize, then:
+
+```bash
+# SSH to first node
+ssh max@192.168.178.201
+
+# Check cluster status
+sudo kubectl get nodes
+```
+
+Expected output:
+```
+NAME        STATUS   ROLES                       AGE   VERSION
+k3s-node1   Ready    control-plane,etcd,master   2m    v1.28.x+k3s1
+k3s-node2   Ready    control-plane,etcd,master   1m    v1.28.x+k3s1
+k3s-node3   Ready    control-plane,etcd,master   1m    v1.28.x+k3s1
+```
+
+#### Step 5: Configure Local kubectl
+
+```bash
+# Copy kubeconfig
+ssh max@192.168.178.201 'sudo cat /etc/rancher/k3s/k3s.yaml' > ~/.kube/k3s-config
+
+# Update server address
+sed -i '' 's/127.0.0.1/192.168.178.201/g' ~/.kube/k3s-config
+
+# Use the cluster
+export KUBECONFIG=~/.kube/k3s-config
+kubectl get nodes
+```
+
+Your k3s cluster is ready!
+
+### Updating the Cluster
+
+**Rebuild nodes** (e.g., after config changes):
+
+```bash
+# 1. Rebuild template on Proxmox (if base config changed)
+ssh root@192.168.178.2
+cd setup && git pull
+./scripts/build-k3s-image.sh
+
+# 2. Recreate VMs with Pulumi
+cd pulumi/proxmox
+pulumi destroy --target 'urn:pulumi:default::proxmox::proxmoxve:vm/virtualMachine:VirtualMachine::k3s-k3s-node2'
+pulumi up
+```
+
+**Update template only** (preserves existing VMs):
+
+```bash
+ssh root@192.168.178.2
+cd setup && git pull
+./scripts/build-k3s-image.sh
+# Existing VMs continue running, new clones use updated template
+```
+
+### Alternative: Manual Installation
+
+If you prefer not to use the template approach:
+
+For each node (201, 202, 203), follow these steps:
+
+**Start the VM and open console:**
+```bash
+# In Proxmox web UI, select the VM and click "Start"
+# Then click "Console" to access the terminal
+```
+
+**Or via CLI:**
+```bash
+qm start 201  # Start k3s-node1
+qm console 201
+```
+
+**In the NixOS installer:**
+
+```bash
+# 1. Partition the disk
+sudo parted /dev/sda -- mklabel gpt
+sudo parted /dev/sda -- mkpart ESP fat32 1MiB 512MiB
+sudo parted /dev/sda -- set 1 esp on
+sudo parted /dev/sda -- mkpart primary 512MiB 100%
+
+# 2. Format partitions
+sudo mkfs.fat -F 32 -n boot /dev/sda1
+sudo mkfs.ext4 -L nixos /dev/sda2
+
+# 3. Mount filesystems
+sudo mount /dev/disk/by-label/nixos /mnt
+sudo mkdir -p /mnt/boot
+sudo mount /dev/disk/by-label/boot /mnt/boot
+
+# 4. Clone your configuration
+sudo nixos-generate-config --root /mnt
+
+# 5. Replace with your actual configuration
+# Option A: If you have network access, fetch from Git
+sudo nix-shell -p git
+cd /mnt/etc/nixos
+sudo git clone https://github.com/YOUR_USERNAME/setup.git tmp
+sudo cp tmp/hosts/nixos/k3s-node1/* .  # Adjust node number
+sudo rm -rf tmp
+
+# Option B: Manually copy the configuration files
+# Copy the contents of hosts/nixos/k3s-node1/configuration.nix
+# and modules/nixos/k3s-base.nix to /mnt/etc/nixos/
+
+# 6. Update the configuration
+# IMPORTANT: Update these values in configuration.nix:
+# - networking.hostName (k3s-node1, k3s-node2, or k3s-node3)
+# - networking.hostId (generate unique: head -c 8 /dev/urandom | od -A n -t x8 | tr -d ' \n')
+# - services.k3s.token (use a strong shared secret)
+# - services.k3s.clusterInit (only true for node1, false for others)
+# - SSH authorized keys (add your public key)
+
+# 7. Install NixOS
+sudo nixos-install
+
+# 8. Set root password when prompted
+
+# 9. Reboot
+sudo reboot
+```
+
+**After reboot:**
+- The VM should boot from disk (not the ISO)
+- If it boots to ISO again, change boot order in Proxmox:
+  ```bash
+  qm set 201 --boot order=scsi0
+  ```
+
+#### 3. Verify K3S Installation
+
+After all nodes are installed and running:
+
+```bash
+# SSH to the first node (k3s-node1)
+ssh max@k3s-node1  # or use IP address
+
+# Check K3S status
+sudo systemctl status k3s
+
+# Get kubeconfig
+sudo cat /etc/rancher/k3s/k3s.yaml
+
+# Verify cluster
+sudo kubectl get nodes
+```
+
+Expected output:
+```
+NAME        STATUS   ROLES                       AGE   VERSION
+k3s-node1   Ready    control-plane,etcd,master   5m    v1.28.x+k3s1
+k3s-node2   Ready    control-plane,etcd,master   3m    v1.28.x+k3s1
+k3s-node3   Ready    control-plane,etcd,master   2m    v1.28.x+k3s1
+```
+
+#### 4. Configure kubectl on Your Local Machine
+
+```bash
+# Copy the kubeconfig from k3s-node1
+ssh max@k3s-node1 'sudo cat /etc/rancher/k3s/k3s.yaml' > ~/.kube/k3s-config
+
+# Update the server address in the config
+sed -i 's/127.0.0.1/k3s-node1/g' ~/.kube/k3s-config
+
+# Set KUBECONFIG environment variable
+export KUBECONFIG=~/.kube/k3s-config
+
+# Verify
+kubectl get nodes
+```
+
+### Customizing K3S Nodes
+
+You can customize the VM specifications by editing `vms/k3s.ts`:
+
+```typescript
+export const k3sNodeConfigs: K3sNodeConfig[] = [
+    {
+        vmId: 201,
+        vmName: "k3s-node1",
+        cpuCores: 6,      // Increase CPU
+        memoryMB: 16384,  // Increase RAM to 16GB
+        diskSizeGB: 64,   // Increase disk space
+        role: "server",
+    },
+    // ... other nodes
+];
+```
+
+### Managing the Cluster
+
+**Add a worker node:**
+
+1. Add configuration to `vms/k3s.ts`
+2. Run `pulumi up`
+3. Install NixOS with `role: "agent"` in the configuration
+4. Point to the first node using `serverAddr` in k3s configuration
+
+**Remove a node:**
+
+```bash
+# Drain the node
+kubectl drain k3s-node3 --ignore-daemonsets --delete-emptydir-data
+
+# Remove from cluster
+kubectl delete node k3s-node3
+
+# Destroy the VM
+pulumi destroy --target urn:pulumi:default::proxmox::proxmoxve:vm/virtualMachine:VirtualMachine::k3s-k3s-node3
+```
 
 ## Storage Pools
 
