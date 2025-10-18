@@ -172,19 +172,8 @@ runcmd:
                 username: "max",
                 keys: config.sshKeys,
             },
-            userDataFileId: cloudInitUserData.apply(data => {
-                // Create cloud-init user data file
-                // Note: Snippets must be stored on 'local' storage (supports snippets content type)
-                return new proxmox.storage.File(`cloudinit-${config.vmName}`, {
-                    nodeName: ProxmoxConfig.nodeName,
-                    datastoreId: "local",
-                    contentType: "snippets",
-                    sourceRaw: {
-                        data: data,
-                        fileName: `cloudinit-${config.vmName}.yaml`,
-                    },
-                }).id;
-            }),
+            // Use inline user data instead of snippet file to avoid SSH requirement
+            userData: cloudInitUserData,
         },
 
         // Start on boot

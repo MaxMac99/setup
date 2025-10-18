@@ -53,14 +53,14 @@ main() {
     log_info ""
 
     # Remove existing template if it exists
-    if qm status $TEMPLATE_ID &>/dev/null; then
+    if sudo qm status $TEMPLATE_ID &>/dev/null; then
         log_warn "VM $TEMPLATE_ID already exists. Removing..."
-        qm destroy $TEMPLATE_ID || true
+        sudo qm destroy $TEMPLATE_ID || true
     fi
 
     # Create new VM
     log_info "Creating VM $TEMPLATE_ID..."
-    qm create $TEMPLATE_ID \
+    sudo qm create $TEMPLATE_ID \
         --name "k3s-template" \
         --memory 2048 \
         --cores 2 \
@@ -68,11 +68,11 @@ main() {
 
     # Import the disk
     log_info "Importing disk..."
-    qm importdisk $TEMPLATE_ID "$image_file" "$STORAGE"
+    sudo qm importdisk $TEMPLATE_ID "$image_file" "$STORAGE"
 
     # Configure the VM to use the imported disk
     log_info "Configuring VM..."
-    qm set $TEMPLATE_ID \
+    sudo qm set $TEMPLATE_ID \
         --scsihw virtio-scsi-pci \
         --scsi0 "${STORAGE}:vm-${TEMPLATE_ID}-disk-0" \
         --boot order=scsi0 \
@@ -82,7 +82,7 @@ main() {
 
     # Convert to template
     log_info "Converting to template..."
-    qm template $TEMPLATE_ID
+    sudo qm template $TEMPLATE_ID
 
     # Read and output the hash
     if [ -f "$IMAGE_DIR/image.sha256" ]; then
