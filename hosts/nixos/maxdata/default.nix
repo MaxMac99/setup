@@ -84,10 +84,16 @@
 
   # Create /usr/bin symlinks for tools that expect standard FHS paths
   # Required for Proxmox Pulumi provider which uses /usr/bin/tee
-  system.activationScripts.usrbinenv = ''
+  system.activationScripts.usrbintools = ''
     mkdir -m 0755 -p /usr/bin
     ln -sfn ${pkgs.coreutils}/bin/tee /usr/bin/tee
     ln -sfn ${pkgs.bash}/bin/bash /usr/bin/bash
+  '';
+
+  # Configure sudo to include /usr/bin in secure_path
+  # Required for Proxmox Pulumi provider
+  security.sudo.extraConfig = ''
+    Defaults secure_path="/usr/bin:/usr/local/bin:/usr/local/sbin:/run/wrappers/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin"
   '';
 
   # Enable the OpenSSH daemon

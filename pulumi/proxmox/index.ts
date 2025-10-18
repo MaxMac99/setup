@@ -42,7 +42,7 @@ Windows 11 VM:
   Network MAC: ${defaultConfig.macAddress}
   VirtIO ISO: ${virtioIsoId}
 
-K3S Template: ${templateId} (hash: ${templateVersion})
+K3S Template: ${templateId}
 K3S Cluster (cloned from template ${templateId}):
   Node 1: VM ${k3sNodes[0].vmId} - ${k3sNodes[0].name} (${k3sNodeConfigs[0].cpuCores} vCPUs, ${k3sNodeConfigs[0].memoryMB / 1024}GB RAM, ${k3sNodeConfigs[0].role})
   Node 2: VM ${k3sNodes[1].vmId} - ${k3sNodes[1].name} (${k3sNodeConfigs[1].cpuCores} vCPUs, ${k3sNodeConfigs[1].memoryMB / 1024}GB RAM, ${k3sNodeConfigs[1].role})
