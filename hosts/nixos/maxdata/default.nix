@@ -82,6 +82,14 @@
     rclone
   ];
 
+  # Create /usr/bin symlinks for tools that expect standard FHS paths
+  # Required for Proxmox Pulumi provider which uses /usr/bin/tee
+  system.activationScripts.usrbinenv = ''
+    mkdir -m 0755 -p /usr/bin
+    ln -sfn ${pkgs.coreutils}/bin/tee /usr/bin/tee
+    ln -sfn ${pkgs.bash}/bin/bash /usr/bin/bash
+  '';
+
   # Enable the OpenSSH daemon
   services.openssh.openFirewall = true;
 
