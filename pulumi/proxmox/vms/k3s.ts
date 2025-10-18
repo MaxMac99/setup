@@ -1,5 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as proxmox from "@muhlba91/pulumi-proxmoxve";
+import * as command from "@pulumi/command";
 import { deployTemplate, templateVersion } from "./k3s-template";
 import { NetworkConfig, ProxmoxConfig } from "../config";
 
@@ -113,15 +114,14 @@ runcmd:
   - systemctl restart k3s
 `;
 
-    // Create cloud-init snippet file
-    const cloudInitSnippet = new proxmox.storage.File(`cloud-init-${config.vmName}`, {
-        nodeName: ProxmoxConfig.nodeName,
-        datastoreId: "local",
-        contentType: "snippets",
-        sourceRaw: {
-            data: cloudInitUserData,
-            fileName: `cloud-init-${config.vmName}.yaml`,
-        },
+    // Create cloud-init snippet file using local command
+    // Avoids the sudo/tee quoting issues in proxmox.storage.File
+    const snippetPath = `/var/lib/vz/snippets/cloud-init-${config.vmName}.yaml`;
+    const cloudInitSnippet = new command.local.Command(`cloud-init-${config.vmName}`, {
+        create: cloudInitUserData.apply(data =>
+            `cat > ${snippetPath} << 'CLOUDINIT_EOF'\n${data}\nCLOUDINIT_EOF`
+        ),
+        delete: `rm -f ${snippetPath}`,
     });
 
     return new proxmox.vm.VirtualMachine(`k3s-${config.vmName}`, {
@@ -183,7 +183,7 @@ runcmd:
                 username: "max",
                 keys: config.sshKeys,
             },
-            userDataFileId: cloudInitSnippet.id,
+            userDataFileId: `local:snippets/cloud-init-${config.vmName}.yaml`,
         },
 
         // Start on boot
@@ -197,8 +197,8 @@ runcmd:
             type: "virtio",
         },
     }, {
-        // Ensure template is deployed before creating VMs
-        dependsOn: [deployTemplate],
+        // Ensure template is deployed and snippet file created before creating VMs
+        dependsOn: [deployTemplate, cloudInitSnippet],
         // Recreate VMs when description changes (which includes template version)
         replaceOnChanges: ["description"],
     });

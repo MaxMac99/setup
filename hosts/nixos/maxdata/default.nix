@@ -82,21 +82,6 @@
     rclone
   ];
 
-  # Create /usr/bin symlinks for tools that expect standard FHS paths
-  # Required for Proxmox Pulumi provider which uses /usr/bin/tee
-  system.activationScripts.usrbintools = ''
-    mkdir -m 0755 -p /usr/bin
-    ln -sfn ${pkgs.coreutils}/bin/tee /usr/bin/tee
-    ln -sfn ${pkgs.bash}/bin/bash /usr/bin/bash
-  '';
-
-  # Configure sudo for Proxmox Pulumi provider
-  # Provider v0.48.0+ requires specific sudo permission for file uploads
-  # See: https://github.com/bpg/terraform-provider-proxmox/releases/tag/v0.48.0
-  security.sudo.extraConfig = ''
-    max ALL=(root) NOPASSWD: /usr/bin/tee /var/lib/vz/*
-  '';
-
   # Enable the OpenSSH daemon
   services.openssh.openFirewall = true;
 
