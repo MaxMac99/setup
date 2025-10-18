@@ -174,9 +174,10 @@ runcmd:
             },
             userDataFileId: cloudInitUserData.apply(data => {
                 // Create cloud-init user data file
+                // Note: Snippets must be stored on 'local' storage (supports snippets content type)
                 return new proxmox.storage.File(`cloudinit-${config.vmName}`, {
                     nodeName: ProxmoxConfig.nodeName,
-                    datastoreId: ProxmoxConfig.datastoreId,
+                    datastoreId: "local",
                     contentType: "snippets",
                     sourceRaw: {
                         data: data,
