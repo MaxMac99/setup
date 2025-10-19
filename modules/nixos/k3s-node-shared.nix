@@ -107,8 +107,8 @@ in
 
     # Disable nix store optimization (incompatible with writableStoreOverlay)
     nix = {
-      optimise.automatic = false;
-      settings.auto-optimise-store = false;
+      optimise.automatic = lib.mkForce false;
+      settings.auto-optimise-store = lib.mkForce false;
     };
 
     system.stateVersion = "24.11";
