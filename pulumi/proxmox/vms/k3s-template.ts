@@ -1,6 +1,8 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as command from "@pulumi/command";
 import * as path from "path";
+import * as fs from "fs";
+import * as crypto from "crypto";
 import { fileURLToPath } from "url";
 
 /**
@@ -24,11 +26,19 @@ const __dirname = path.dirname(__filename);
 const buildScript = path.join(__dirname, "../scripts/build-nixos-image.sh");
 const deployScript = path.join(__dirname, "../scripts/deploy-template.sh");
 
+// Calculate hash of template configuration to trigger rebuilds on changes
+const projectRoot = path.join(__dirname, "../../..");
+const templateConfigPath = path.join(projectRoot, "hosts/nixos/k3s-template/default.nix");
+const templateConfigHash = crypto
+    .createHash("sha256")
+    .update(fs.readFileSync(templateConfigPath, "utf8"))
+    .digest("hex");
+
 /**
  * Stage 1: Build the NixOS image
  *
- * Runs on every `pulumi up`, but is fast due to Nix caching.
- * If config hasn't changed, Nix reuses cached build (~seconds).
+ * Triggers rebuild when template configuration changes.
+ * Nix caching makes this fast when nothing changed.
  * If config changed, Nix rebuilds (~5-10 minutes).
  * Always outputs the image hash for Stage 2 to check.
  */
@@ -36,8 +46,10 @@ export const buildImage = new command.local.Command("build-nixos-image", {
     create: `OUTPUT_DIR=${IMAGE_DIR} ${buildScript}`,
     update: `OUTPUT_DIR=${IMAGE_DIR} ${buildScript}`,
 
-    // No triggers needed - just always run
-    // Nix handles caching automatically
+    // Trigger rebuild when template configuration changes
+    triggers: [
+        templateConfigHash,
+    ],
 }, {
     deleteBeforeReplace: false,
 });
