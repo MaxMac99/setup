@@ -1,7 +1,8 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, inputs, ... }:
 
 {
   imports = [
+    inputs.microvm.nixosModules.microvm
     (lib.custom.relativeToRoot "modules/nixos/k3s-node-template.nix")
   ];
 
