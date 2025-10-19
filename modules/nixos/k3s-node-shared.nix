@@ -93,7 +93,6 @@ in
 
     services.k3s.extraFlags = lib.mkForce (toString (
       [
-        "--disable=traefik"
         "--disable=servicelb"
         "--write-kubeconfig-mode=644"
         "--tls-san=${cfg.nodeName}"
