@@ -1,7 +1,5 @@
 {pkgs, ...}: {
   imports = [
-    common/core
-
     common/optional/browsers/chrome.nix
 
     # common/optional/terminals/alacritty.nix

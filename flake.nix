@@ -45,8 +45,8 @@
       url = "github:SaumonNet/proxmox-nixos";
       inputs.nixpkgs-unstable.follows = "nixpkgs";
     };
-    nixos-generators = {
-      url = "github:nix-community/nixos-generators";
+    microvm = {
+      url = "github:astro/microvm.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

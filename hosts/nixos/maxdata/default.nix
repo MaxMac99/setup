@@ -14,6 +14,8 @@
       ./proxmox.nix
       ./zfs.nix
       ./hardware-configuration.nix
+      ./microvms.nix
+      ./microvm-bridge.nix
       inputs.proxmox-nixos.nixosModules.proxmox-ve
     ];
 

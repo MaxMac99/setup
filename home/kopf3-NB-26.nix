@@ -1,7 +1,5 @@
 {...}: {
   imports = [
-    common/core
-
     common/optional/browsers/chrome.nix
 
     common/optional/terminals/ghostty.nix

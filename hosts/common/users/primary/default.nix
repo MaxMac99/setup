@@ -36,6 +36,10 @@ in {
 
     users.${cfg.username} = {
       imports = lib.flatten [
+        # Always import common core home-manager config
+        (lib.custom.relativeToRoot "home/common/core")
+      ] ++ lib.optionals (builtins.pathExists (lib.custom.relativeToRoot "home/${cfg.hostName}.nix")) [
+        # Conditionally import host-specific config if it exists
         (
           {config, ...}:
             import (lib.custom.relativeToRoot "home/${cfg.hostName}.nix") {
