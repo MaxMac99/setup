@@ -42,6 +42,9 @@ in
       vcpu = 2;
       mem = 6144;
 
+      # vsock for systemd-notify support
+      vsock.cid = 100 + cfg.nodeNumber;
+
       interfaces = [{
         type = "tap";
         id = "vm-${cfg.nodeName}";
@@ -60,18 +63,21 @@ in
       hostName = cfg.nodeName;
       hostId = "${paddedNum}${paddedNum}${paddedNum}${paddedNum}";
       useDHCP = false;
+      useNetworkd = true;
       firewall.enable = false;
-      nameservers = config.networkConfig.dns.servers;
-      interfaces.eth0 = {
-        ipv4.addresses = [{
-          address = config.networkConfig.staticIPs.${cfg.nodeName};
-          prefixLength = 24;
-        }];
+    };
+
+    # systemd-networkd configuration for the guest
+    systemd.network.enable = true;
+    systemd.network.networks."20-wired" = {
+      matchConfig.Type = "ether";
+      networkConfig = {
+        Address = "${config.networkConfig.staticIPs.${cfg.nodeName}}/24";
+        Gateway = config.networkConfig.gateway;
+        DNS = config.networkConfig.dns.servers;
+        DHCP = "no";
       };
-      defaultGateway = {
-        address = config.networkConfig.gateway;
-        interface = "eth0";
-      };
+      linkConfig.RequiredForOnline = "routable";
     };
 
     services.k3s.extraFlags = lib.mkForce (toString (
@@ -88,11 +94,19 @@ in
         [ "--server=https://${config.networkConfig.staticIPs.k3s-node1}:6443" ])
     ));
 
-    systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce (
-      pkgs.writeText "k3s-env" ''
-        K3S_TOKEN=REPLACE_WITH_YOUR_TOKEN
-      ''
-    );
+    # Configure sops secret for k3s token
+    sops.secrets.k3s_token = {
+      sopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
+      restartUnits = [ "k3s.service" ];
+    };
+
+    # Use the sops secret as environment file
+    systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce [
+      (pkgs.writeText "k3s-env-base" ''
+        # Additional K3S environment variables can go here
+      '')
+      config.sops.secrets.k3s_token.path
+    ];
 
     system.stateVersion = "24.11";
   };
