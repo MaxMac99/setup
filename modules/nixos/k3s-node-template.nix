@@ -33,6 +33,7 @@
         "hosts/common/core"
         "hosts/common/optional/nixos/openssh.nix"
         "modules/nixos/k3s-base.nix"
+        "modules/common/network-config.nix"
       ])
     ];
 
