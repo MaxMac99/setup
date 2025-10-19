@@ -1,106 +1,78 @@
-{ config, pkgs, lib, modulesPath, ... }:
+{ lib, ... }:
 
 {
-  # Shared k3s node configuration template
-  # This module provides common configuration for all k3s microvm nodes
+  # Simple template function that returns a k3s node configuration
+  # Usage: mkK3sNode { nodeName = "k3s-node1"; nodeNumber = 1; isFirstNode = true; }
+  mkK3sNode = { nodeName, nodeNumber, isFirstNode ? false }:
+    let
+      paddedNum = lib.strings.padLeft 2 "0" (toString nodeNumber);
+    in
+    { config, pkgs, inputs, ... }: {
+      imports = [
+        inputs.microvm.nixosModules.microvm
+        (lib.custom.relativeToRoot "hosts/common/core")
+        (lib.custom.relativeToRoot "hosts/common/optional/nixos/openssh.nix")
+        (lib.custom.relativeToRoot "modules/nixos/k3s-base.nix")
+      ];
 
-  options.k3sNode = {
-    nodeName = lib.mkOption {
-      type = lib.types.str;
-      description = "Name of the k3s node";
-    };
+      nixpkgs.hostPlatform = "x86_64-linux";
 
-    nodeNumber = lib.mkOption {
-      type = lib.types.int;
-      description = "Node number (1, 2, 3, etc.)";
-    };
+      hostSpec = {
+        username = "max";
+        hostName = nodeName;
+        isDarwin = false;
+        isWork = false;
+        isServer = true;
+        isMinimal = true;
+      };
 
-    isFirstNode = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Whether this is the first node (cluster init)";
-    };
-  };
+      microvm = {
+        hypervisor = "cloud-hypervisor";
+        vcpu = 2;
+        mem = 6144;
 
-  config = let
-    cfg = config.k3sNode;
-    nodeNumStr = toString cfg.nodeNumber;
-    paddedNum = lib.strings.padLeft 2 "0" nodeNumStr;
-    hostId = "${paddedNum}${paddedNum}${paddedNum}${paddedNum}";
-  in {
-    imports = lib.flatten [
-      (map lib.custom.relativeToRoot [
-        "hosts/common/core"
-        "hosts/common/optional/nixos/openssh.nix"
-        "modules/nixos/k3s-base.nix"
-        "modules/common/network-config.nix"
-      ])
-    ];
+        interfaces = [{
+          type = "tap";
+          id = "vm-${nodeName}";
+          mac = "02:00:00:01:01:${paddedNum}";
+        }];
 
-    # MicroVM configuration - these are the VM hardware settings
-    microvm = {
-      hypervisor = "cloud-hypervisor";
-      vcpu = 2;
-      mem = 6144; # 6GB
-
-      interfaces = [{
-        type = "tap";
-        id = "vm-${cfg.nodeName}";
-        mac = "02:00:00:01:01:${paddedNum}";
-      }];
-
-      shares = [{
-        proto = "virtiofs";
-        tag = "ro-store";
-        source = "/nix/store";
-        mountPoint = "/nix/.ro-store";
-      }];
-    };
-
-    # System platform
-    nixpkgs.hostPlatform = "x86_64-linux";
-
-    # Host specification
-    hostSpec = {
-      username = "max";
-      hostName = cfg.nodeName;
-      isDarwin = false;
-      isWork = false;
-      isServer = true;
-      isMinimal = true;
-    };
-
-    # Networking
-    networking = {
-      hostName = cfg.nodeName;
-      hostId = hostId;
-      useDHCP = false;
-      firewall.enable = false;
-      nameservers = config.networkConfig.dns.servers;
-      interfaces.eth0 = {
-        ipv4.addresses = [{
-          address = config.networkConfig.staticIPs.${cfg.nodeName};
-          prefixLength = 24;
+        shares = [{
+          proto = "virtiofs";
+          tag = "ro-store";
+          source = "/nix/store";
+          mountPoint = "/nix/.ro-store";
         }];
       };
-      defaultGateway = config.networkConfig.gateway;
+
+      networking = {
+        hostName = nodeName;
+        hostId = "${paddedNum}${paddedNum}${paddedNum}${paddedNum}";
+        useDHCP = false;
+        firewall.enable = false;
+        nameservers = config.networkConfig.dns.servers;
+        interfaces.eth0 = {
+          ipv4.addresses = [{
+            address = config.networkConfig.staticIPs.${nodeName};
+            prefixLength = 24;
+          }];
+        };
+        defaultGateway = config.networkConfig.gateway;
+      };
+
+      services.k3s.extraFlags = toString (
+        [ "--node-name=${nodeName}" ] ++
+        (if isFirstNode then
+          [ "--cluster-init" ]
+        else
+          [ "--server=https://${config.networkConfig.staticIPs.k3s-node1}:6443" ])
+      );
+
+      systemd.services.k3s.serviceConfig.EnvironmentFile =
+        pkgs.writeText "k3s-env" ''
+          K3S_TOKEN=REPLACE_WITH_YOUR_TOKEN
+        '';
+
+      system.stateVersion = "24.11";
     };
-
-    # K3s configuration - first node initializes, others join
-    services.k3s.extraFlags = toString (
-      [ "--node-name=${cfg.nodeName}" ] ++
-      (if cfg.isFirstNode then
-        [ "--cluster-init" ]
-      else
-        [ "--server=https://${config.networkConfig.staticIPs.k3s-node1}:6443" ])
-    );
-
-    # K3s token and server address via environment file
-    systemd.services.k3s.serviceConfig.EnvironmentFile =
-      pkgs.writeText "k3s-env" ''
-        K3S_TOKEN=REPLACE_WITH_YOUR_TOKEN
-      '';
-
-    system.stateVersion = "24.11";
-  };
 }
