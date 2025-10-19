@@ -57,6 +57,9 @@ in
         source = "/nix/store";
         mountPoint = "/nix/.ro-store";
       }];
+
+      # Enable writable nix store overlay
+      writableStoreOverlay = "/nix/.rw-store";
     };
 
     networking = {

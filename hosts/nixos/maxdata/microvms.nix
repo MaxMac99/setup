@@ -17,4 +17,11 @@
     "k3s-node2"
     "k3s-node3"
   ];
+
+  # Make microvm services restart on configuration changes
+  systemd.services = {
+    "microvm@k3s-node1".restartIfChanged = true;
+    "microvm@k3s-node2".restartIfChanged = true;
+    "microvm@k3s-node3".restartIfChanged = true;
+  };
 }
