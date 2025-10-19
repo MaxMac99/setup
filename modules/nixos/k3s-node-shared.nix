@@ -60,6 +60,13 @@ in
 
       # Enable writable nix store overlay
       writableStoreOverlay = "/nix/.rw-store";
+
+      # Create a writable volume for /nix/var and other state
+      volumes = [{
+        image = "nix-state.img";
+        mountPoint = "/nix/var";
+        size = 2048; # 2GB for nix state
+      }];
     };
 
     networking = {
