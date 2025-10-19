@@ -15,7 +15,7 @@
         flake = self;
 
         # Optional: Allow updating the VM's flake reference imperatively
-        # updateFlake = "git+file:///etc/nixos";
+        updateFlake = "git+file:///home/max/setup";
       };
     };
 }
