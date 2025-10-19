@@ -203,6 +203,7 @@ runcmd:
         dependsOn: [deployTemplate, cloudInitSnippet],
         // Recreate VMs when description changes (which includes template version)
         replaceOnChanges: ["description"],
+        deleteBeforeReplace: true,
     });
 }
 
