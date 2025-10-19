@@ -2,7 +2,7 @@
 
 let
   cfg = config.k3sNode;
-  paddedNum = lib.strings.padLeft 2 "0" (toString cfg.nodeNumber);
+  paddedNum = lib.fixedWidthString 2 "0" (toString cfg.nodeNumber);
 in
 {
   imports = [
