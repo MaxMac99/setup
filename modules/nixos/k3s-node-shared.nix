@@ -52,12 +52,20 @@ in
         mac = "02:00:00:01:01:${paddedNum}";
       }];
 
-      shares = [{
-        proto = "virtiofs";
-        tag = "ro-store";
-        source = "/nix/store";
-        mountPoint = "/nix/.ro-store";
-      }];
+      shares = [
+        {
+          proto = "virtiofs";
+          tag = "ro-store";
+          source = "/nix/store";
+          mountPoint = "/nix/.ro-store";
+        }
+        {
+          proto = "virtiofs";
+          tag = "k8s-fast";
+          source = "/fast/k8s";
+          mountPoint = "/mnt/k8s-fast";
+        }
+      ];
 
       # Enable writable nix store overlay
       writableStoreOverlay = "/nix/.rw-store";
