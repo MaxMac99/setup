@@ -38,20 +38,24 @@
     };
   };
 
-  # Kernel modules for container networking
-  boot.kernelModules = [ "br_netfilter" "overlay" ];
+  # Kernel modules for container networking and NFS
+  boot.kernelModules = [ "br_netfilter" "overlay" "nfs" ];
   boot.kernel.sysctl = {
     "net.bridge.bridge-nf-call-iptables" = 1;
     "net.bridge.bridge-nf-call-ip6tables" = 1;
     "net.ipv4.ip_forward" = 1;
   };
 
-  # Install Kubernetes tools
+  # Install Kubernetes tools and NFS client
   environment.systemPackages = with pkgs; [
     kubectl
     kubernetes-helm
     k9s
+    nfs-utils
   ];
+
+  # Enable NFS client support
+  services.rpcbind.enable = true;
 
   # Time synchronization (critical for etcd)
   services.timesyncd.enable = true;
