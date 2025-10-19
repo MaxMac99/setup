@@ -88,10 +88,11 @@ in
         [ "--server=https://${config.networkConfig.staticIPs.k3s-node1}:6443" ])
     ));
 
-    systemd.services.k3s.serviceConfig.EnvironmentFile =
+    systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce (
       pkgs.writeText "k3s-env" ''
         K3S_TOKEN=REPLACE_WITH_YOUR_TOKEN
-      '';
+      ''
+    );
 
     system.stateVersion = "24.11";
   };
