@@ -70,7 +70,7 @@ in
     # systemd-networkd configuration for the guest
     systemd.network.enable = true;
     systemd.network.networks."20-wired" = {
-      matchConfig.Type = "ether";
+      matchConfig.Name = "en*";  # Match en* interfaces (ens*, enp*, etc)
       networkConfig = {
         Address = "${config.networkConfig.staticIPs.${cfg.nodeName}}/24";
         Gateway = config.networkConfig.gateway;
@@ -94,19 +94,13 @@ in
         [ "--server=https://${config.networkConfig.staticIPs.k3s-node1}:6443" ])
     ));
 
-    # Configure sops secret for k3s token
-    sops.secrets.k3s_token = {
-      sopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
-      restartUnits = [ "k3s.service" ];
-    };
-
-    # Use the sops secret as environment file
-    systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce [
-      (pkgs.writeText "k3s-env-base" ''
-        # Additional K3S environment variables can go here
-      '')
-      config.sops.secrets.k3s_token.path
-    ];
+    # K3s token - for now use a placeholder
+    # TODO: Replace with actual secret management
+    systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce (
+      pkgs.writeText "k3s-env" ''
+        K3S_TOKEN=7KQZfcTkcTPj4iCoSdRcm6qS7LdUm/MVF5fHcpkUjzUREPLACE_WITH_YOUR_ACTUAL_TOKEN
+      ''
+    );
 
     system.stateVersion = "24.11";
   };
