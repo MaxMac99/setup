@@ -5,12 +5,12 @@
   services.k3s = {
     enable = true;
     role = "server"; # Will be overridden in individual node configs
-    extraFlags = toString [
+    extraFlags = lib.mkDefault (toString [
       "--disable=traefik"  # We'll use a different ingress controller
       "--disable=servicelb"  # Use MetalLB instead
       "--write-kubeconfig-mode=644"
       "--tls-san=${config.networking.hostName}"
-    ];
+    ]);
   };
 
   # Open firewall for K3S

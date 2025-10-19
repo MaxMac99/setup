@@ -74,13 +74,19 @@ in
       };
     };
 
-    services.k3s.extraFlags = toString (
-      [ "--node-name=${cfg.nodeName}" ] ++
+    services.k3s.extraFlags = lib.mkForce (toString (
+      [
+        "--disable=traefik"
+        "--disable=servicelb"
+        "--write-kubeconfig-mode=644"
+        "--tls-san=${cfg.nodeName}"
+        "--node-name=${cfg.nodeName}"
+      ] ++
       (if cfg.isFirstNode then
         [ "--cluster-init" ]
       else
         [ "--server=https://${config.networkConfig.staticIPs.k3s-node1}:6443" ])
-    );
+    ));
 
     systemd.services.k3s.serviceConfig.EnvironmentFile =
       pkgs.writeText "k3s-env" ''
