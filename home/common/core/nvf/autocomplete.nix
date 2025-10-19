@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  hostSpec,
   ...
 }: {
   programs.nvf.settings.vim.autocomplete = {
@@ -24,7 +25,7 @@
           "snippets"
           "buffer"
         ];
-        sources.providers = {
+        sources.providers = lib.optionalAttrs (!hostSpec.isMinimal) {
           copilot = {
             name = "copilot";
             module = "blink-copilot";
@@ -39,7 +40,7 @@
                     { 'source_name' }
                   }'';
       };
-      sourcePlugins = {
+      sourcePlugins = lib.optionalAttrs (!hostSpec.isMinimal) {
         copilot = {
           enable = true;
           package = pkgs.vimPlugins.blink-copilot;

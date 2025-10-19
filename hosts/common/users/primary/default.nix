@@ -28,13 +28,13 @@ in {
 
   # Import the user's personal/home configurations, unless the environment is minimal
   # Check if home-manager input exists rather than checking isMinimal to avoid infinite recursion
-  home-manager = lib.mkIf (inputs ? "home-manager") {
+  home-manager = {
     extraSpecialArgs = {
       inherit pkgs inputs;
       hostSpec = cfg;
     };
 
-    users.${cfg.username} = lib.mkIf (!cfg.isMinimal) {
+    users.${cfg.username} = {
       imports = lib.flatten [
         (
           {config, ...}:

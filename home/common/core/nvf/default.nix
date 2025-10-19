@@ -12,23 +12,23 @@
       ./autopairs.nix
       ./binds.nix
       ./comments.nix
-      ./debugger.nix
       ./filetree.nix
-      ./formatter.nix
       ./git.nix
       ./keymaps.nix
-      ./languages.nix
-      ./lsp.nix
       ./persisted.nix
       ./tabline.nix
       ./telescope.nix
       ./treesitter.nix
-      ./ui.nix
-      ./utility.nix
-      ./visuals.nix
     ]
     ++ lib.optionals (!hostSpec.isMinimal) [
       ./ai.nix
+      ./debugger.nix
+      ./formatter.nix
+      ./languages.nix
+      ./lsp.nix
+      ./ui.nix
+      ./utility.nix
+      ./visuals.nix
     ]
     ++ lib.optionals hostSpec.isDarwin [
       ./latex.nix
