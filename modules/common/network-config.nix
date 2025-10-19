@@ -39,9 +39,9 @@
       type = lib.types.attrsOf lib.types.str;
       default = {
         maxdata = "192.168.178.2";
-        k3s-node1 = "192.168.178.11";
-        k3s-node2 = "192.168.178.12";
-        k3s-node3 = "192.168.178.13";
+        k3s-node1 = "192.168.178.5";
+        k3s-node2 = "192.168.178.6";
+        k3s-node3 = "192.168.178.7";
       };
       description = "Static IP assignments for hosts";
     };
