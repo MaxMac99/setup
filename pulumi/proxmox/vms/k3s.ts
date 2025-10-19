@@ -123,6 +123,7 @@ runcmd:
             `cat > ${snippetPath} << 'CLOUDINIT_EOF'\n${data}\nCLOUDINIT_EOF`
         ),
         delete: `rm -f ${snippetPath}`,
+        triggers: [cloudInitUserData],
     });
 
     return new proxmox.vm.VirtualMachine(`k3s-${config.vmName}`, {

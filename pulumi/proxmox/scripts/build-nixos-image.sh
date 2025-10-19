@@ -36,6 +36,7 @@ main() {
     cd "$PROJECT_ROOT"
 
     # Create writable output directory
+    rm -rf "$OUTPUT_DIR"
     mkdir -p "$OUTPUT_DIR"
 
     log_info "Building QCOW2 image using nixos-generators..."
