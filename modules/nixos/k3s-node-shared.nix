@@ -105,6 +105,12 @@ in
       ''
     );
 
+    # Disable nix store optimization (incompatible with writableStoreOverlay)
+    nix = {
+      optimise.automatic = false;
+      settings.auto-optimise-store = false;
+    };
+
     system.stateVersion = "24.11";
   };
 }
