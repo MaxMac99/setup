@@ -26,9 +26,9 @@ in {
     git
   ];
 
-  # Import the user's personal/home configurations, unless the environment is minimal
-  # Check if home-manager input exists rather than checking isMinimal to avoid infinite recursion
-  home-manager = {
+  # Import the user's personal/home configurations
+  # Skip home-manager for minimal hosts (they use system-wide config instead)
+  home-manager = lib.mkIf (!cfg.isMinimal) {
     extraSpecialArgs = {
       inherit pkgs inputs;
       hostSpec = cfg;

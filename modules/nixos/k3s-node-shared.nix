@@ -10,6 +10,7 @@ in
     (lib.custom.relativeToRoot "hosts/common/core")
     (lib.custom.relativeToRoot "hosts/common/optional/nixos/openssh.nix")
     (lib.custom.relativeToRoot "modules/nixos/k3s-base.nix")
+    (lib.custom.relativeToRoot "modules/nixos/minimal-zsh.nix")
   ];
 
   options.k3sNode = {
@@ -61,11 +62,11 @@ in
       # Enable writable nix store overlay
       writableStoreOverlay = "/nix/.rw-store";
 
-      # Create a writable volume for /nix/var and other state
+      # Create a writable volume for persistent state
       volumes = [{
-        image = "nix-state.img";
-        mountPoint = "/nix/var";
-        size = 2048; # 2GB for nix state
+        image = "var-state.img";
+        mountPoint = "/var";
+        size = 4096; # 4GB for state
       }];
     };
 
@@ -117,6 +118,19 @@ in
       optimise.automatic = lib.mkForce false;
       settings.auto-optimise-store = lib.mkForce false;
     };
+
+    # Ensure SSH host keys are persistent
+    services.openssh.hostKeys = [
+      {
+        path = "/var/ssh/ssh_host_ed25519_key";
+        type = "ed25519";
+      }
+      {
+        path = "/var/ssh/ssh_host_rsa_key";
+        type = "rsa";
+        bits = 4096;
+      }
+    ];
 
     system.stateVersion = "24.11";
   };
