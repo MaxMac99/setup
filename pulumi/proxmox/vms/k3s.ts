@@ -112,7 +112,7 @@ ${config.clusterInit ? '      cluster-init: true' : ''}
     permissions: '0600'
 
 runcmd:
-  - systemctl restart k3s
+  - systemctl start k3s
 `;
 
     // Create cloud-init snippet file using local command

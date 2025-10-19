@@ -48,14 +48,17 @@
     network.enable = true;
   };
 
+  # Disable k3s auto-start in template - cloud-init will start it after hostname is set
+  systemd.services.k3s.wantedBy = lib.mkForce [];
+
   # Additional system packages (basic packages from hosts/common/users/primary)
   environment.systemPackages = with pkgs; [
     htop
     wget
   ];
 
-  # K3S service is enabled in k3s-base.nix
-  # Cloud-init will configure role, token, etc.
+  # K3S service is enabled in k3s-base.nix but not started on boot
+  # Cloud-init will start it after configuring hostname, role, token, etc.
 
   system.stateVersion = "24.11";
 }
