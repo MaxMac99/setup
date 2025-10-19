@@ -139,7 +139,7 @@ runcmd:
 
         // Include template version in description
         // This causes VM to be replaced when template changes
-        description: pulumi.interpolate`K3S node cloned from template ${TEMPLATE_ID}. Template version: ${templateVersion}`,
+        description: pulumi.interpolate`K3S node cloned from template ${TEMPLATE_ID}. Template version: ${templateVersion}. Init: ${cloudInitUserData}`,
 
         // CPU configuration
         cpu: {
