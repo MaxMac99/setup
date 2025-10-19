@@ -1,4 +1,4 @@
-{config, ...}: {
+{config, lib, hostSpec, ...}: {
   programs.zsh = {
     enable = true;
 
@@ -31,8 +31,10 @@
       #      bindkey '^[[Z' backward-word      # shift+tab
       #      bindkey '^ ' autosuggest-accept   # ctrl+space
 
-      export GITHUB_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
-      export PULUMI_ACCESS_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
+      ${lib.optionalString hostSpec.isWork ''
+        export GITHUB_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
+        export PULUMI_ACCESS_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
+      ''}
     '';
 
     oh-my-zsh = {

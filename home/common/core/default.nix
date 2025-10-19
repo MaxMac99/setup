@@ -74,7 +74,7 @@
       ];
   };
 
-  sops = {
+  sops = lib.mkIf hostSpec.isWork {
     defaultSopsFile = lib.custom.relativeToRoot "secrets/common.yaml";
     defaultSopsFormat = "yaml";
     age.keyFile = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
