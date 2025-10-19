@@ -17,7 +17,7 @@
   # Host specification
   hostSpec = {
     username = "max";
-    hostName = "k3s-template";
+    hostName = "k3s-template"; # Placeholder - cloud-init will override
     isDarwin = false;
     isWork = false;
     isServer = true;
@@ -34,12 +34,13 @@
   };
 
   # Networking (time zone set in hosts/common/core)
+  # Let cloud-init set the hostname via /etc/hostname
   networking = {
     hostId = "00000000"; # Placeholder - cloud-init will set unique IDs
+    hostName = lib.mkForce ""; # Let cloud-init manage hostname
     useDHCP = false; # Static IPs configured via cloud-init
     firewall.enable = false; # K3S manages its own firewall rules
     nameservers = config.networkConfig.dns.servers;
-    fqdn = "k3s-template.local"; # Set explicitly to avoid evaluation issues
   };
 
   # Enable cloud-init for VM customization
