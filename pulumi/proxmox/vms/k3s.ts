@@ -37,10 +37,11 @@ export interface K3sNodeConfig {
     gateway?: string; // Gateway IP (e.g., "192.168.178.1")
 }
 
-// K3S cluster shared configuration
-const K3S_TOKEN = pulumi.output(pulumi.secret("K10YOUR_SHARED_SECRET_TOKENxx")); // Change this!
+// K3S cluster shared configuration from Pulumi config
+const config = new pulumi.Config();
+const K3S_TOKEN = config.requireSecret("k3sToken");
 const SSH_KEYS = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMEZtPDynBeLhBBVpFugAD14CHoHJicGJXVKzm+mu3Kc max@maxdata", // Replace with your key
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMEZtPDynBeLhBBVpFugAD14CHoHJicGJXVKzm+mu3Kc max@maxdata",
 ];
 
 export const k3sNodeConfigs: K3sNodeConfig[] = [
