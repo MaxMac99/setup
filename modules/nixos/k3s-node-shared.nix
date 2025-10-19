@@ -5,6 +5,13 @@ let
   paddedNum = lib.strings.padLeft 2 "0" (toString cfg.nodeNumber);
 in
 {
+  imports = [
+    inputs.microvm.nixosModules.microvm
+    (lib.custom.relativeToRoot "hosts/common/core")
+    (lib.custom.relativeToRoot "hosts/common/optional/nixos/openssh.nix")
+    (lib.custom.relativeToRoot "modules/nixos/k3s-base.nix")
+  ];
+
   options.k3sNode = {
     nodeName = lib.mkOption {
       type = lib.types.str;
@@ -19,13 +26,6 @@ in
   };
 
   config = {
-    imports = [
-      inputs.microvm.nixosModules.microvm
-      (lib.custom.relativeToRoot "hosts/common/core")
-      (lib.custom.relativeToRoot "hosts/common/optional/nixos/openssh.nix")
-      (lib.custom.relativeToRoot "modules/nixos/k3s-base.nix")
-    ];
-
     nixpkgs.hostPlatform = "x86_64-linux";
 
     hostSpec = {
