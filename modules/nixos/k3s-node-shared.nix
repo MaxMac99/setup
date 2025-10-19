@@ -68,7 +68,10 @@ in
           prefixLength = 24;
         }];
       };
-      defaultGateway = config.networkConfig.gateway;
+      defaultGateway = {
+        address = config.networkConfig.gateway;
+        interface = "eth0";
+      };
     };
 
     services.k3s.extraFlags = toString (
