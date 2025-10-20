@@ -66,6 +66,11 @@
         # Enable Time Machine discovery
         "fruit:advertise_fullsync" = "true";
 
+        # SMB3 for modern Time Machine
+        "server min protocol" = "SMB3";
+        "ea support" = "yes";
+        "inherit permissions" = "yes";
+
         # Logging
         "log level" = 1;
         "max log size" = 100;
@@ -78,12 +83,17 @@
         "read only" = "no";
         "create mask" = "0600";
         "directory mask" = "0700";
+        "force user" = "max";
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "800G";
         "fruit:aapl" = "yes";
         "fruit:encoding" = "native";
         "vfs objects" = "catia fruit streams_xattr";
         browseable = "yes";
+        "durable handles" = "yes";
+        "kernel oplocks" = "no";
+        "kernel share modes" = "no";
+        "posix locking" = "no";
         comment = "Time Machine - Max";
       };
 
