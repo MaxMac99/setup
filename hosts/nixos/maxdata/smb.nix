@@ -53,23 +53,12 @@
         "dead time" = 15;
         "getwd cache" = "yes";
 
-        # macOS optimization
-        "vfs objects" = "catia fruit streams_xattr";
-        "fruit:metadata" = "stream";
-        "fruit:model" = "MacSamba";
-        "fruit:posix_rename" = "yes";
-        "fruit:veto_appledouble" = "no";
-        "fruit:nfs_aces" = "no";
-        "fruit:wipe_intentionally_left_blank_rfork" = "yes";
-        "fruit:delete_empty_adfiles" = "yes";
+        # macOS optimization (without fruit globally - only for TM shares)
+        "vfs objects" = "catia streams_xattr";
 
-        # Enable Time Machine discovery
-        "fruit:advertise_fullsync" = "true";
-
-        # SMB3 for modern Time Machine
-        "server min protocol" = "SMB3";
+        # SMB3 for modern clients
+        "server min protocol" = "SMB2";
         "ea support" = "yes";
-        "inherit permissions" = "yes";
 
         # Logging
         "log level" = 1;
@@ -84,16 +73,22 @@
         "create mask" = "0600";
         "directory mask" = "0700";
         "force user" = "max";
+        "vfs objects" = "catia fruit streams_xattr";
+        "fruit:metadata" = "stream";
+        "fruit:model" = "MacSamba";
+        "fruit:posix_rename" = "yes";
+        "fruit:veto_appledouble" = "no";
+        "fruit:wipe_intentionally_left_blank_rfork" = "yes";
+        "fruit:delete_empty_adfiles" = "yes";
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "800G";
-        "fruit:aapl" = "yes";
-        "fruit:encoding" = "native";
-        "vfs objects" = "catia fruit streams_xattr";
         browseable = "yes";
         "durable handles" = "yes";
         "kernel oplocks" = "no";
         "kernel share modes" = "no";
         "posix locking" = "no";
+        "strict allocate" = "yes";
+        "allocation roundup size" = 4096;
         comment = "Time Machine - Max";
       };
 
@@ -103,16 +98,27 @@
         "read only" = "no";
         "create mask" = "0600";
         "directory mask" = "0700";
+        "force user" = "michael";
+        "vfs objects" = "catia fruit streams_xattr";
+        "fruit:metadata" = "stream";
+        "fruit:model" = "MacSamba";
+        "fruit:posix_rename" = "yes";
+        "fruit:veto_appledouble" = "no";
+        "fruit:wipe_intentionally_left_blank_rfork" = "yes";
+        "fruit:delete_empty_adfiles" = "yes";
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "600G";
-        "fruit:aapl" = "yes";
-        "fruit:encoding" = "native";
-        "vfs objects" = "catia fruit streams_xattr";
         browseable = "yes";
+        "durable handles" = "yes";
+        "kernel oplocks" = "no";
+        "kernel share modes" = "no";
+        "posix locking" = "no";
+        "strict allocate" = "yes";
+        "allocation roundup size" = 4096;
         comment = "Time Machine - Michael";
       };
 
-      # Personal data shares
+      # Personal data shares (no fruit - not Time Machine targets)
       "Daten Max" = {
         path = "/tank/daten-max";
         browseable = "yes";
@@ -120,7 +126,6 @@
         "valid users" = "max";
         "create mask" = "0644";
         "directory mask" = "0755";
-        "vfs objects" = "catia fruit streams_xattr";
         comment = "Daten Max";
       };
 
@@ -131,7 +136,6 @@
         "valid users" = "michael";
         "create mask" = "0644";
         "directory mask" = "0755";
-        "vfs objects" = "catia fruit streams_xattr";
         comment = "Daten Michael";
       };
 
@@ -142,7 +146,6 @@
         "valid users" = "anna";
         "create mask" = "0644";
         "directory mask" = "0755";
-        "vfs objects" = "catia fruit streams_xattr";
         comment = "Daten Anna";
       };
 
@@ -154,7 +157,6 @@
         "valid users" = "max michael anna";
         "create mask" = "0664";
         "directory mask" = "0775";
-        "vfs objects" = "catia fruit streams_xattr";
         comment = "Daten Familie";
       };
     };
