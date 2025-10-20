@@ -54,7 +54,7 @@
         "getwd cache" = "yes";
 
         # macOS optimization (without fruit globally - only for TM shares)
-        "vfs objects" = "catia streams_xattr";
+        "vfs objects" = "catia streams_xattr acl_xattr";
 
         # SMB protocol settings
         "server min protocol" = "SMB2";
@@ -64,6 +64,12 @@
         "obey pam restrictions" = "no";
         "unix extensions" = "no";
         "wide links" = "no";
+
+        # ACL support for Time Machine
+        "nt acl support" = "yes";
+        "inherit acls" = "yes";
+        "map acl inherit" = "yes";
+        "acl group control" = "yes";
 
         # Logging
         "log level" = 3;
@@ -79,7 +85,7 @@
         "directory mask" = "0700";
         "force user" = "max";
         "force group" = "users";
-        "vfs objects" = "catia fruit streams_xattr";
+        "vfs objects" = "catia fruit streams_xattr acl_xattr";
         "fruit:metadata" = "stream";
         "fruit:model" = "MacSamba";
         "fruit:posix_rename" = "yes";
@@ -98,6 +104,8 @@
         "level2 oplocks" = "no";
         "strict allocate" = "yes";
         "allocation roundup size" = 4096;
+        "inherit owner" = "yes";
+        "inherit permissions" = "yes";
         comment = "Time Machine - Max";
       };
 
@@ -108,7 +116,8 @@
         "create mask" = "0600";
         "directory mask" = "0700";
         "force user" = "michael";
-        "vfs objects" = "catia fruit streams_xattr";
+        "force group" = "users";
+        "vfs objects" = "catia fruit streams_xattr acl_xattr";
         "fruit:metadata" = "stream";
         "fruit:model" = "MacSamba";
         "fruit:posix_rename" = "yes";
@@ -122,8 +131,13 @@
         "kernel oplocks" = "no";
         "kernel share modes" = "no";
         "posix locking" = "no";
+        "strict locking" = "no";
+        "oplocks" = "no";
+        "level2 oplocks" = "no";
         "strict allocate" = "yes";
         "allocation roundup size" = 4096;
+        "inherit owner" = "yes";
+        "inherit permissions" = "yes";
         comment = "Time Machine - Michael";
       };
 
