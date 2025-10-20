@@ -13,6 +13,7 @@
       ./networking.nix
       ./proxmox.nix
       ./zfs.nix
+      ./smb.nix
       ./hardware-configuration.nix
       ./microvms.nix
       ./microvm-bridge.nix
@@ -82,6 +83,11 @@
 
     # Backup tools
     rclone
+
+    # Kubernetes tools
+    kubectl
+    kubernetes-helm
+    k9s
   ];
 
   # Enable the OpenSSH daemon
