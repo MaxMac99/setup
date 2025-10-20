@@ -81,10 +81,7 @@
         path = "/tank/timemachine-max";
         "valid users" = "max";
         "read only" = "no";
-        "create mask" = "0644";
-        "directory mask" = "0755";
-        "force user" = "max";
-        "force group" = "users";
+        writeable = "yes";
         "vfs objects" = "catia fruit streams_xattr acl_xattr";
         "fruit:metadata" = "stream";
         "fruit:model" = "MacSamba";
@@ -97,17 +94,6 @@
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "800G";
         browseable = "yes";
-        "durable handles" = "yes";
-        "kernel oplocks" = "no";
-        "kernel share modes" = "no";
-        "posix locking" = "no";
-        "strict locking" = "no";
-        "oplocks" = "no";
-        "level2 oplocks" = "no";
-        "strict allocate" = "no";
-        "allocation roundup size" = 4096;
-        "inherit owner" = "yes";
-        "inherit permissions" = "yes";
         comment = "Time Machine - Max";
       };
 
