@@ -43,26 +43,17 @@
         # Security settings
         security = "user";
 
-        # SMB protocol settings - MINIMAL
-        "server min protocol" = "SMB2";
-
-        # MINIMAL VFS for Time Machine on ZFS
-        "vfs objects" = "fruit streams_xattr";
-
         # ESSENTIAL Apple settings only
-        "fruit:aapl" = "yes";
         "fruit:metadata" = "stream";
-        "fruit:resource" = "stream";
         "fruit:model" = "MacSamba";
-        "fruit:posix_rename" = "yes";
         "fruit:veto_appledouble" = "no";
-        "fruit:nfs_aces" = "no";
-
-        # Extended attributes required
-        "ea support" = "yes";
+        "fruit:posix_rename" = "yes";
+        "fruit:zero_file_id" = "yes";
+        "fruit:wipe_cache" = "yes";
+        "fruit:delete_empty_adfiles" = "yes";
 
         # Logging
-        "log level" = 1;
+        "log level" = 3;
       };
 
       # Time Machine backup shares - MINIMAL
