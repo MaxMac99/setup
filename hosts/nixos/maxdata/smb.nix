@@ -42,90 +42,38 @@
 
         # Security settings
         security = "user";
-        "map to guest" = "Bad User";
-        "guest account" = "nobody";
 
-        # Performance tuning
-        "socket options" = "TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=131072 SO_SNDBUF=131072";
-        "read raw" = "yes";
-        "write raw" = "yes";
-        "max xmit" = 65535;
-        "dead time" = 15;
-        "getwd cache" = "yes";
-
-        # SMB protocol settings
+        # SMB protocol settings - MINIMAL
         "server min protocol" = "SMB2";
-        "server max protocol" = "SMB3";
 
-        # CRITICAL: Global Apple settings - ORDER MATTERS!
-        # catia MUST be first to handle special characters
-        "vfs objects" = "catia fruit streams_xattr";
+        # MINIMAL VFS for Time Machine on ZFS
+        "vfs objects" = "fruit streams_xattr";
 
-        # CRITICAL Apple protocol settings
-        "fruit:aapl" = "yes";           # Enable Apple SMB2 AAPL extensions
-        "fruit:nfs_aces" = "no";        # CRITICAL: Prevents ACL permission issues
-        "fruit:model" = "MacSamba";
+        # ESSENTIAL Apple settings only
+        "fruit:aapl" = "yes";
         "fruit:metadata" = "stream";
-        "fruit:posix_rename" = "yes";   # CRITICAL: Enables sparsebundle renaming
+        "fruit:resource" = "stream";
+        "fruit:model" = "MacSamba";
+        "fruit:posix_rename" = "yes";
         "fruit:veto_appledouble" = "no";
-        "fruit:zero_file_id" = "yes";
-        "fruit:wipe_intentionally_left_blank_rfork" = "yes";
-        "fruit:delete_empty_adfiles" = "yes";
+        "fruit:nfs_aces" = "no";
 
-        # Extended attributes
+        # Extended attributes required
         "ea support" = "yes";
-        "store dos attributes" = "yes";
-
-        # Unix settings
-        "obey pam restrictions" = "no";
-        "unix extensions" = "no";
-        "wide links" = "no";
-
-        # ACL support for Time Machine
-        "nt acl support" = "yes";
-        "inherit acls" = "yes";
-        "map acl inherit" = "yes";
-        "acl group control" = "yes";
 
         # Logging
-        "log level" = 3;
-        "max log size" = 100;
+        "log level" = 1;
       };
 
-      # Time Machine backup shares
+      # Time Machine backup shares - MINIMAL
       "timemachine-max" = {
         path = "/tank/timemachine-max";
         "valid users" = "max";
         "read only" = "no";
-        writeable = "yes";
 
-        # Permissions - let Time Machine manage them
-        "create mask" = "0640";
-        "directory mask" = "0750";
-
-        # CRITICAL: Enable Apple extensions for this share
-        "fruit:aapl" = "yes";
+        # Only the essentials for Time Machine
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "800G";
-
-        # Disable all locking for Time Machine
-        "strict locking" = "no";
-        "oplocks" = "no";
-        "kernel oplocks" = "no";
-        "kernel share modes" = "no";
-        "posix locking" = "no";
-
-        # Handle allocation
-        "strict allocate" = "yes";
-        "allocation roundup size" = "4096";
-
-        # Durable handles for resilience
-        "durable handles" = "yes";
-
-        # Case sensitivity
-        "case sensitive" = "no";
-        "preserve case" = "yes";
-        "short preserve case" = "yes";
 
         browseable = "yes";
         comment = "Time Machine - Max";
@@ -135,35 +83,10 @@
         path = "/tank/timemachine-michael";
         "valid users" = "michael";
         "read only" = "no";
-        writeable = "yes";
 
-        # Permissions - let Time Machine manage them
-        "create mask" = "0640";
-        "directory mask" = "0750";
-
-        # CRITICAL: Enable Apple extensions for this share
-        "fruit:aapl" = "yes";
+        # Only the essentials for Time Machine
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "600G";
-
-        # Disable all locking for Time Machine
-        "strict locking" = "no";
-        "oplocks" = "no";
-        "kernel oplocks" = "no";
-        "kernel share modes" = "no";
-        "posix locking" = "no";
-
-        # Handle allocation
-        "strict allocate" = "yes";
-        "allocation roundup size" = "4096";
-
-        # Durable handles for resilience
-        "durable handles" = "yes";
-
-        # Case sensitivity
-        "case sensitive" = "no";
-        "preserve case" = "yes";
-        "short preserve case" = "yes";
 
         browseable = "yes";
         comment = "Time Machine - Michael";
