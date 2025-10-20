@@ -140,12 +140,6 @@
     };
   };
 
-  # Enable Windows network discovery (optional but recommended)
-  services.samba-wsdd = {
-    enable = true;
-    openFirewall = true;
-  };
-
   # Enable Avahi for service discovery (makes shares visible on macOS)
   services.avahi = {
     enable = true;
@@ -186,16 +180,13 @@
     };
   };
 
-  # Firewall rules (redundant if openFirewall = true, but explicit)
+  # Firewall rules for SMB and mDNS
   networking.firewall = {
     allowedTCPPorts = [
-      139 # NetBIOS
       445 # SMB
       5353 # mDNS
     ];
     allowedUDPPorts = [
-      137 # NetBIOS
-      138 # NetBIOS
       5353 # mDNS
     ];
   };
