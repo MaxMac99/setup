@@ -51,6 +51,7 @@
         "fruit:zero_file_id" = "yes";
         "fruit:wipe_cache" = "yes";
         "fruit:delete_empty_adfiles" = "yes";
+        "fruit:nfs_aces" = "no";  # Important for ZFS filesystems
 
         # Logging
         "log level" = 3;
@@ -63,10 +64,14 @@
         "public" = "no";
         "writeable" = "yes";
         "force user" = "max";
+        "force group" = "users";  # Ensure correct group permissions
+        "create mask" = "0664";   # Permissions for new files
+        "directory mask" = "0775"; # Permissions for new directories
         # Below are the most imporant for macOS compatibility
         # Change the above to suit your needs
         "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
+        "fruit:time machine max size" = "2T";  # Limit backup size
         "vfs objects" = "catia fruit streams_xattr";
       };
 
@@ -76,10 +81,14 @@
         "public" = "no";
         "writeable" = "yes";
         "force user" = "michael";
+        "force group" = "users";  # Ensure correct group permissions
+        "create mask" = "0664";   # Permissions for new files
+        "directory mask" = "0775"; # Permissions for new directories
         # Below are the most imporant for macOS compatibility
         # Change the above to suit your needs
         "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
+        "fruit:time machine max size" = "2T";  # Limit backup size
         "vfs objects" = "catia fruit streams_xattr";
       };
 
