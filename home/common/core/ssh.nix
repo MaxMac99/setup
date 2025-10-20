@@ -37,22 +37,22 @@
         "maxdata" = lib.hm.dag.entryAfter ["*"] {
           hostname = "192.168.178.2";
           user = "max";
-          identityFile = "~/.ssh/id_maxdata";
+          identityFile = "~/.ssh/id_ionos_vps";
         };
         "k3s-node1" = lib.hm.dag.entryAfter ["*"] {
           hostname = "192.168.178.5";
           user = "max";
-          identityFile = "~/.ssh/id_ed25519";
+          identityFile = "~/.ssh/id_ionos_vps";
         };
         "k3s-node2" = lib.hm.dag.entryAfter ["*"] {
           hostname = "192.168.178.6";
           user = "max";
-          identityFile = "~/.ssh/id_ed25519";
+          identityFile = "~/.ssh/id_ionos_vps";
         };
         "k3s-node3" = lib.hm.dag.entryAfter ["*"] {
           hostname = "192.168.178.7";
           user = "max";
-          identityFile = "~/.ssh/id_ed25519";
+          identityFile = "~/.ssh/id_ionos_vps";
         };
         "hetzner" = lib.hm.dag.entryAfter ["*"] {
           hostname = "u499100.your-storagebox.de";
