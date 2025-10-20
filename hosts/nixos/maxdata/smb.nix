@@ -23,26 +23,7 @@
     };
   };
 
-  # Enable Netatalk for Time Machine (AFP protocol - native Apple)
-  services.netatalk = {
-    enable = true;
-    settings = {
-      "time-machine-max" = {
-        path = "/tank/timemachine-max";
-        "valid users" = "max";
-        "time machine" = "yes";
-        "vol size limit" = "800000"; # 800GB in MB
-      };
-      "time-machine-michael" = {
-        path = "/tank/timemachine-michael";
-        "valid users" = "michael";
-        "time machine" = "yes";
-        "vol size limit" = "600000"; # 600GB in MB
-      };
-    };
-  };
-
-  # Enable Samba service for data shares
+  # Enable Samba service for Time Machine and data shares
   services.samba = {
     enable = true;
     openFirewall = true;
@@ -88,6 +69,37 @@
         # Logging
         "log level" = 1;
         "max log size" = 100;
+      };
+
+      # Time Machine backup shares
+      "timemachine-max" = {
+        path = "/tank/timemachine-max";
+        "valid users" = "max";
+        "read only" = "no";
+        "create mask" = "0600";
+        "directory mask" = "0700";
+        "fruit:time machine" = "yes";
+        "fruit:time machine max size" = "800G";
+        "fruit:aapl" = "yes";
+        "fruit:encoding" = "native";
+        "vfs objects" = "catia fruit streams_xattr";
+        browseable = "yes";
+        comment = "Time Machine - Max";
+      };
+
+      "timemachine-michael" = {
+        path = "/tank/timemachine-michael";
+        "valid users" = "michael";
+        "read only" = "no";
+        "create mask" = "0600";
+        "directory mask" = "0700";
+        "fruit:time machine" = "yes";
+        "fruit:time machine max size" = "600G";
+        "fruit:aapl" = "yes";
+        "fruit:encoding" = "native";
+        "vfs objects" = "catia fruit streams_xattr";
+        browseable = "yes";
+        comment = "Time Machine - Michael";
       };
 
       # Personal data shares
@@ -178,11 +190,10 @@
     };
   };
 
-  # Firewall rules for SMB, AFP, and mDNS
+  # Firewall rules for SMB and mDNS
   networking.firewall = {
     allowedTCPPorts = [
       445 # SMB
-      548 # AFP (Netatalk)
       5353 # mDNS
     ];
     allowedUDPPorts = [
