@@ -82,7 +82,10 @@
         "valid users" = "max";
         "read only" = "no";
         writeable = "yes";
-        "vfs objects" = "catia fruit streams_xattr acl_xattr";
+        "case sensitive" = "no";
+        "preserve case" = "yes";
+        "short preserve case" = "yes";
+        "vfs objects" = "fruit streams_xattr acl_xattr";
         "fruit:metadata" = "stream";
         "fruit:model" = "MacSamba";
         "fruit:posix_rename" = "yes";
@@ -94,6 +97,7 @@
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "800G";
         browseable = "yes";
+        "delete veto files" = "yes";
         comment = "Time Machine - Max";
       };
 

@@ -74,6 +74,16 @@
       fsType = "zfs";
     };
 
+  fileSystems."/tank/timemachine-max" =
+    { device = "tank/timemachine-max";
+      fsType = "zfs";
+    };
+
+  fileSystems."/tank/timemachine-michael" =
+    { device = "tank/timemachine-michael";
+      fsType = "zfs";
+    };
+
   swapDevices = [ ];
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
