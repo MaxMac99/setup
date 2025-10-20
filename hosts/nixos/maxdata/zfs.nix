@@ -77,10 +77,9 @@
   systemd.services.zfs-health-check = {
     description = "Check ZFS pool health";
     script = ''
-      #!/bin/sh
       pools="tank fast"
       for pool in $pools; do
-        status=$(${pkgs.zfs}/bin/zpool status $pool | grep state | awk '{print $2}')
+        status=$(${pkgs.zfs}/bin/zpool status $pool | ${pkgs.gnugrep}/bin/grep state | ${pkgs.gawk}/bin/awk '{print $2}')
         if [ "$status" != "ONLINE" ]; then
           echo "WARNING: Pool $pool is $status"
           # Add notification here (email, ntfy, etc.)
