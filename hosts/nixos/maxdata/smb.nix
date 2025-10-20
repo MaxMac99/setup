@@ -53,14 +53,30 @@
         "dead time" = 15;
         "getwd cache" = "yes";
 
-        # macOS optimization (without fruit globally - only for TM shares)
-        "vfs objects" = "catia streams_xattr acl_xattr";
-
         # SMB protocol settings
         "server min protocol" = "SMB2";
         "server max protocol" = "SMB3";
+
+        # CRITICAL: Global Apple settings - ORDER MATTERS!
+        # catia MUST be first to handle special characters
+        "vfs objects" = "catia fruit streams_xattr";
+
+        # CRITICAL Apple protocol settings
+        "fruit:aapl" = "yes";           # Enable Apple SMB2 AAPL extensions
+        "fruit:nfs_aces" = "no";        # CRITICAL: Prevents ACL permission issues
+        "fruit:model" = "MacSamba";
+        "fruit:metadata" = "stream";
+        "fruit:posix_rename" = "yes";   # CRITICAL: Enables sparsebundle renaming
+        "fruit:veto_appledouble" = "no";
+        "fruit:zero_file_id" = "yes";
+        "fruit:wipe_intentionally_left_blank_rfork" = "yes";
+        "fruit:delete_empty_adfiles" = "yes";
+
+        # Extended attributes
         "ea support" = "yes";
         "store dos attributes" = "yes";
+
+        # Unix settings
         "obey pam restrictions" = "no";
         "unix extensions" = "no";
         "wide links" = "no";
@@ -82,34 +98,36 @@
         "valid users" = "max";
         "read only" = "no";
         writeable = "yes";
-        "create mask" = "0644";
-        "directory mask" = "0755";
-        "case sensitive" = "no";
-        "preserve case" = "yes";
-        "short preserve case" = "yes";
-        "vfs objects" = "catia fruit streams_xattr acl_xattr";
-        "fruit:metadata" = "stream";
-        "fruit:model" = "MacSamba";
-        "fruit:posix_rename" = "yes";
-        "fruit:veto_appledouble" = "no";
-        "fruit:wipe_intentionally_left_blank_rfork" = "yes";
-        "fruit:delete_empty_adfiles" = "yes";
-        "fruit:zero_file_id" = "yes";
-        "fruit:copyfile" = "yes";
+
+        # Permissions - let Time Machine manage them
+        "create mask" = "0640";
+        "directory mask" = "0750";
+
+        # CRITICAL: Enable Apple extensions for this share
+        "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "800G";
-        browseable = "yes";
-        "durable handles" = "yes";
+
+        # Disable all locking for Time Machine
+        "strict locking" = "no";
+        "oplocks" = "no";
         "kernel oplocks" = "no";
         "kernel share modes" = "no";
         "posix locking" = "no";
-        "strict locking" = "no";
-        "oplocks" = "no";
-        "level2 oplocks" = "no";
-        "strict allocate" = "no";
-        "allocation roundup size" = 4096;
-        "inherit acls" = "yes";
-        "delete veto files" = "yes";
+
+        # Handle allocation
+        "strict allocate" = "yes";
+        "allocation roundup size" = "4096";
+
+        # Durable handles for resilience
+        "durable handles" = "yes";
+
+        # Case sensitivity
+        "case sensitive" = "no";
+        "preserve case" = "yes";
+        "short preserve case" = "yes";
+
+        browseable = "yes";
         comment = "Time Machine - Max";
       };
 
@@ -117,33 +135,37 @@
         path = "/tank/timemachine-michael";
         "valid users" = "michael";
         "read only" = "no";
-        "create mask" = "0600";
-        "directory mask" = "0700";
-        "force user" = "michael";
-        "force group" = "users";
-        "vfs objects" = "catia fruit streams_xattr acl_xattr";
-        "fruit:metadata" = "stream";
-        "fruit:model" = "MacSamba";
-        "fruit:posix_rename" = "yes";
-        "fruit:veto_appledouble" = "no";
-        "fruit:wipe_intentionally_left_blank_rfork" = "yes";
-        "fruit:delete_empty_adfiles" = "yes";
-        "fruit:zero_file_id" = "yes";
-        "fruit:copyfile" = "yes";
+        writeable = "yes";
+
+        # Permissions - let Time Machine manage them
+        "create mask" = "0640";
+        "directory mask" = "0750";
+
+        # CRITICAL: Enable Apple extensions for this share
+        "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "600G";
-        browseable = "yes";
-        "durable handles" = "yes";
+
+        # Disable all locking for Time Machine
+        "strict locking" = "no";
+        "oplocks" = "no";
         "kernel oplocks" = "no";
         "kernel share modes" = "no";
         "posix locking" = "no";
-        "strict locking" = "no";
-        "oplocks" = "no";
-        "level2 oplocks" = "no";
-        "strict allocate" = "no";
-        "allocation roundup size" = 4096;
-        "inherit owner" = "yes";
-        "inherit permissions" = "yes";
+
+        # Handle allocation
+        "strict allocate" = "yes";
+        "allocation roundup size" = "4096";
+
+        # Durable handles for resilience
+        "durable handles" = "yes";
+
+        # Case sensitivity
+        "case sensitive" = "no";
+        "preserve case" = "yes";
+        "short preserve case" = "yes";
+
+        browseable = "yes";
         comment = "Time Machine - Michael";
       };
 
