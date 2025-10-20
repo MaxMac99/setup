@@ -81,8 +81,8 @@
         path = "/tank/timemachine-max";
         "valid users" = "max";
         "read only" = "no";
-        "create mask" = "0600";
-        "directory mask" = "0700";
+        "create mask" = "0644";
+        "directory mask" = "0755";
         "force user" = "max";
         "force group" = "users";
         "vfs objects" = "catia fruit streams_xattr acl_xattr";
@@ -92,6 +92,8 @@
         "fruit:veto_appledouble" = "no";
         "fruit:wipe_intentionally_left_blank_rfork" = "yes";
         "fruit:delete_empty_adfiles" = "yes";
+        "fruit:zero_file_id" = "yes";
+        "fruit:copyfile" = "yes";
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "800G";
         browseable = "yes";
@@ -102,7 +104,7 @@
         "strict locking" = "no";
         "oplocks" = "no";
         "level2 oplocks" = "no";
-        "strict allocate" = "yes";
+        "strict allocate" = "no";
         "allocation roundup size" = 4096;
         "inherit owner" = "yes";
         "inherit permissions" = "yes";
@@ -124,6 +126,8 @@
         "fruit:veto_appledouble" = "no";
         "fruit:wipe_intentionally_left_blank_rfork" = "yes";
         "fruit:delete_empty_adfiles" = "yes";
+        "fruit:zero_file_id" = "yes";
+        "fruit:copyfile" = "yes";
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "600G";
         browseable = "yes";
@@ -134,7 +138,7 @@
         "strict locking" = "no";
         "oplocks" = "no";
         "level2 oplocks" = "no";
-        "strict allocate" = "yes";
+        "strict allocate" = "no";
         "allocation roundup size" = 4096;
         "inherit owner" = "yes";
         "inherit permissions" = "yes";
