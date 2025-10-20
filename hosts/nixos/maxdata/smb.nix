@@ -61,7 +61,6 @@
         "server max protocol" = "SMB3";
         "ea support" = "yes";
         "store dos attributes" = "yes";
-        "map to guest" = "never";
         "obey pam restrictions" = "no";
         "unix extensions" = "no";
         "wide links" = "no";
