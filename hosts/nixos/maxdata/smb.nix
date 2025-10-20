@@ -71,7 +71,7 @@
         "valid users" = "max";
         "public" = "no";
         "writeable" = "yes";
-        "force user" = user;
+        "force user" = "max";
         # Below are the most imporant for macOS compatibility
         # Change the above to suit your needs
         "fruit:aapl" = "yes";
@@ -84,7 +84,7 @@
         "valid users" = "michael";
         "public" = "no";
         "writeable" = "yes";
-        "force user" = user;
+        "force user" = "michael";
         # Below are the most imporant for macOS compatibility
         # Change the above to suit your needs
         "fruit:aapl" = "yes";
