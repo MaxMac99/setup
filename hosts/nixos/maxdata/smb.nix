@@ -26,7 +26,6 @@
   # Enable Samba service
   services.samba = {
     enable = true;
-    securityType = "user";
     openFirewall = true;
 
     # Global Samba configuration
