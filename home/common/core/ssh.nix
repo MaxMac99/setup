@@ -37,6 +37,21 @@
         "maxdata" = lib.hm.dag.entryAfter ["*"] {
           hostname = "192.168.178.2";
           user = "max";
+          identityFile = "~/.ssh/id_maxdata";
+        };
+        "k3s-node1" = lib.hm.dag.entryAfter ["*"] {
+          hostname = "192.168.178.5";
+          user = "max";
+          identityFile = "~/.ssh/id_ed25519";
+        };
+        "k3s-node2" = lib.hm.dag.entryAfter ["*"] {
+          hostname = "192.168.178.6";
+          user = "max";
+          identityFile = "~/.ssh/id_ed25519";
+        };
+        "k3s-node3" = lib.hm.dag.entryAfter ["*"] {
+          hostname = "192.168.178.7";
+          user = "max";
           identityFile = "~/.ssh/id_ed25519";
         };
         "hetzner" = lib.hm.dag.entryAfter ["*"] {
