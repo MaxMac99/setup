@@ -82,10 +82,8 @@
         "valid users" = "max";
         "read only" = "no";
         writeable = "yes";
-        "create mask" = "0600";
-        "directory mask" = "0700";
-        "force user" = "max";
-        "force group" = "users";
+        "create mask" = "0644";
+        "directory mask" = "0755";
         "case sensitive" = "no";
         "preserve case" = "yes";
         "short preserve case" = "yes";
@@ -110,8 +108,7 @@
         "level2 oplocks" = "no";
         "strict allocate" = "no";
         "allocation roundup size" = 4096;
-        "inherit owner" = "yes";
-        "inherit permissions" = "yes";
+        "inherit acls" = "yes";
         "delete veto files" = "yes";
         comment = "Time Machine - Max";
       };
