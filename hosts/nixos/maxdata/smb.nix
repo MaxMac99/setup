@@ -56,12 +56,18 @@
         # macOS optimization (without fruit globally - only for TM shares)
         "vfs objects" = "catia streams_xattr";
 
-        # SMB3 for modern clients
+        # SMB protocol settings
         "server min protocol" = "SMB2";
+        "server max protocol" = "SMB3";
         "ea support" = "yes";
+        "store dos attributes" = "yes";
+        "map to guest" = "never";
+        "obey pam restrictions" = "no";
+        "unix extensions" = "no";
+        "wide links" = "no";
 
         # Logging
-        "log level" = 1;
+        "log level" = 3;
         "max log size" = 100;
       };
 
@@ -73,6 +79,7 @@
         "create mask" = "0600";
         "directory mask" = "0700";
         "force user" = "max";
+        "force group" = "users";
         "vfs objects" = "catia fruit streams_xattr";
         "fruit:metadata" = "stream";
         "fruit:model" = "MacSamba";
@@ -87,6 +94,9 @@
         "kernel oplocks" = "no";
         "kernel share modes" = "no";
         "posix locking" = "no";
+        "strict locking" = "no";
+        "oplocks" = "no";
+        "level2 oplocks" = "no";
         "strict allocate" = "yes";
         "allocation roundup size" = 4096;
         comment = "Time Machine - Max";
