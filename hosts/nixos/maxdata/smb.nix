@@ -30,45 +30,44 @@
     openFirewall = true;
 
     # Global Samba configuration
-    extraConfig = ''
-      # Server identification
-      workgroup = WORKGROUP
-      server string = maxdata NAS
-      netbios name = maxdata
+    settings = {
+      global = {
+        # Server identification
+        workgroup = "WORKGROUP";
+        "server string" = "maxdata NAS";
+        "netbios name" = "maxdata";
 
-      # Security settings
-      security = user
-      map to guest = Bad User
-      guest account = nobody
+        # Security settings
+        security = "user";
+        "map to guest" = "Bad User";
+        "guest account" = "nobody";
 
-      # Performance tuning
-      socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=131072 SO_SNDBUF=131072
-      read raw = yes
-      write raw = yes
-      max xmit = 65535
-      dead time = 15
-      getwd cache = yes
+        # Performance tuning
+        "socket options" = "TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=131072 SO_SNDBUF=131072";
+        "read raw" = "yes";
+        "write raw" = "yes";
+        "max xmit" = 65535;
+        "dead time" = 15;
+        "getwd cache" = "yes";
 
-      # macOS optimization
-      vfs objects = catia fruit streams_xattr
-      fruit:metadata = stream
-      fruit:model = MacSamba
-      fruit:posix_rename = yes
-      fruit:veto_appledouble = no
-      fruit:nfs_aces = no
-      fruit:wipe_intentionally_left_blank_rfork = yes
-      fruit:delete_empty_adfiles = yes
+        # macOS optimization
+        "vfs objects" = "catia fruit streams_xattr";
+        "fruit:metadata" = "stream";
+        "fruit:model" = "MacSamba";
+        "fruit:posix_rename" = "yes";
+        "fruit:veto_appledouble" = "no";
+        "fruit:nfs_aces" = "no";
+        "fruit:wipe_intentionally_left_blank_rfork" = "yes";
+        "fruit:delete_empty_adfiles" = "yes";
 
-      # Enable Time Machine discovery
-      fruit:advertise_fullsync = true
+        # Enable Time Machine discovery
+        "fruit:advertise_fullsync" = "true";
 
-      # Logging
-      log level = 1
-      max log size = 100
-    '';
+        # Logging
+        "log level" = 1;
+        "max log size" = 100;
+      };
 
-    # Define shares
-    shares = {
       # Time Machine backup shares
       "timemachine-max" = {
         path = "/tank/timemachine-max";
