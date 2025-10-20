@@ -37,7 +37,7 @@
       global = {
         # Server identification
         workgroup = "WORKGROUP";
-        "server string" = "maxdata NAS";
+        "server string" = "maxdata";
         "netbios name" = "maxdata";
 
         # Security settings
@@ -69,27 +69,27 @@
       "timemachine-max" = {
         path = "/tank/timemachine-max";
         "valid users" = "max";
-        "read only" = "no";
-
-        # Only the essentials for Time Machine
+        "public" = "no";
+        "writeable" = "yes";
+        "force user" = user;
+        # Below are the most imporant for macOS compatibility
+        # Change the above to suit your needs
+        "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "800G";
-
-        browseable = "yes";
-        comment = "Time Machine - Max";
+        "vfs objects" = "catia fruit streams_xattr";
       };
 
       "timemachine-michael" = {
         path = "/tank/timemachine-michael";
         "valid users" = "michael";
-        "read only" = "no";
-
-        # Only the essentials for Time Machine
+        "public" = "no";
+        "writeable" = "yes";
+        "force user" = user;
+        # Below are the most imporant for macOS compatibility
+        # Change the above to suit your needs
+        "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "600G";
-
-        browseable = "yes";
-        comment = "Time Machine - Michael";
+        "vfs objects" = "catia fruit streams_xattr";
       };
 
       # Personal data shares (no fruit - not Time Machine targets)
@@ -150,7 +150,7 @@
       workstation = true;
     };
     extraServiceFiles = {
-      smb = ''
+      timemachine = ''
         <?xml version="1.0" standalone='no'?>
         <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
         <service-group>
@@ -161,12 +161,11 @@
           </service>
           <service>
             <type>_device-info._tcp</type>
-            <port>9</port>
-            <txt-record>model=MacSamba</txt-record>
+            <port>0</port>
+            <txt-record>model=TimeCapsule8,119</txt-record>
           </service>
           <service>
             <type>_adisk._tcp</type>
-            <port>9</port>
             <txt-record>dk0=adVN=timemachine-max,adVF=0x82</txt-record>
             <txt-record>dk1=adVN=timemachine-michael,adVF=0x82</txt-record>
             <txt-record>sys=waMA=0,adVF=0x100</txt-record>
