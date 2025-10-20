@@ -80,7 +80,10 @@
         "directory mask" = "0700";
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "800G";
+        "fruit:aapl" = "yes";
+        "fruit:encoding" = "native";
         "vfs objects" = "catia fruit streams_xattr";
+        browseable = "yes";
         comment = "Time Machine - Max";
       };
 
@@ -92,7 +95,10 @@
         "directory mask" = "0700";
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "600G";
+        "fruit:aapl" = "yes";
+        "fruit:encoding" = "native";
         "vfs objects" = "catia fruit streams_xattr";
+        browseable = "yes";
         comment = "Time Machine - Michael";
       };
 
