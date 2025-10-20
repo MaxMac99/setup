@@ -29,8 +29,8 @@
     openFirewall = true;
 
     # Disable Windows-specific services (we only need smbd for macOS)
-    enableNmbd = false; # NetBIOS name service
-    enableWinbindd = false; # Windows domain integration
+    nmbd.enable = false; # NetBIOS name service
+    winbindd.enable = false; # Windows domain integration
 
     # Global Samba configuration
     settings = {
