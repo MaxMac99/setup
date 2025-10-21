@@ -1,8 +1,6 @@
 {config, lib, ...}: {
   programs.git = {
     enable = true;
-    userEmail = "max_vissing@yahoo.de";
-    userName = "Max Vissing";
     lfs.enable = true;
     ignores = [
       ".DS_Store"
@@ -16,7 +14,11 @@
       "target"
       "*.log"
     ];
-    extraConfig = {
+    settings = {
+      user = {
+        email = "max_vissing@yahoo.de";
+        name = "Max Vissing";
+      };
       init.defaultBranch = "main";
       pull.rebase = true;
       rebase.autoStash = true;

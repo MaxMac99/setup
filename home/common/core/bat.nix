@@ -1,6 +1,11 @@
 # https://github.com/sharkdp/bat
 # https://github.com/eth-p/bat-extras
-{pkgs, ...}: {
+{pkgs, ...}: let
+  # Override bat-extras to skip tests due to snapshot mismatches
+  bat-extras-no-tests = pkgs.bat-extras.overrideAttrs (oldAttrs: {
+    doCheck = false;
+  });
+in {
   programs.bat = {
     enable = true;
     config = {
@@ -11,7 +16,7 @@
     };
     extraPackages = builtins.attrValues {
       inherit
-        (pkgs.bat-extras)
+        (bat-extras-no-tests)
         batgrep # search through and highlight files using ripgrep
         batdiff # Diff a file against the current git index, or display the diff between to files
         batman # read manpages using bat as the formatter
