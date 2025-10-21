@@ -71,7 +71,7 @@
         # Change the above to suit your needs
         "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "2T";  # Limit backup size
+        "fruit:time machine max size" = "800G";  # Limit backup size
         "vfs objects" = "catia fruit streams_xattr";
       };
 
@@ -88,7 +88,7 @@
         # Change the above to suit your needs
         "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "2T";  # Limit backup size
+        "fruit:time machine max size" = "600G";  # Limit backup size
         "vfs objects" = "catia fruit streams_xattr";
       };
 
