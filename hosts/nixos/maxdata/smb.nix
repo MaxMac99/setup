@@ -26,6 +26,7 @@
   # Enable Samba service for Time Machine and data shares
   services.samba = {
     enable = true;
+    package = pkgs.samba4Full;
     openFirewall = true;
 
     # Disable Windows-specific services (we only need smbd for macOS)
