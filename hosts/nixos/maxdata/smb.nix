@@ -114,7 +114,7 @@
         # macOS compatibility settings
         "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "800G";
+        "fruit:time machine max size" = "2T";  # 2TB to meet macOS recommendation
 
         # Additional Time Machine optimizations
         "durable handles" = "yes";
