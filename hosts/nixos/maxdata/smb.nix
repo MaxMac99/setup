@@ -43,7 +43,34 @@
         # Security settings
         security = "user";
 
-        # ESSENTIAL Apple settings only
+        # Protocol settings - critical for macOS compatibility
+        "server min protocol" = "SMB2";
+        "server max protocol" = "SMB3";
+        "client min protocol" = "SMB2";
+        "client max protocol" = "SMB3";
+
+        # Performance and compatibility
+        "server multi channel support" = "yes";
+        "deadtime" = "30";
+        "use sendfile" = "yes";
+
+        # File locking - essential for Time Machine
+        "strict locking" = "no";
+        "oplocks" = "yes";
+        "kernel oplocks" = "no";
+        "locking" = "yes";
+        "strict sync" = "yes";
+        "sync always" = "no";
+
+        # Extended attributes support - critical for Time Machine
+        "ea support" = "yes";
+        "store dos attributes" = "yes";
+        "map hidden" = "no";
+        "map archive" = "no";
+        "map readonly" = "no";
+        "map system" = "no";
+
+        # ESSENTIAL Apple settings
         "fruit:metadata" = "stream";
         "fruit:model" = "MacSamba";
         "fruit:veto_appledouble" = "no";
@@ -52,26 +79,43 @@
         "fruit:wipe_cache" = "yes";
         "fruit:delete_empty_adfiles" = "yes";
         "fruit:nfs_aces" = "no";  # Important for ZFS filesystems
+        "fruit:aapl" = "yes";  # Enable Apple extensions globally
+
+        # VFS modules - order is important
+        "vfs objects" = "catia fruit streams_xattr";
 
         # Logging
         "log level" = 3;
       };
 
-      # Time Machine backup shares - MINIMAL
+      # Time Machine backup shares
       "timemachine-max" = {
         path = "/tank/timemachine-max";
         "valid users" = "max";
         "public" = "no";
         "writeable" = "yes";
         "force user" = "max";
-        "force group" = "users";  # Ensure correct group permissions
-        "create mask" = "0664";   # Permissions for new files
-        "directory mask" = "0775"; # Permissions for new directories
-        # Below are the most imporant for macOS compatibility
-        # Change the above to suit your needs
+        "force group" = "users";
+        "create mask" = "0600";
+        "directory mask" = "0700";
+        "inherit acls" = "yes";
+
+        # macOS compatibility settings
         "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "800G";  # Limit backup size
+        "fruit:time machine max size" = "800G";
+
+        # Additional Time Machine optimizations
+        "durable handles" = "yes";
+        "kernel oplocks" = "no";
+        "kernel share modes" = "no";
+        "posix locking" = "no";
+        "ea support" = "yes";
+
+        # Ensure spotlight indexing works
+        "spotlight" = "yes";
+
+        # VFS modules - order matters
         "vfs objects" = "catia fruit streams_xattr";
       };
 
@@ -81,14 +125,27 @@
         "public" = "no";
         "writeable" = "yes";
         "force user" = "michael";
-        "force group" = "users";  # Ensure correct group permissions
-        "create mask" = "0664";   # Permissions for new files
-        "directory mask" = "0775"; # Permissions for new directories
-        # Below are the most imporant for macOS compatibility
-        # Change the above to suit your needs
+        "force group" = "users";
+        "create mask" = "0600";
+        "directory mask" = "0700";
+        "inherit acls" = "yes";
+
+        # macOS compatibility settings
         "fruit:aapl" = "yes";
         "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "600G";  # Limit backup size
+        "fruit:time machine max size" = "600G";
+
+        # Additional Time Machine optimizations
+        "durable handles" = "yes";
+        "kernel oplocks" = "no";
+        "kernel share modes" = "no";
+        "posix locking" = "no";
+        "ea support" = "yes";
+
+        # Ensure spotlight indexing works
+        "spotlight" = "yes";
+
+        # VFS modules - order matters
         "vfs objects" = "catia fruit streams_xattr";
       };
 
