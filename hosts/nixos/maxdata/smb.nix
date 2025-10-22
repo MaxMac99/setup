@@ -94,11 +94,22 @@
         "valid users" = "max";
         "public" = "no";
         "writeable" = "yes";
-        "force user" = "max";
-        "force group" = "users";
-        "create mask" = "0600";
-        "directory mask" = "0700";
-        "inherit acls" = "yes";
+        "read only" = "no";
+
+        # Remove force user/group - let Time Machine handle ownership
+        # "force user" = "max";
+        # "force group" = "users";
+
+        # More permissive masks for Time Machine
+        "create mask" = "0666";
+        "directory mask" = "0777";
+        "force create mode" = "0666";
+        "force directory mode" = "0777";
+
+        # Disable ACL inheritance which can conflict
+        "inherit acls" = "no";
+        "nt acl support" = "no";
+        "map acl inherit" = "no";
 
         # macOS compatibility settings
         "fruit:aapl" = "yes";
@@ -111,6 +122,10 @@
         "kernel share modes" = "no";
         "posix locking" = "no";
         "ea support" = "yes";
+
+        # Allow sparse files for Time Machine bundles
+        "strict allocate" = "no";
+        "prealloc:EXT" = "false";
 
         # Ensure spotlight indexing works
         "spotlight" = "yes";
