@@ -39,6 +39,7 @@
         # Server identification
         workgroup = "WORKGROUP";
         "server string" = "maxdata";
+        "server role" = "standalone server";
         "netbios name" = "maxdata";
 
         # Security settings
@@ -46,33 +47,25 @@
 
         # Protocol settings - critical for macOS compatibility
         "server min protocol" = "SMB2";
-        "server max protocol" = "SMB3";
-        "client min protocol" = "SMB2";
-        "client max protocol" = "SMB3";
 
-        # Performance and compatibility
-        "server multi channel support" = "yes";
-        "deadtime" = "30";
-        "use sendfile" = "yes";
-
-        # Standard file locking settings
-        "oplocks" = "yes";
-        "locking" = "yes";
-
-        # Extended attributes support for macOS
-        "ea support" = "yes";
-        "store dos attributes" = "yes";
-
-        # Apple compatibility settings
-        "fruit:metadata" = "stream";
-        "fruit:model" = "MacSamba";
-        "fruit:posix_rename" = "yes";
-        "fruit:zero_file_id" = "yes";
-        "fruit:delete_empty_adfiles" = "yes";
-        "fruit:aapl" = "yes";  # Enable Apple extensions
+        "access based share enum" = "no";
+        "hide unreadable" = "no";
+        "load printers" = "no";
+        "ntlm auth" = "no";
 
         # VFS modules - order is important
-        "vfs objects" = "catia fruit streams_xattr";
+        "vfs objects" = "acl_xattr fruit streams_xattr";
+
+        # Apple compatibility settings
+        "fruit:aapl" = "yes";  # Enable Apple extensions
+        "fruit:nfs_aces" = "yes";  # Enable Apple extensions
+        "fruit:model" = "TimeCapsule8,119";
+        "fruit:metadata" = "stream";
+        "fruit:veto_appledouble" = "no";
+        "fruit:posix_rename" = "yes";
+        "fruit:zero_file_id" = "yes";
+        "fruit:wipe_intentionally_left_blank_rfork" = "yes";
+        "fruit:delete_empty_adfiles" = "yes";
 
         # Logging
         "log level" = 1;
@@ -120,6 +113,19 @@
         "directory mask" = "0775";
         comment = "Daten Familie";
       };
+
+      # Time Machine backup share
+      TimeMachine = {
+        path = "/tank/timemachine-max";
+        browseable = "yes";
+        "inherit permissions" = "no";
+        "read only" = "no";
+        "valid users" = "max";
+        "vfs objects" = "acl_xattr fruit streams_xattr";
+        "fruit:time machine" = "yes";
+        "fruit:time machine max size" = "0";  # 0 = unlimited, ZFS quota enforces 2TB limit
+        comment = "Time Machine Backup";
+      };
     };
   };
 
@@ -145,6 +151,12 @@
           <service>
             <type>_smb._tcp</type>
             <port>445</port>
+          </service>
+          <service>
+            <type>_adisk._tcp</type>
+            <port>9</port>
+            <txt-record>dk0=adVN=TimeMachine,adVF=0x82</txt-record>
+            <txt-record>sys=waMA=0,adVF=0x100</txt-record>
           </service>
         </service-group>
       '';
