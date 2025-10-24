@@ -24,6 +24,7 @@ in {
     curl
     vim
     git
+    inetutils
   ];
 
   # Import the user's personal/home configurations
