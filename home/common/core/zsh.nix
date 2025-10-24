@@ -35,6 +35,9 @@
         export GITHUB_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
         export PULUMI_ACCESS_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
       ''}
+
+      # K3s cluster kubeconfig
+      export KUBECONFIG=~/.kube/k3s-config
     '';
 
     oh-my-zsh = {
