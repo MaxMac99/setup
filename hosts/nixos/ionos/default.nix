@@ -1,11 +1,11 @@
-{lib, ...}: {
+{lib, pkgs, ...}: {
   nixpkgs.hostPlatform = "x86_64-linux";
 
   imports = lib.flatten [
     (map lib.custom.relativeToRoot [
       "hosts/common/core"
       "hosts/common/optional/nixos/openssh.nix"
-      "hosts/common/optional/nixos/ipforward.nix"
+      "modules/nixos/k3s-base.nix"
     ])
     ./hardware-configuration.nix
   ];
@@ -38,13 +38,34 @@
             publicKey = "ulBtv6Iou8HKpJzeJS9YALlZTSKE1+W+fZCEzM3hGiw=";
             presharedKeyFile = "/home/max/.wireguard/preshared_key";
             allowedIPs = ["192.168.178.0/24" "fda8:a1db:5685::/64"];
-            endpoint = "bzwkhrd8hexv5q4g.myfritz.net:56527";
+            endpoint = "xswl3ocz7lm59gcs.myfritz.net:56527";
             persistentKeepalive = 25;
           }
         ];
       };
     };
   };
+
+  # Configure K3s as agent (worker node)
+  services.k3s = {
+    role = lib.mkForce "agent";
+    serverAddr = "https://192.168.178.5:6443";  # k3s-node1
+    extraFlags = lib.mkForce (toString [
+      "--node-name=ionos"
+      "--node-label=node-role.kubernetes.io/edge=true"  # Mark as edge node
+      "--node-label=topology.kubernetes.io/zone=external"  # For scheduling
+      "--node-ip=192.168.178.201,fda8:a1db:5685::201"
+      # Taint to prevent accidental scheduling - only pods with toleration will run here
+      "--node-taint=edge=true:NoSchedule"
+    ]);
+  };
+
+  # K3s token - same as cluster nodes
+  systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce (
+    pkgs.writeText "k3s-env" ''
+      K3S_TOKEN=7KQZfcTkcTPj4iCoSdRcm6qS7LdUm/MVF5fHcpkUjzUREPLACE_WITH_YOUR_ACTUAL_TOKEN
+    ''
+  );
 
   system.stateVersion = "25.05";
 }
