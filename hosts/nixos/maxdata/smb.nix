@@ -4,7 +4,7 @@
   pkgs,
   ...
 }: {
-  # Samba/SMB configuration for Time Machine and multi-user file sharing
+  # Samba/SMB configuration for multi-user file sharing
 
   # Create users for SMB access
   users.users = {
@@ -23,7 +23,7 @@
     };
   };
 
-  # Enable Samba service for Time Machine and data shares
+  # Enable Samba service for data shares
   services.samba = {
     enable = true;
     package = pkgs.samba4Full;
@@ -55,117 +55,31 @@
         "deadtime" = "30";
         "use sendfile" = "yes";
 
-        # File locking - essential for Time Machine
-        "strict locking" = "no";
+        # Standard file locking settings
         "oplocks" = "yes";
-        "kernel oplocks" = "no";
         "locking" = "yes";
-        "strict sync" = "yes";
-        "sync always" = "no";
 
-        # Extended attributes support - critical for Time Machine
+        # Extended attributes support for macOS
         "ea support" = "yes";
         "store dos attributes" = "yes";
-        "map hidden" = "no";
-        "map archive" = "no";
-        "map readonly" = "no";
-        "map system" = "no";
 
-        # ESSENTIAL Apple settings
+        # Apple compatibility settings
         "fruit:metadata" = "stream";
         "fruit:model" = "MacSamba";
-        "fruit:veto_appledouble" = "no";
         "fruit:posix_rename" = "yes";
         "fruit:zero_file_id" = "yes";
-        "fruit:wipe_cache" = "yes";
         "fruit:delete_empty_adfiles" = "yes";
-        "fruit:nfs_aces" = "no";  # Important for ZFS filesystems
-        "fruit:aapl" = "yes";  # Enable Apple extensions globally
+        "fruit:aapl" = "yes";  # Enable Apple extensions
 
         # VFS modules - order is important
         "vfs objects" = "catia fruit streams_xattr";
 
         # Logging
-        "log level" = 3;
+        "log level" = 1;
       };
 
-      # Time Machine backup shares
-      "timemachine-max" = {
-        path = "/tank/timemachine-max";
-        "valid users" = "max";
-        "public" = "no";
-        "writeable" = "yes";
-        "read only" = "no";
 
-        # Remove force user/group - let Time Machine handle ownership
-        # "force user" = "max";
-        # "force group" = "users";
-
-        # More permissive masks for Time Machine
-        "create mask" = "0666";
-        "directory mask" = "0777";
-        "force create mode" = "0666";
-        "force directory mode" = "0777";
-
-        # Disable ACL inheritance which can conflict
-        "inherit acls" = "no";
-        "nt acl support" = "no";
-        "map acl inherit" = "no";
-
-        # macOS compatibility settings
-        "fruit:aapl" = "yes";
-        "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "2T";  # 2TB to meet macOS recommendation
-
-        # Additional Time Machine optimizations
-        "durable handles" = "yes";
-        "kernel oplocks" = "no";
-        "kernel share modes" = "no";
-        "posix locking" = "no";
-        "ea support" = "yes";
-
-        # Allow sparse files for Time Machine bundles
-        "strict allocate" = "no";
-        "prealloc:EXT" = "false";
-
-        # Ensure spotlight indexing works
-        "spotlight" = "yes";
-
-        # VFS modules - order matters
-        "vfs objects" = "catia fruit streams_xattr";
-      };
-
-      "timemachine-michael" = {
-        path = "/tank/timemachine-michael";
-        "valid users" = "michael";
-        "public" = "no";
-        "writeable" = "yes";
-        "force user" = "michael";
-        "force group" = "users";
-        "create mask" = "0600";
-        "directory mask" = "0700";
-        "inherit acls" = "yes";
-
-        # macOS compatibility settings
-        "fruit:aapl" = "yes";
-        "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "600G";
-
-        # Additional Time Machine optimizations
-        "durable handles" = "yes";
-        "kernel oplocks" = "no";
-        "kernel share modes" = "no";
-        "posix locking" = "no";
-        "ea support" = "yes";
-
-        # Ensure spotlight indexing works
-        "spotlight" = "yes";
-
-        # VFS modules - order matters
-        "vfs objects" = "catia fruit streams_xattr";
-      };
-
-      # Personal data shares (no fruit - not Time Machine targets)
+      # Personal data shares
       "Daten Max" = {
         path = "/tank/daten-max";
         browseable = "yes";
@@ -209,44 +123,33 @@
     };
   };
 
-  # Temporarily disable Avahi to test if it's causing Time Machine issues
-  # services.avahi = {
-  #   enable = true;
-  #   nssmdns4 = true;
-  #   openFirewall = true;
-  #   publish = {
-  #     enable = true;
-  #     addresses = true;
-  #     domain = true;
-  #     hinfo = true;
-  #     userServices = true;
-  #     workstation = true;
-  #   };
-  #   extraServiceFiles = {
-  #     timemachine = ''
-  #       <?xml version="1.0" standalone='no'?>
-  #       <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
-  #       <service-group>
-  #         <name replace-wildcards="yes">%h</name>
-  #         <service>
-  #           <type>_smb._tcp</type>
-  #           <port>445</port>
-  #         </service>
-  #         <service>
-  #           <type>_device-info._tcp</type>
-  #           <port>0</port>
-  #           <txt-record>model=TimeCapsule8,119</txt-record>
-  #         </service>
-  #         <service>
-  #           <type>_adisk._tcp</type>
-  #           <txt-record>dk0=adVN=timemachine-max,adVF=0x82</txt-record>
-  #           <txt-record>dk1=adVN=timemachine-michael,adVF=0x82</txt-record>
-  #           <txt-record>sys=waMA=0,adVF=0x100</txt-record>
-  #         </service>
-  #       </service-group>
-  #     '';
-  #   };
-  # };
+  # Enable Avahi for SMB service discovery
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    openFirewall = true;
+    publish = {
+      enable = true;
+      addresses = true;
+      domain = true;
+      hinfo = true;
+      userServices = true;
+      workstation = true;
+    };
+    extraServiceFiles = {
+      smb = ''
+        <?xml version="1.0" standalone='no'?>
+        <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+        <service-group>
+          <name replace-wildcards="yes">%h</name>
+          <service>
+            <type>_smb._tcp</type>
+            <port>445</port>
+          </service>
+        </service-group>
+      '';
+    };
+  };
 
   # Firewall rules for SMB and mDNS
   networking.firewall = {
