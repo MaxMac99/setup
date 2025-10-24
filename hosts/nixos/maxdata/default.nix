@@ -109,10 +109,10 @@
   };
 
   # Increase timeouts to prevent premature emergency mode
-  systemd.extraConfig = ''
-    DefaultTimeoutStartSec=300s
-    DefaultTimeoutStopSec=30s
-  '';
+  systemd.settings.Manager = {
+    DefaultTimeoutStartSec = "300s";
+    DefaultTimeoutStopSec = "30s";
+  };
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
