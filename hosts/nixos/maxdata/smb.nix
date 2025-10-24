@@ -50,6 +50,7 @@
 
         "access based share enum" = "no";
         "hide unreadable" = "no";
+        "inherit permissions" = "no";
         "load printers" = "no";
         "ntlm auth" = "no";
 
