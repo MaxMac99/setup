@@ -42,6 +42,7 @@
     allowedTCPPorts = [
       22    # SSH
       8006  # Proxmox Web UI
+      9090  # Cockpit Web UI
       5900  # VNC (for VM consoles) - adjust range as needed
       111   # NFS portmapper
       2049  # NFS
