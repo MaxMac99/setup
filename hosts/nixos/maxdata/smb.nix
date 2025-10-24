@@ -55,7 +55,8 @@
         "ntlm auth" = "no";
 
         # VFS modules - order is important
-        "vfs objects" = "acl_xattr fruit streams_xattr";
+        # Removed acl_xattr globally - it causes POSIX ACLs that break Time Machine
+        "vfs objects" = "fruit streams_xattr";
 
         # Apple compatibility settings
         "fruit:aapl" = "yes";  # Enable Apple extensions
