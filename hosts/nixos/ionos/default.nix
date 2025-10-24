@@ -52,7 +52,7 @@
     serverAddr = "https://192.168.178.5:6443";  # k3s-node1
     extraFlags = lib.mkForce (toString [
       "--node-name=ionos"
-      "--node-label=node-role.kubernetes.io/edge=true"  # Mark as edge node
+      "--node-label=edge=true"  # Mark as edge node (custom label)
       "--node-label=topology.kubernetes.io/zone=external"  # For scheduling
       "--node-ip=192.168.178.201,fda8:a1db:5685::201"
       # Taint to prevent accidental scheduling - only pods with toleration will run here
