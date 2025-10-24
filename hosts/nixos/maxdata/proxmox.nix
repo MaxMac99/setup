@@ -13,6 +13,20 @@
     ipAddress = "192.168.178.2"; # Adjust to your IP or leave empty for DHCP
   };
 
+  # Prevent Proxmox services from restarting during nixos-rebuild
+  # This keeps VMs running during system updates
+  systemd.services = {
+    "pve-cluster".restartIfChanged = false;
+    "pve-ha-crm".restartIfChanged = false;
+    "pve-ha-lrm".restartIfChanged = false;
+    "pvedaemon".restartIfChanged = false;
+    "pveproxy".restartIfChanged = false;
+    "pvestatd".restartIfChanged = false;
+    "pvescheduler".restartIfChanged = false;
+    "pve-firewall".restartIfChanged = false;
+    "pve-lxc-syscalld".restartIfChanged = false;
+  };
+
   # Packages required for Proxmox VMs
   environment.systemPackages = with pkgs; [
     swtpm # TPM emulator for Windows 11 VMs
@@ -31,22 +45,6 @@
     '';
   };
 
-  # Samba for Windows file sharing (optional)
-  # services.samba = {
-  #   enable = true;
-  #   securityType = "user";
-  #   shares = {
-  #     tank = {
-  #       path = "/tank/data";
-  #       browseable = "yes";
-  #       "read only" = "no";
-  #       "guest ok" = "no";
-  #       "create mask" = "0644";
-  #       "directory mask" = "0755";
-  #     };
-  #   };
-  # };
-
   # Enable Cockpit for web-based system management (alternative to Proxmox UI)
   services.cockpit = {
     enable = true;
@@ -64,16 +62,4 @@
     port = 9100;
     enabledCollectors = ["systemd" "zfs"];
   };
-
-  # Time Machine support via Samba (optional, for Mac backups)
-  # services.samba-wsdd.enable = true; # For Windows network discovery
-  # services.samba.extraConfig = ''
-  #   [Time Machine]
-  #   path = /tank/timemachine
-  #   valid users = max
-  #   read only = no
-  #   vfs objects = catia fruit streams_xattr
-  #   fruit:time machine = yes
-  #   fruit:time machine max size = 500G
-  # '';
 }
