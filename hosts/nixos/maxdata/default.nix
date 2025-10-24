@@ -90,8 +90,29 @@
     k9s
   ];
 
-  # Enable the OpenSSH daemon
-  services.openssh.openFirewall = true;
+  # Enable the OpenSSH daemon with emergency mode support
+  services.openssh = {
+    openFirewall = true;
+    startWhenNeeded = false;  # Always start, don't wait for socket activation
+  };
+
+  # Keep SSH running even in emergency/rescue mode
+  systemd.services.sshd = {
+    unitConfig = {
+      IgnoreOnIsolate = true;  # Don't stop SSH when switching to emergency mode
+    };
+    wantedBy = lib.mkForce [ "multi-user.target" "emergency.target" "rescue.target" ];
+    serviceConfig = {
+      Restart = "always";
+      RestartSec = "5s";
+    };
+  };
+
+  # Increase timeouts to prevent premature emergency mode
+  systemd.extraConfig = ''
+    DefaultTimeoutStartSec=300s
+    DefaultTimeoutStopSec=30s
+  '';
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
