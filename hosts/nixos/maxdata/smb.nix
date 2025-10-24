@@ -122,6 +122,7 @@
         "inherit permissions" = "no";
         "read only" = "no";
         "valid users" = "max";
+        "force group" = "1000";  # Force all files to use GID 1000 to match K8s setup
         "vfs objects" = "fruit streams_xattr";  # Removed acl_xattr - Time Machine doesn't need it
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "0";  # 0 = unlimited, ZFS quota enforces 2TB limit
