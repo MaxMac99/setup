@@ -1,14 +1,18 @@
-{ config, lib, pkgs, modulesPath, ... }:
-
 {
-  imports =
-    [ (modulesPath + "/installer/scan/not-detected.nix")
-    ];
+  config,
+  lib,
+  pkgs,
+  modulesPath,
+  ...
+}: {
+  imports = [
+    (modulesPath + "/installer/scan/not-detected.nix")
+  ];
 
-  boot.initrd.availableKernelModules = [ "nvme" "xhci_pci" "ahci" "usbhid" "usb_storage" "sd_mod" ];
-  boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-amd" ];
-  boot.extraModulePackages = [ ];
+  boot.initrd.availableKernelModules = ["nvme" "xhci_pci" "ahci" "usbhid" "usb_storage" "sd_mod"];
+  boot.initrd.kernelModules = [];
+  boot.kernelModules = ["kvm-amd"];
+  boot.extraModulePackages = [];
 
   # NVIDIA Quadro RTX 4000 GPU
   # Uncomment if you want to use the GPU in the host or for GPU passthrough
@@ -23,65 +27,61 @@
   #   options vfio-pci ids=10de:1eb8 # Replace with your GPU device ID
   # '';
 
-  fileSystems."/" =
-      { device = "fast/root";
-        fsType = "zfs";
-      };
+  fileSystems."/" = {
+    device = "fast/root";
+    fsType = "zfs";
+  };
 
-  fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/4F5B-A624";
-      fsType = "vfat";
-      options = [ "fmask=0022" "dmask=0022" ];
-    };
+  fileSystems."/boot" = {
+    device = "/dev/disk/by-uuid/4F5B-A624";
+    fsType = "vfat";
+    options = ["fmask=0022" "dmask=0022"];
+  };
 
-  fileSystems."/nix" =
-    { device = "fast/nix";
-      fsType = "zfs";
-    };
+  fileSystems."/nix" = {
+    device = "fast/nix";
+    fsType = "zfs";
+  };
 
-  fileSystems."/fast/pve" =
-    { device = "fast/pve";
-      fsType = "zfs";
-    };
+  fileSystems."/fast/pve" = {
+    device = "fast/pve";
+    fsType = "zfs";
+  };
 
-  fileSystems."/tank/data" =
-    { device = "tank/data";
-      fsType = "zfs";
-    };
+  fileSystems."/tank/data" = {
+    device = "tank/data";
+    fsType = "zfs";
+  };
 
-  fileSystems."/tank/backups" =
-    { device = "tank/backups";
-      fsType = "zfs";
-    };
+  fileSystems."/tank/backups" = {
+    device = "tank/backups";
+    fsType = "zfs";
+  };
 
-  fileSystems."/tank/pve" =
-    { device = "tank/pve";
-      fsType = "zfs";
-    };
+  fileSystems."/tank/pve" = {
+    device = "tank/pve";
+    fsType = "zfs";
+  };
 
-  fileSystems."/tank/k8s" =
-    { device = "tank/k8s";
-      fsType = "zfs";
-    };
+  fileSystems."/tank/k8s" = {
+    device = "tank/k8s";
+    fsType = "zfs";
+  };
 
-  fileSystems."/tank/fast-backup" =
-    { device = "tank/fast-backup";
-      fsType = "zfs";
-    };
+  fileSystems."/tank/fast-backup" = {
+    device = "tank/fast-backup";
+    fsType = "zfs";
+  };
 
-  fileSystems."/fast/k8s" =
-    { device = "fast/k8s";
-      fsType = "zfs";
-    };
+  fileSystems."/fast/k8s" = {
+    device = "fast/k8s";
+    fsType = "zfs";
+  };
 
-  fileSystems."/fast/k8s/timemachine" =
-    { device = "fast/k8s/timemachine";
-      fsType = "zfs";
-    };
-
-  swapDevices = [ ];
+  swapDevices = [];
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
   services.fstrim.enable = true;
 }
+
