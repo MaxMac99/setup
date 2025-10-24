@@ -23,11 +23,6 @@
     };
   };
 
-  # Create timemachine group with GID 1000 for Time Machine backups
-  users.groups.timemachine = {
-    gid = 1000;
-  };
-
   # Enable Samba service for data shares
   services.samba = {
     enable = true;
@@ -120,20 +115,6 @@
         "directory mask" = "0775";
         comment = "Daten Familie";
       };
-
-      # Time Machine backup share
-      TimeMachine = {
-        path = "/tank/timemachine-max";
-        browseable = "yes";
-        "inherit permissions" = "no";
-        "read only" = "no";
-        "valid users" = "max";
-        "force group" = "timemachine";  # Force all files to use GID 1000 to match K8s setup
-        "vfs objects" = "fruit streams_xattr";  # Removed acl_xattr - Time Machine doesn't need it
-        "fruit:time machine" = "yes";
-        "fruit:time machine max size" = "0";  # 0 = unlimited, ZFS quota enforces 2TB limit
-        comment = "Time Machine Backup";
-      };
     };
   };
 
@@ -159,12 +140,6 @@
           <service>
             <type>_smb._tcp</type>
             <port>445</port>
-          </service>
-          <service>
-            <type>_adisk._tcp</type>
-            <port>9</port>
-            <txt-record>dk0=adVN=TimeMachine,adVF=0x82</txt-record>
-            <txt-record>sys=waMA=0,adVF=0x100</txt-record>
           </service>
         </service-group>
       '';
