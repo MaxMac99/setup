@@ -100,7 +100,7 @@ in
         "${config.networkConfig.staticIPv6s.${cfg.nodeName}}/64"
       ];
       routes = [
-        { routeConfig.Gateway = config.networkConfig.gateway; }
+        { Gateway = config.networkConfig.gateway; }
       ];
       linkConfig.RequiredForOnline = "routable";
     };
