@@ -2,6 +2,7 @@ keys:
   - &maxs-macbook-pro age1crme8auc0sjgeu0r85w5lt04ey59me7jx4945zje4lnj3ctf2pzs8tc288
   - &kopf3-NB-26 age13242rt3uhlc6k7p6un8lxy86m3wysjclwntwr8v5pl9fshdf8suqxvqps2
   - &maxdata age1s44mfk6jem5nz0nnt0kp0l59tdhzns0s6dtt97gwxf7xyxh2240sj5mw4m
+  - &ionos age100thyt62mn4gyw90thmz5rzqtzd5d9jga4gtljvylcnuu3cawscqcqtmah
 creation_rules:
   - path_regex: secrets/common.yaml
     key_groups:
@@ -9,8 +10,10 @@ creation_rules:
         - *maxs-macbook-pro
         - *kopf3-NB-26
         - *maxdata
+        - *ionos
   - path_regex: secrets/k3s.yaml
     key_groups:
       - age:
           - *maxs-macbook-pro
           - *maxdata
+          - *ionos

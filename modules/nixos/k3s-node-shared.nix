@@ -65,6 +65,12 @@ in
           source = "/fast/k8s";
           mountPoint = "/mnt/k8s-fast";
         }
+        {
+          proto = "virtiofs";
+          tag = "host-ssh";
+          source = "/home/max/.ssh";
+          mountPoint = "/mnt/host-ssh";
+        }
       ];
 
       # Enable writable nix store overlay
@@ -126,6 +132,7 @@ in
     # Configure sops secret for K3s token
     sops = {
       defaultSopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
+      age.sshKeyPaths = [ "/mnt/host-ssh/id_ed25519" ];  # Use maxdata's user SSH key (shared via virtiofs)
       secrets.k3s_token = {
         restartUnits = [ "k3s.service" ];
       };

@@ -63,6 +63,7 @@
   # Configure sops secret for K3s token
   sops = {
     defaultSopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
+    age.sshKeyPaths = [ "/home/max/.ssh/id_ed25519" ];  # Use user SSH key for age
     secrets.k3s_token = {
       restartUnits = [ "k3s.service" ];
     };
