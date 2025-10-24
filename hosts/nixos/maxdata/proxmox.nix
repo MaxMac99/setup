@@ -52,6 +52,8 @@
     settings = {
       WebService = {
         AllowUnencrypted = true;
+        # Allow connections from any origin (local network access)
+        Origins = "http://192.168.178.2:9090 http://maxdata:9090 http://maxdata.local:9090 https://192.168.178.2:9090";
       };
     };
   };
