@@ -122,7 +122,7 @@
         "inherit permissions" = "no";
         "read only" = "no";
         "valid users" = "max";
-        "vfs objects" = "acl_xattr fruit streams_xattr";
+        "vfs objects" = "fruit streams_xattr";  # Removed acl_xattr - Time Machine doesn't need it
         "fruit:time machine" = "yes";
         "fruit:time machine max size" = "0";  # 0 = unlimited, ZFS quota enforces 2TB limit
         comment = "Time Machine Backup";
