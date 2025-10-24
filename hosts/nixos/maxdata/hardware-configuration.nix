@@ -74,6 +74,11 @@
       fsType = "zfs";
     };
 
+  fileSystems."/fast/k8s/timemachine" =
+    { device = "fast/k8s/timemachine";
+      fsType = "zfs";
+    };
+
   swapDevices = [ ];
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
