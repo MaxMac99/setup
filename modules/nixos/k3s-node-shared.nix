@@ -91,20 +91,31 @@ in
     systemd.network.networks."20-wired" = {
       matchConfig.Name = "en*";  # Match en* interfaces (ens*, enp*, etc)
       networkConfig = {
-        Address = "${config.networkConfig.staticIPs.${cfg.nodeName}}/24";
-        Gateway = config.networkConfig.gateway;
-        DNS = config.networkConfig.dns.servers;
         DHCP = "no";
+        DNS = config.networkConfig.dns.servers;
+        IPv6AcceptRA = false;
       };
+      address = [
+        "${config.networkConfig.staticIPs.${cfg.nodeName}}/24"
+        "${config.networkConfig.staticIPv6s.${cfg.nodeName}}/64"
+      ];
+      routes = [
+        { routeConfig.Gateway = config.networkConfig.gateway; }
+      ];
       linkConfig.RequiredForOnline = "routable";
     };
 
     services.k3s.extraFlags = lib.mkForce (toString (
       [
-        "--disable=servicelb"
+        "--disable=servicelb"  # Use MetalLB for LoadBalancer services
         "--write-kubeconfig-mode=644"
         "--tls-san=${cfg.nodeName}"
+        "--tls-san=${config.networkConfig.staticIPv6s.${cfg.nodeName}}"
         "--node-name=${cfg.nodeName}"
+        # Dual-stack configuration
+        "--node-ip=${config.networkConfig.staticIPs.${cfg.nodeName}},${config.networkConfig.staticIPv6s.${cfg.nodeName}}"
+        "--cluster-cidr=10.42.0.0/16,fd01::/48"   # Pod IPv4 and IPv6 ranges
+        "--service-cidr=10.43.0.0/16,fd02::/112"  # Service IPv4 and IPv6 ranges
       ] ++
       (if cfg.isFirstNode then
         [ "--cluster-init" ]

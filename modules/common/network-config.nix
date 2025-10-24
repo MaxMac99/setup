@@ -45,5 +45,24 @@
       };
       description = "Static IP assignments for hosts";
     };
+
+    staticIPv6s = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = {
+        # Private ULA addresses - NOT exposed to internet
+        # Only accessible via local network or WireGuard tunnel
+        maxdata = "fda8:a1db:5685::2";
+        k3s-node1 = "fda8:a1db:5685::5";
+        k3s-node2 = "fda8:a1db:5685::6";
+        k3s-node3 = "fda8:a1db:5685::7";
+      };
+      description = "Static IPv6 assignments (private ULA - not internet routable)";
+    };
+
+    ipv6Gateway = lib.mkOption {
+      type = lib.types.str;
+      default = "fda8:a1db:5685::1";
+      description = "IPv6 gateway (local)";
+    };
   };
 }
