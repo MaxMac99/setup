@@ -1,4 +1,4 @@
-{lib, pkgs, ...}: {
+{lib, pkgs, config, ...}: {
   nixpkgs.hostPlatform = "x86_64-linux";
 
   imports = lib.flatten [
@@ -60,12 +60,19 @@
     ]);
   };
 
-  # K3s token - same as cluster nodes
-  systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce (
-    pkgs.writeText "k3s-env" ''
-      K3S_TOKEN=7KQZfcTkcTPj4iCoSdRcm6qS7LdUm/MVF5fHcpkUjzUREPLACE_WITH_YOUR_ACTUAL_TOKEN
-    ''
-  );
+  # Configure sops secret for K3s token
+  sops = {
+    defaultSopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
+    secrets.k3s_token = {
+      restartUnits = [ "k3s.service" ];
+    };
+    templates."k3s-env".content = ''
+      K3S_TOKEN=${config.sops.placeholder.k3s_token}
+    '';
+  };
+
+  # K3s token from sops template
+  systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce config.sops.templates."k3s-env".path;
 
   system.stateVersion = "25.05";
 }

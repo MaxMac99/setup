@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, inputs, options, ... }:
 
 let
   cfg = config.k3sNode;
@@ -123,13 +123,19 @@ in
         [ "--server=https://${config.networkConfig.staticIPs.k3s-node1}:6443" ])
     ));
 
-    # K3s token - for now use a placeholder
-    # TODO: Replace with actual secret management
-    systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce (
-      pkgs.writeText "k3s-env" ''
-        K3S_TOKEN=7KQZfcTkcTPj4iCoSdRcm6qS7LdUm/MVF5fHcpkUjzUREPLACE_WITH_YOUR_ACTUAL_TOKEN
-      ''
-    );
+    # Configure sops secret for K3s token
+    sops = {
+      defaultSopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
+      secrets.k3s_token = {
+        restartUnits = [ "k3s.service" ];
+      };
+      templates."k3s-env".content = ''
+        K3S_TOKEN=${config.sops.placeholder.k3s_token}
+      '';
+    };
+
+    # K3s token from sops template
+    systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce config.sops.templates."k3s-env".path;
 
     # Disable nix store optimization (incompatible with writableStoreOverlay)
     nix = {
