@@ -26,6 +26,8 @@
     exports = ''
       # Export for K3S persistent volumes
       /tank/k8s/nfs 192.168.178.0/24(rw,sync,no_subtree_check,no_root_squash)
+      # Export for Time Machine backup service in K3S
+      /tank/k8s/timemachine 192.168.178.0/24(rw,async,no_subtree_check,no_root_squash)
     '';
   };
 
