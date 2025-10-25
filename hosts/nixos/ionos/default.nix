@@ -23,10 +23,24 @@
 
   networking = {
     domain = "";
+
+    # Enable IPv6
+    enableIPv6 = true;
+
+    # Configure ens6 interface for public access
+    interfaces.ens6 = {
+      useDHCP = true;  # Get IPv4 via DHCP
+      ipv6 = {
+        addresses = [];  # Let SLAAC handle IPv6 addresses
+        routes = [];
+      };
+    };
+
     firewall = {
       allowedTCPPorts = [22 80 443];
       allowedUDPPorts = [56527];
     };
+
     wireguard.interfaces = {
       wg0 = {
         ips = ["192.168.178.201/24" "fda8:a1db:5685::201/64"];
