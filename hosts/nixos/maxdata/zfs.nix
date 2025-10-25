@@ -41,6 +41,10 @@
       "fast/root" = {
         useTemplate = ["production"];
       };
+      "fast/k8s" = {
+        useTemplate = ["production"];
+        recursive = true;
+      };
     };
     templates.production = {
       frequently = 0;
@@ -56,9 +60,15 @@
   # Syncoid for replication (fast → tank backup)
   services.syncoid = {
     enable = true;
-    commands."fast-to-tank" = {
+    commands."fast-pve-to-tank" = {
       source = "fast/pve";
-      target = "tank/fast-backup";
+      target = "tank/fast-backup/pve";
+      recursive = true;
+      sendOptions = "w";
+    };
+    commands."fast-k8s-to-tank" = {
+      source = "fast/k8s";
+      target = "tank/fast-backup/k8s";
       recursive = true;
       sendOptions = "w";
     };
