@@ -108,6 +108,7 @@ in
     services.k3s.extraFlags = lib.mkForce (toString (
       [
         "--disable=servicelb"  # Use MetalLB for LoadBalancer services
+        "--disable=traefik"    # Use Pulumi-managed Traefik instead
         "--write-kubeconfig-mode=644"
         "--tls-san=${cfg.nodeName}"
         "--tls-san=${config.networkConfig.staticIPv6s.${cfg.nodeName}}"
