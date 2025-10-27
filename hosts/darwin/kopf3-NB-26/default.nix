@@ -9,6 +9,7 @@
 
   homebrew.casks = [
     "tunnelblick"
+    "bambu-studio"
   ];
 
   hostSpec = {
