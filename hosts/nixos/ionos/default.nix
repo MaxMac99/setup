@@ -39,6 +39,18 @@
     firewall = {
       allowedTCPPorts = [22 80 443];
       allowedUDPPorts = [56527];
+
+      # Allow forwarding traffic to/from pod network
+      # Required for hostNetwork pods (like Traefik) to reach cluster pods
+      extraCommands = ''
+        # Allow traffic between host and pod network (IPv4)
+        iptables -A FORWARD -s 10.42.0.0/16 -j ACCEPT
+        iptables -A FORWARD -d 10.42.0.0/16 -j ACCEPT
+
+        # Allow traffic between host and pod network (IPv6)
+        ip6tables -A FORWARD -s fd00::/8 -j ACCEPT
+        ip6tables -A FORWARD -d fd00::/8 -j ACCEPT
+      '';
     };
 
     wireguard.interfaces = {
