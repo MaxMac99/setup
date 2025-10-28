@@ -74,7 +74,7 @@ in
       volumes = [{
         image = "var-state.img";
         mountPoint = "/var";
-        size = 4096; # 4GB for state
+        size = 51200; # 50GB for state
       }];
     };
 
