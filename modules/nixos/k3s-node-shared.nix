@@ -139,6 +139,57 @@ in
     # K3s token from sops template
     systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce config.sops.templates."k3s-env".path;
 
+    # Configure local-path provisioner to use fast ZFS pool (first node only)
+    systemd.tmpfiles.rules = lib.mkIf cfg.isFirstNode (
+      let
+        localPathConfigMap = {
+          apiVersion = "v1";
+          kind = "ConfigMap";
+          metadata = {
+            name = "local-path-config";
+            namespace = "kube-system";
+          };
+          data = {
+            "config.json" = builtins.toJSON {
+              nodePathMap = [{
+                node = "DEFAULT_PATH_FOR_NON_LISTED_NODES";
+                paths = [ "/mnt/k8s-fast" ];
+              }];
+            };
+            setup = ''
+              #!/bin/sh
+              set -eu
+              mkdir -m 0777 -p "$VOL_DIR"
+              chmod 700 "$VOL_DIR/.."
+            '';
+            teardown = ''
+              #!/bin/sh
+              set -eu
+              rm -rf "$VOL_DIR"
+            '';
+            "helperPod.yaml" = lib.generators.toYAML {} {
+              apiVersion = "v1";
+              kind = "Pod";
+              metadata = {
+                name = "helper-pod";
+              };
+              spec = {
+                containers = [{
+                  name = "helper-pod";
+                  image = "rancher/mirrored-library-busybox:1.36.1";
+                  imagePullPolicy = "IfNotPresent";
+                }];
+              };
+            };
+          };
+        };
+        configMapYaml = lib.generators.toYAML {} localPathConfigMap;
+      in [
+        "d /var/lib/rancher/k3s/server/manifests 0755 root root -"
+        "f /var/lib/rancher/k3s/server/manifests/local-path-config.yaml 0644 root root - ${pkgs.writeText "local-path-config.yaml" configMapYaml}"
+      ]
+    );
+
     # Disable nix store optimization (incompatible with writableStoreOverlay)
     nix = {
       optimise.automatic = lib.mkForce false;
