@@ -10,6 +10,7 @@
   homebrew.casks = [
     "tunnelblick"
     "bambu-studio"
+    "autodesk-fusion"
   ];
 
   hostSpec = {
