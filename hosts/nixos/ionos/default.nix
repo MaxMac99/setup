@@ -38,13 +38,19 @@
 
     firewall = {
       allowedTCPPorts = [22 80 443];
-      allowedUDPPorts = [56527];
+      allowedUDPPorts = [56527];  # WireGuard only
 
       # Trust interfaces used by K3s
-      trustedInterfaces = [ "flannel.1" "cni0" "flannel-v6.1" ];
+      trustedInterfaces = [ "flannel.1" "cni0" "flannel-v6.1" "wg0" ];
 
       # Disable reverse path filtering for K3s compatibility
       checkReversePath = false;
+
+      # Interface-specific rules - allow Flannel VXLAN only on internal interfaces
+      interfaces = {
+        wg0.allowedUDPPorts = [ 8472 ];  # Flannel VXLAN on WireGuard only
+        ens6.allowedUDPPorts = [ ];      # No VXLAN on public interface
+      };
     };
 
     wireguard.interfaces = {
@@ -75,6 +81,7 @@
       "--node-label=edge=true"  # Mark as edge node (custom label)
       "--node-label=topology.kubernetes.io/zone=external"  # For scheduling
       "--node-ip=192.168.178.201,fda8:a1db:5685::201"
+      "--flannel-iface=wg0"  # Use WireGuard interface for Flannel VXLAN traffic
       # Taint to prevent accidental scheduling - only pods with toleration will run here
       "--node-taint=edge=true:NoSchedule"
     ]);
