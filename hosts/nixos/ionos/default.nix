@@ -21,6 +21,12 @@
 
   zramSwap.enable = true;
 
+  # Enable IP forwarding for K3s
+  boot.kernel.sysctl = {
+    "net.ipv4.ip_forward" = 1;
+    "net.ipv6.conf.all.forwarding" = 1;
+  };
+
   networking = {
     domain = "";
 
@@ -40,20 +46,11 @@
       allowedTCPPorts = [22 80 443];
       allowedUDPPorts = [56527];
 
-      # Allow all forwarding - required for hostNetwork pods to reach cluster pods
-      # NixOS uses nftables, so we need to allow forwarding at the kernel level
+      # Trust interfaces used by K3s
+      trustedInterfaces = [ "flannel.1" "cni0" "flannel-v6.1" ];
+
+      # Disable reverse path filtering for K3s compatibility
       checkReversePath = false;
-
-      # Allow forwarding traffic to/from pod network via nftables
-      extraCommands = ''
-        # Using nft (nftables) instead of iptables since NixOS uses nftables
-        nft add rule inet filter forward ip saddr 10.42.0.0/16 accept comment \"Allow pod network traffic\"
-        nft add rule inet filter forward ip daddr 10.42.0.0/16 accept comment \"Allow pod network traffic\"
-
-        # IPv6 pod network
-        nft add rule inet filter forward ip6 saddr fd00::/8 accept comment \"Allow pod network IPv6\"
-        nft add rule inet filter forward ip6 daddr fd00::/8 accept comment \"Allow pod network IPv6\"
-      '';
     };
 
     wireguard.interfaces = {
