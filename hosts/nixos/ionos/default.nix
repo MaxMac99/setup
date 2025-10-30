@@ -40,16 +40,19 @@
       allowedTCPPorts = [22 80 443];
       allowedUDPPorts = [56527];
 
-      # Allow forwarding traffic to/from pod network
-      # Required for hostNetwork pods (like Traefik) to reach cluster pods
-      extraCommands = ''
-        # Allow traffic between host and pod network (IPv4)
-        iptables -A FORWARD -s 10.42.0.0/16 -j ACCEPT
-        iptables -A FORWARD -d 10.42.0.0/16 -j ACCEPT
+      # Allow all forwarding - required for hostNetwork pods to reach cluster pods
+      # NixOS uses nftables, so we need to allow forwarding at the kernel level
+      checkReversePath = false;
 
-        # Allow traffic between host and pod network (IPv6)
-        ip6tables -A FORWARD -s fd00::/8 -j ACCEPT
-        ip6tables -A FORWARD -d fd00::/8 -j ACCEPT
+      # Allow forwarding traffic to/from pod network via nftables
+      extraCommands = ''
+        # Using nft (nftables) instead of iptables since NixOS uses nftables
+        nft add rule inet filter forward ip saddr 10.42.0.0/16 accept comment \"Allow pod network traffic\"
+        nft add rule inet filter forward ip daddr 10.42.0.0/16 accept comment \"Allow pod network traffic\"
+
+        # IPv6 pod network
+        nft add rule inet filter forward ip6 saddr fd00::/8 accept comment \"Allow pod network IPv6\"
+        nft add rule inet filter forward ip6 daddr fd00::/8 accept comment \"Allow pod network IPv6\"
       '';
     };
 
