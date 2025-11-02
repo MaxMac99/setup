@@ -89,6 +89,6 @@
   # Ensure log directories and promtail state directory exist
   systemd.tmpfiles.rules = [
     "d /var/log/pve 0755 root root -"
-    "d /var/lib/promtail 0755 root root -"
+    "d /var/lib/promtail 0755 promtail promtail -"
   ];
 }
