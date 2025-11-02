@@ -68,12 +68,13 @@
       "zfs"          # ZFS pools, datasets, ARC stats
       "filesystem"   # Filesystem usage and stats
       "diskstats"    # Disk I/O statistics
-      "smartmon"     # SMART disk health metrics
       "nfs"          # NFS server statistics
       "nfsd"         # NFS daemon statistics
       "processes"    # Process statistics
       "interrupts"   # Hardware interrupts
       "textfile"     # Custom metrics from text files
     ];
+    # Note: smartmon collector doesn't exist in this version
+    # For SMART metrics, use textfile collector with smartmon.sh script
   };
 }
