@@ -74,41 +74,59 @@ const traefikExternal = new k8s.helm.v3.Release("traefik-external", {
       type: "ClusterIP",  // Don't need LoadBalancer since we use hostNetwork
     },
 
-    // Ports configuration
+    // Ports configuration - set address to [::] for dual-stack IPv4/IPv6
     ports: {
       web: {
         port: 80,
         exposedPort: 80,
-        expose: {
-          default: true,
-        },
+        protocol: "TCP",
+        address: "[::]",
       },
       websecure: {
         port: 443,
         exposedPort: 443,
-        expose: {
-          default: true,
-        },
+        protocol: "TCP",
+        address: "[::]",
         http3: {
           enabled: true,
         },
       },
-      // Dashboard
+      metrics: {
+        port: 9101,
+        exposedPort: 9101,
+        protocol: "TCP",
+        address: "[::]",
+      },
       traefik: {
         port: 9000,
-        expose: {
-          default: false,  // Not exposed externally
-        },
+        exposedPort: 9000,
+        protocol: "TCP",
+        address: "[::]",
       },
     },
 
-    // Logs configuration
+    // Enable Prometheus metrics
+    metrics: {
+      prometheus: {
+        entryPoint: "metrics",
+      },
+    },
+
+    // Logs configuration - JSON format for Loki/Grafana
     logs: {
       general: {
         level: "INFO",
+        format: "json",
       },
       access: {
         enabled: true,
+        format: "json",
+        fields: {
+          defaultMode: "keep",
+          headers: {
+            defaultMode: "keep",
+          },
+        },
       },
     },
 
@@ -147,11 +165,13 @@ const traefikExternal = new k8s.helm.v3.Release("traefik-external", {
       enabled: false,
     },
 
-    // Global redirect from HTTP to HTTPS using command-line arguments
+    // Global redirect from HTTP to HTTPS, but ACME challenges will bypass this
+    // via ingress rules with higher priority
     additionalArguments: [
       "--entrypoints.web.http.redirections.entryPoint.to=websecure",
       "--entrypoints.web.http.redirections.entryPoint.scheme=https",
       "--entrypoints.web.http.redirections.entrypoint.permanent=true",
+      "--entrypoints.web.http.redirections.entrypoint.priority=1",  // Low priority so ACME challenges take precedence
     ],
   },
 });
@@ -163,6 +183,35 @@ const traefikExternalIngressClass = new k8s.networking.v1.IngressClass("traefik-
   },
   spec: {
     controller: "traefik.io/ingress-controller",
+  },
+}, { dependsOn: [traefikExternal] });
+
+// IngressRoute to allow ACME HTTP-01 challenges without redirect
+// This has higher priority (10000) than the entrypoint redirect (1)
+const acmeBypassRoute = new k8s.apiextensions.CustomResource("traefik-external-acme-bypass", {
+  apiVersion: "traefik.io/v1alpha1",
+  kind: "IngressRoute",
+  metadata: {
+    name: "acme-http-challenge-bypass",
+    namespace: namespace.metadata.name,
+  },
+  spec: {
+    entryPoints: ["web"],
+    routes: [
+      {
+        match: "PathPrefix(`/.well-known/acme-challenge/`)",
+        kind: "Rule",
+        priority: 10000,  // Very high priority to override redirect
+        services: [
+          {
+            // This is a dummy service - cert-manager creates its own ingresses
+            // that will match more specifically and take precedence
+            name: "traefik-external-8241da36",  // Point to Traefik service itself
+            port: 80,
+          },
+        ],
+      },
+    ],
   },
 }, { dependsOn: [traefikExternal] });
 

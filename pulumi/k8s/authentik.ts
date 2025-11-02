@@ -157,6 +157,11 @@ const authentikServer = new k8s.apps.v1.Deployment("authentik-server", {
         labels: {
           app: "authentik-server",
         },
+        annotations: {
+          "prometheus.io/scrape": "true",
+          "prometheus.io/port": "9300",
+          "prometheus.io/path": "/metrics",
+        },
       },
       spec: {
         containers: [{
@@ -172,6 +177,10 @@ const authentikServer = new k8s.apps.v1.Deployment("authentik-server", {
             {
               containerPort: 9443,
               name: "https",
+            },
+            {
+              containerPort: 9300,
+              name: "metrics",
             },
           ],
           volumeMounts: [{

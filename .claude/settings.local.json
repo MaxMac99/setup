@@ -3,7 +3,9 @@
     "allow": [
       "Bash(tree:*)",
       "Bash(cat:*)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:community.traefik.io)"
     ],
     "deny": [],
     "ask": []

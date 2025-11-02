@@ -32,10 +32,21 @@ const traefik = new k8s.helm.v3.Chart(
       },
       // Enable dual-stack
       ipFamilyPolicy: "PreferDualStack",
-      // Enable access logs for debugging
+      // Logs configuration - JSON format for Loki/Grafana
       logs: {
+        general: {
+          level: "INFO",
+          format: "json",
+        },
         access: {
           enabled: true,
+          format: "json",
+          fields: {
+            defaultMode: "keep",
+            headers: {
+              defaultMode: "keep",
+            },
+          },
         },
       },
       // Enable Traefik dashboard API

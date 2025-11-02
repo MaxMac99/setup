@@ -16,5 +16,8 @@ import "./redis";             // Shared Redis for caching and sessions
 import "./authentik";          // Identity Provider and SSO
 import "./authentik-outpost";  // Authentik Forward Auth Outpost
 
+// Monitoring
+import "./monitoring";         // Prometheus, Grafana, Loki, Tempo
+
 // Backup services
 import "./timemachine";  // Time Machine backup service for macOS

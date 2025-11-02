@@ -62,6 +62,33 @@ const authentikPasswordSecret = new k8s.core.v1.Secret("postgres-authentik-passw
   },
 });
 
+// Generate password for grafana user
+const grafanaPassword = new random.RandomPassword("grafana-db-password", {
+  length: 32,
+  special: false,
+});
+
+// Create secret with password for grafana user
+// This will be used by CNPG declarative role management
+// Includes Reflector annotations to mirror to monitoring namespace
+const grafanaPasswordSecret = new k8s.core.v1.Secret("postgres-grafana-password", {
+  metadata: {
+    name: "postgres-grafana",
+    namespace: namespace.metadata.name,
+    annotations: {
+      "reflector.v1.k8s.emberstack.com/reflection-auto-enabled": "true",
+      "reflector.v1.k8s.emberstack.com/reflection-allowed": "true",
+      "reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces": "monitoring",
+      "reflector.v1.k8s.emberstack.com/reflection-auto-namespaces": "monitoring",
+    },
+  },
+  type: "kubernetes.io/basic-auth",
+  stringData: {
+    username: "grafana",
+    password: grafanaPassword.result,
+  },
+});
+
 // PostgreSQL Cluster using CloudNativePG
 const postgresCluster = new k8s.apiextensions.CustomResource("postgres-cluster", {
   apiVersion: "postgresql.cnpg.io/v1",
@@ -106,6 +133,14 @@ const postgresCluster = new k8s.apiextensions.CustomResource("postgres-cluster",
           login: true,
           passwordSecret: {
             name: authentikPasswordSecret.metadata.name,
+          },
+        },
+        {
+          name: "grafana",
+          ensure: "present",
+          login: true,
+          passwordSecret: {
+            name: grafanaPasswordSecret.metadata.name,
           },
         },
       ],
@@ -167,8 +202,9 @@ export const postgresqlHost = "postgres-rw.database.svc.cluster.local";
 export const postgresqlReadOnlyHost = "postgres-ro.database.svc.cluster.local";
 export const postgresqlPort = 5432;
 
-// Export password for creating secrets in app namespaces (workaround for Reflector issues)
+// Export passwords for creating secrets in app namespaces (workaround for Reflector issues)
 export const authentikDbPassword = authentikPassword.result;
+export const grafanaDbPassword = grafanaPassword.result;
 
 // Instructions for creating new databases:
 //
