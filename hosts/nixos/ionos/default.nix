@@ -19,7 +19,9 @@
     isMinimal = true;
   };
 
-  zramSwap.enable = true;
+  # Disable swap completely to avoid kswapd0 CPU issues
+  zramSwap.enable = false;
+  swapDevices = [ ];
 
   networking = {
     domain = "";
