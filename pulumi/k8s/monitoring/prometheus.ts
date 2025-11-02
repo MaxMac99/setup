@@ -270,6 +270,22 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
               },
             ],
           },
+          // Maxdata host - bare metal Proxmox/ZFS server
+          {
+            job_name: "maxdata",
+            static_configs: [
+              {
+                targets: ["192.168.178.2:9100"],
+                labels: {
+                  instance: "maxdata",
+                  host: "maxdata",
+                  role: "storage",
+                  environment: "homelab",
+                },
+              },
+            ],
+            scrape_interval: "15s",
+          },
         ],
       },
     },

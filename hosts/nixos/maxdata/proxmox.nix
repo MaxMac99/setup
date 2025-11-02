@@ -58,10 +58,22 @@
     };
   };
 
-  # Enable Prometheus node exporter for monitoring (optional)
+  # Enable Prometheus node exporter for monitoring
   services.prometheus.exporters.node = {
     enable = true;
     port = 9100;
-    enabledCollectors = ["systemd" "zfs"];
+    # Enable comprehensive collectors for storage server monitoring
+    enabledCollectors = [
+      "systemd"      # Systemd units and services
+      "zfs"          # ZFS pools, datasets, ARC stats
+      "filesystem"   # Filesystem usage and stats
+      "diskstats"    # Disk I/O statistics
+      "smartmon"     # SMART disk health metrics
+      "nfs"          # NFS server statistics
+      "nfsd"         # NFS daemon statistics
+      "processes"    # Process statistics
+      "interrupts"   # Hardware interrupts
+      "textfile"     # Custom metrics from text files
+    ];
   };
 }

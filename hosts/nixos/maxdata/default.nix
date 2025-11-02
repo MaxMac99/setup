@@ -14,6 +14,7 @@
       ./proxmox.nix
       ./zfs.nix
       ./smb.nix
+      ./monitoring.nix
       ./hardware-configuration.nix
       ./microvms.nix
       ./microvm-bridge.nix
