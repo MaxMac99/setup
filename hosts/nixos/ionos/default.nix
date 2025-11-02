@@ -102,5 +102,12 @@
   # K3s token from sops template
   systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce config.sops.templates."k3s-env".path;
 
+  # Fix WireGuard DNS resolution issue during boot
+  # Ensure WireGuard peer waits for DNS to be available
+  systemd.services."wireguard-wg0-peer-ulBtv6Iou8HKpJzeJS9YALlZTSKE1+W+fZCEzM3hGiw=" = {
+    after = [ "nss-lookup.target" ];
+    wants = [ "nss-lookup.target" ];
+  };
+
   system.stateVersion = "25.05";
 }
