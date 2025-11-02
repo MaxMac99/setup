@@ -55,7 +55,7 @@
       };
 
       # Enable NAT for forwarding traffic to internal Traefik
-      # This forwards public traffic from ens6 to internal Traefik LoadBalancer
+      # This forwards public traffic from ens6 to internal Traefik LoadBalancer (dual-stack)
       extraCommands = ''
         # Enable IP forwarding
         echo 1 > /proc/sys/net/ipv4/ip_forward
@@ -63,15 +63,15 @@
 
         # Forward HTTP (80) traffic from public interface to internal Traefik
         iptables -t nat -A PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination 192.168.178.10:80
-        ip6tables -t nat -A PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination 192.168.178.10:80
+        ip6tables -t nat -A PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination [fda8:a1db:5685::10]:80
 
         # Forward HTTPS (443) TCP traffic from public interface to internal Traefik
         iptables -t nat -A PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination 192.168.178.10:443
-        ip6tables -t nat -A PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination 192.168.178.10:443
+        ip6tables -t nat -A PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination [fda8:a1db:5685::10]:443
 
         # Forward HTTPS (443) UDP traffic for HTTP/3 QUIC
         iptables -t nat -A PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination 192.168.178.10:443
-        ip6tables -t nat -A PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination 192.168.178.10:443
+        ip6tables -t nat -A PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination [fda8:a1db:5685::10]:443
 
         # Masquerade outgoing traffic so responses route back correctly
         iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
@@ -81,11 +81,11 @@
       extraStopCommands = ''
         # Clean up NAT rules on stop
         iptables -t nat -D PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination 192.168.178.10:80 2>/dev/null || true
-        ip6tables -t nat -D PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination 192.168.178.10:80 2>/dev/null || true
+        ip6tables -t nat -D PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination [fda8:a1db:5685::10]:80 2>/dev/null || true
         iptables -t nat -D PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination 192.168.178.10:443 2>/dev/null || true
-        ip6tables -t nat -D PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination 192.168.178.10:443 2>/dev/null || true
+        ip6tables -t nat -D PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination [fda8:a1db:5685::10]:443 2>/dev/null || true
         iptables -t nat -D PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination 192.168.178.10:443 2>/dev/null || true
-        ip6tables -t nat -D PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination 192.168.178.10:443 2>/dev/null || true
+        ip6tables -t nat -D PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination [fda8:a1db:5685::10]:443 2>/dev/null || true
         iptables -t nat -D POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || true
         ip6tables -t nat -D POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || true
       '';

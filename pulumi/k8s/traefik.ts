@@ -29,9 +29,10 @@ const traefik = new k8s.helm.v3.Chart(
         type: "LoadBalancer",
         // Request specific IP from MetalLB pool (optional, MetalLB will auto-assign if not specified)
         // loadBalancerIP: "192.168.178.10",
+        // Enable dual-stack IPv4+IPv6
+        ipFamilyPolicy: "RequireDualStack",
+        ipFamilies: ["IPv4", "IPv6"],
       },
-      // Enable dual-stack
-      ipFamilyPolicy: "PreferDualStack",
       // Logs configuration - JSON format for Loki/Grafana
       logs: {
         general: {

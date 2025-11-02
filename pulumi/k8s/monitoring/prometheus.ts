@@ -40,11 +40,11 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
       // Ingress for Prometheus UI
       ingress: {
         enabled: true,
-        ingressClassName: "traefik-external",
+        ingressClassName: "traefik",  // Changed from traefik-external - now using port forwarding on ionos
         annotations: {
           "cert-manager.io/cluster-issuer": "letsencrypt-prod",
           // Protect with Authentik forward auth
-          "traefik.ingress.kubernetes.io/router.middlewares": "traefik-external-authentik@kubernetescrd",
+          "traefik.ingress.kubernetes.io/router.middlewares": "traefik-authentik@kubernetescrd",
         },
         hosts: ["prometheus.mvissing.de"],
         tls: [
