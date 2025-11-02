@@ -300,7 +300,7 @@ const authentikIngress = new k8s.networking.v1.Ingress("authentik-ingress", {
     },
   },
   spec: {
-    ingressClassName: "traefik-external",
+    ingressClassName: "traefik",  // Changed from traefik-external - now using port forwarding on ionos
     rules: [{
       host: "auth.mvissing.de",
       http: {

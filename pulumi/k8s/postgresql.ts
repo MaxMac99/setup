@@ -89,6 +89,33 @@ const grafanaPasswordSecret = new k8s.core.v1.Secret("postgres-grafana-password"
   },
 });
 
+// Generate password for paperless user
+const paperlessPassword = new random.RandomPassword("paperless-db-password", {
+  length: 32,
+  special: false,
+});
+
+// Create secret with password for paperless user
+// This will be used by CNPG declarative role management
+// Includes Reflector annotations to mirror to paperless namespace
+const paperlessPasswordSecret = new k8s.core.v1.Secret("postgres-paperless-password", {
+  metadata: {
+    name: "postgres-paperless",
+    namespace: namespace.metadata.name,
+    annotations: {
+      "reflector.v1.k8s.emberstack.com/reflection-auto-enabled": "true",
+      "reflector.v1.k8s.emberstack.com/reflection-allowed": "true",
+      "reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces": "paperless",
+      "reflector.v1.k8s.emberstack.com/reflection-auto-namespaces": "paperless",
+    },
+  },
+  type: "kubernetes.io/basic-auth",
+  stringData: {
+    username: "paperless",
+    password: paperlessPassword.result,
+  },
+});
+
 // PostgreSQL Cluster using CloudNativePG
 const postgresCluster = new k8s.apiextensions.CustomResource("postgres-cluster", {
   apiVersion: "postgresql.cnpg.io/v1",
@@ -141,6 +168,14 @@ const postgresCluster = new k8s.apiextensions.CustomResource("postgres-cluster",
           login: true,
           passwordSecret: {
             name: grafanaPasswordSecret.metadata.name,
+          },
+        },
+        {
+          name: "paperless",
+          ensure: "present",
+          login: true,
+          passwordSecret: {
+            name: paperlessPasswordSecret.metadata.name,
           },
         },
       ],
@@ -205,6 +240,7 @@ export const postgresqlPort = 5432;
 // Export passwords for creating secrets in app namespaces (workaround for Reflector issues)
 export const authentikDbPassword = authentikPassword.result;
 export const grafanaDbPassword = grafanaPassword.result;
+export const paperlessDbPassword = paperlessPassword.result;
 
 // Instructions for creating new databases:
 //

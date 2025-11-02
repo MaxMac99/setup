@@ -75,7 +75,7 @@ const grafana = new k8s.helm.v3.Chart("grafana", {
     // Ingress configuration
     ingress: {
       enabled: true,
-      ingressClassName: "traefik-external",
+      ingressClassName: "traefik",  // Changed from traefik-external - now using port forwarding on ionos
       annotations: {
         "cert-manager.io/cluster-issuer": "letsencrypt-prod",
       },

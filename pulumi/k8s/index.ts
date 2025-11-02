@@ -4,7 +4,7 @@
 // Infrastructure
 import "./metallb";           // LoadBalancer implementation
 import "./traefik";           // Internal Traefik configuration
-import "./traefik-external";  // External Traefik on ionos node
+// import "./traefik-external";  // DISABLED: Now using port forwarding on ionos instead
 import "./cert-manager";      // TLS certificate management with Let's Encrypt
 import "./reflector"
 
@@ -15,6 +15,7 @@ import "./redis";             // Shared Redis for caching and sessions
 // Applications
 import "./authentik";          // Identity Provider and SSO
 import "./authentik-outpost";  // Authentik Forward Auth Outpost
+import "./paperless";          // Document Management System
 
 // Monitoring
 import "./monitoring";         // Prometheus, Grafana, Loki, Tempo

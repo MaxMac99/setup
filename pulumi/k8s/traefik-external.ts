@@ -68,6 +68,18 @@ const traefikExternal = new k8s.helm.v3.Release("traefik-external", {
       runAsUser: 0,
     },
 
+    // Resource limits - strict due to ionos having only 1.8GB RAM total
+    resources: {
+      requests: {
+        memory: "256Mi",
+        cpu: "100m",
+      },
+      limits: {
+        memory: "1Gi",  // Hard limit to prevent excessive memory usage
+        cpu: "500m",
+      },
+    },
+
     // Service configuration
     service: {
       enabled: true,
