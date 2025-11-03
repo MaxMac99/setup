@@ -4,7 +4,6 @@
 // Infrastructure
 import "./metallb";           // LoadBalancer implementation
 import "./traefik";           // Internal Traefik configuration
-// import "./traefik-external";  // DISABLED: Now using port forwarding on ionos instead
 import "./cert-manager";      // TLS certificate management with Let's Encrypt
 import "./reflector"
 

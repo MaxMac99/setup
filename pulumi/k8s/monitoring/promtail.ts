@@ -26,13 +26,75 @@ const promtail = new k8s.helm.v3.Chart("promtail", {
       // Scrape configs - what logs to collect
       snippets: {
         scrapeConfigs: `
-# Pods
+# Paperless pods - with multiline support for Python/Django stack traces
+- job_name: kubernetes-pods-paperless
+  pipeline_stages:
+    - cri: {}
+    # Multiline support for Python stack traces
+    # Matches log lines starting with [YYYY-MM-DD HH:MM:SS,mmm]
+    - multiline:
+        firstline: '^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}\\]'
+        max_wait_time: 3s
+        max_lines: 100
+  kubernetes_sd_configs:
+    - role: pod
+  relabel_configs:
+    # Only scrape paperless namespace
+    - source_labels:
+        - __meta_kubernetes_namespace
+      regex: paperless
+      action: keep
+
+    # Only scrape local pods (on same node)
+    - source_labels:
+        - __meta_kubernetes_pod_node_name
+      target_label: __host__
+
+    # Add namespace label
+    - source_labels:
+        - __meta_kubernetes_namespace
+      target_label: namespace
+
+    # Add pod name label
+    - source_labels:
+        - __meta_kubernetes_pod_name
+      target_label: pod
+
+    # Add container name label
+    - source_labels:
+        - __meta_kubernetes_pod_container_name
+      target_label: container
+
+    # Add app label if it exists
+    - source_labels:
+        - __meta_kubernetes_pod_label_app
+      target_label: app
+
+    # Path to log files
+    - source_labels:
+        - __meta_kubernetes_pod_uid
+        - __meta_kubernetes_pod_container_name
+      target_label: __path__
+      separator: /
+      replacement: /var/log/pods/*$1/*.log
+
+    # Drop empty labels
+    - action: labelmap
+      regex: __meta_kubernetes_pod_label_(.+)
+
+# All other pods - standard single-line processing
 - job_name: kubernetes-pods
   pipeline_stages:
     - cri: {}
   kubernetes_sd_configs:
     - role: pod
   relabel_configs:
+    # Exclude paperless namespace (handled by job above)
+    - source_labels:
+        - __meta_kubernetes_namespace
+      regex: paperless
+      action: drop
+
     # Only scrape local pods (on same node)
     - source_labels:
         - __meta_kubernetes_pod_node_name

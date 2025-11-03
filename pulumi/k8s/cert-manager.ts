@@ -55,7 +55,7 @@ const letsencryptProd = new k8s.apiextensions.CustomResource("letsencrypt-prod",
         {
           http01: {
             ingress: {
-              ingressClassName: "traefik-external",
+              ingressClassName: "traefik",
             },
           },
         },
@@ -93,7 +93,7 @@ const letsencryptStaging = new k8s.apiextensions.CustomResource("letsencrypt-sta
         {
           http01: {
             ingress: {
-              ingressClassName: "traefik-external",
+              ingressClassName: "traefik",
             },
           },
         },
