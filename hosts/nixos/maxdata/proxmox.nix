@@ -256,14 +256,16 @@
 
           # Extract issued bytes (e.g., "456G issued")
           ISSUED=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+[\.,]?\d*[KMGTP]? issued' | ${pkgs.gawk}/bin/awk '{print $1}' || echo "0")
-          ISSUED_BYTES=$(echo "$SCANNED" | ${pkgs.gnused}/bin/sed 's/K/*1024/; s/M/*1048576/; s/G/*1073741824/; s/T/*1099511627776/; s/P/*1125899906842624/' | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
+          ISSUED_BYTES=$(echo "$ISSUED" | ${pkgs.gnused}/bin/sed 's/K/*1024/; s/M/*1048576/; s/G/*1073741824/; s/T/*1099511627776/; s/P/*1125899906842624/' | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
           echo "node_zfs_zpool_resilver_bytes_issued{zpool=\"$pool\"} $ISSUED_BYTES" >> "$TEMP_FILE"
 
           # Calculate total bytes from percentage
-          if [ "$RESILVER_PCT" != "0" ]; then
+          if [ "$RESILVER_PCT" != "0" ] && [ "$RESILVER_PCT" != "" ]; then
             TOTAL_BYTES=$(echo "$SCANNED_BYTES / ($RESILVER_PCT / 100)" | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
-            echo "node_zfs_zpool_resilver_bytes_total{zpool=\"$pool\"} $TOTAL_BYTES" >> "$TEMP_FILE"
+          else
+            TOTAL_BYTES="0"
           fi
+          echo "node_zfs_zpool_resilver_bytes_total{zpool=\"$pool\"} $TOTAL_BYTES" >> "$TEMP_FILE"
 
           # Extract time remaining (e.g., "1h23m to go")
           TIME_STR=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+h\d+m|\d+m|\d+h' | head -1 || echo "")
@@ -271,11 +273,17 @@
             HOURS=$(echo "$TIME_STR" | ${pkgs.gnugrep}/bin/grep -oP '\d+(?=h)' || echo "0")
             MINS=$(echo "$TIME_STR" | ${pkgs.gnugrep}/bin/grep -oP '\d+(?=m)' || echo "0")
             SECONDS=$((HOURS * 3600 + MINS * 60))
-            echo "node_zfs_zpool_resilver_seconds_remaining{zpool=\"$pool\"} $SECONDS" >> "$TEMP_FILE"
+          else
+            SECONDS="0"
           fi
+          echo "node_zfs_zpool_resilver_seconds_remaining{zpool=\"$pool\"} $SECONDS" >> "$TEMP_FILE"
         else
           echo "node_zfs_zpool_resilver_active{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
           echo "node_zfs_zpool_resilver_percent{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+          echo "node_zfs_zpool_resilver_bytes_scanned{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+          echo "node_zfs_zpool_resilver_bytes_issued{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+          echo "node_zfs_zpool_resilver_bytes_total{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+          echo "node_zfs_zpool_resilver_seconds_remaining{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
         fi
 
         # Check for active scrub
