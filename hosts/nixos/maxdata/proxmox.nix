@@ -288,7 +288,8 @@
             HOURS=$(echo "$TIME_STR" | ${pkgs.gawk}/bin/awk -F: '{print $1}')
             MINS=$(echo "$TIME_STR" | ${pkgs.gawk}/bin/awk -F: '{print $2}')
             SECS=$(echo "$TIME_STR" | ${pkgs.gawk}/bin/awk -F: '{print $3}')
-            SECONDS=$((HOURS * 3600 + MINS * 60 + SECS))
+            # Force base-10 interpretation to avoid octal errors with leading zeros
+            SECONDS=$((10#$HOURS * 3600 + 10#$MINS * 60 + 10#$SECS))
           else
             SECONDS="0"
           fi
@@ -358,19 +359,39 @@
         # Parse `zpool list -v` output to find special vdev allocation
         VDEV_LIST=$(${pkgs.zfs}/bin/zpool list -v -H -p "$pool")
 
-        # Look for lines with "special" in them and extract size/alloc/free
+        # Look for special device and its child vdev (mirror/raidz)
+        # The "special" line itself shows "-" but the child mirror/raidz has the actual stats
         echo "$VDEV_LIST" | ${pkgs.gawk}/bin/awk -v pool="$pool" '
-          /special/ && NF >= 4 {
-            # Format: special  SIZE  ALLOC  FREE  ...
-            # Or: NAME  SIZE  ALLOC  FREE if special is the vdev name
-            if ($1 == "special" || $1 ~ /^special-/) {
-              size = $2
-              alloc = $3
-              free = $4
-              print "node_zfs_special_size_bytes{zpool=\"" pool "\"} " size
-              print "node_zfs_special_allocated_bytes{zpool=\"" pool "\"} " alloc
-              print "node_zfs_special_free_bytes{zpool=\"" pool "\"} " free
-            }
+          BEGIN { in_special = 0 }
+
+          # Detect the special device line
+          $1 == "special" {
+            in_special = 1
+            next
+          }
+
+          # If we are in a special section, grab the first child vdev (mirror/raidz) stats
+          in_special == 1 && ($1 ~ /^mirror-/ || $1 ~ /^raidz/ || $1 ~ /^draid/) {
+            size = $2
+            alloc = $3
+            free = $4
+
+            # Convert "-" to "0" for fields that are not available
+            if (size == "-") size = "0"
+            if (alloc == "-") alloc = "0"
+            if (free == "-") free = "0"
+
+            print "node_zfs_special_size_bytes{zpool=\"" pool "\"} " size
+            print "node_zfs_special_allocated_bytes{zpool=\"" pool "\"} " alloc
+            print "node_zfs_special_free_bytes{zpool=\"" pool "\"} " free
+
+            in_special = 0  # Reset after finding the first child
+            next
+          }
+
+          # Exit special section when we hit a non-indented line (new vdev type)
+          in_special == 1 && $1 !~ /^[[:space:]]/ && $1 != "special" {
+            in_special = 0
           }
         ' >> "$TEMP_FILE"
       done
