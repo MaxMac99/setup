@@ -150,6 +150,207 @@
     };
   };
 
+  # ZFS pool metrics via textfile collector
+  # Exports pool capacity, health, and fragmentation metrics
+  systemd.services.zfs-textfile = {
+    description = "Collect ZFS pool metrics for Prometheus node_exporter";
+    script = ''
+      set -euo pipefail
+
+      TEXTFILE_DIR="/var/lib/prometheus-node-exporter"
+      TEMP_FILE="$TEXTFILE_DIR/zfs.prom.$$"
+      OUTPUT_FILE="$TEXTFILE_DIR/zfs.prom"
+
+      mkdir -p "$TEXTFILE_DIR"
+
+      # Write metrics header
+      cat > "$TEMP_FILE" <<EOF
+      # HELP node_zfs_zpool_state ZFS pool state (online=1, degraded=2, faulted=3, offline=4, removed=5, unavail=6)
+      # TYPE node_zfs_zpool_state gauge
+      # HELP node_zfs_zpool_size_bytes Total size of the ZFS pool in bytes
+      # TYPE node_zfs_zpool_size_bytes gauge
+      # HELP node_zfs_zpool_allocated_bytes Allocated space in the ZFS pool in bytes
+      # TYPE node_zfs_zpool_allocated_bytes gauge
+      # HELP node_zfs_zpool_free_bytes Free space in the ZFS pool in bytes
+      # TYPE node_zfs_zpool_free_bytes gauge
+      # HELP node_zfs_zpool_fragmentation_percent Pool fragmentation percentage
+      # TYPE node_zfs_zpool_fragmentation_percent gauge
+      # HELP node_zfs_zpool_capacity_percent Pool capacity used percentage
+      # TYPE node_zfs_zpool_capacity_percent gauge
+      # HELP node_zfs_zpool_health Pool health status (ONLINE=0, DEGRADED=1, FAULTED=2, OFFLINE=3, UNAVAIL=4, REMOVED=5)
+      # TYPE node_zfs_zpool_health gauge
+      # HELP node_zfs_zpool_resilver_active Resilver operation in progress (1=active, 0=not active)
+      # TYPE node_zfs_zpool_resilver_active gauge
+      # HELP node_zfs_zpool_resilver_percent Resilver progress percentage
+      # TYPE node_zfs_zpool_resilver_percent gauge
+      # HELP node_zfs_zpool_resilver_bytes_scanned Bytes scanned during resilver
+      # TYPE node_zfs_zpool_resilver_bytes_scanned gauge
+      # HELP node_zfs_zpool_resilver_bytes_issued Bytes issued during resilver
+      # TYPE node_zfs_zpool_resilver_bytes_issued gauge
+      # HELP node_zfs_zpool_resilver_bytes_total Total bytes to resilver
+      # TYPE node_zfs_zpool_resilver_bytes_total gauge
+      # HELP node_zfs_zpool_resilver_seconds_remaining Estimated seconds remaining for resilver
+      # TYPE node_zfs_zpool_resilver_seconds_remaining gauge
+      # HELP node_zfs_zpool_scrub_active Scrub operation in progress (1=active, 0=not active)
+      # TYPE node_zfs_zpool_scrub_active gauge
+      # HELP node_zfs_zpool_read_errors Total read errors on pool
+      # TYPE node_zfs_zpool_read_errors gauge
+      # HELP node_zfs_zpool_write_errors Total write errors on pool
+      # TYPE node_zfs_zpool_write_errors gauge
+      # HELP node_zfs_zpool_checksum_errors Total checksum errors on pool
+      # TYPE node_zfs_zpool_checksum_errors gauge
+      # HELP node_zfs_device_read_errors Read errors per device
+      # TYPE node_zfs_device_read_errors gauge
+      # HELP node_zfs_device_write_errors Write errors per device
+      # TYPE node_zfs_device_write_errors gauge
+      # HELP node_zfs_device_checksum_errors Checksum errors per device
+      # TYPE node_zfs_device_checksum_errors gauge
+      EOF
+
+      # Get list of pools
+      POOLS=$(${pkgs.zfs}/bin/zpool list -H -o name)
+
+      for pool in $POOLS; do
+        # Get pool properties
+        SIZE=$(${pkgs.zfs}/bin/zpool list -H -o size -p "$pool")
+        ALLOC=$(${pkgs.zfs}/bin/zpool list -H -o allocated -p "$pool")
+        FREE=$(${pkgs.zfs}/bin/zpool list -H -o free -p "$pool")
+        FRAG=$(${pkgs.zfs}/bin/zpool list -H -o fragmentation "$pool" | ${pkgs.gnused}/bin/sed 's/%$//' | ${pkgs.gnused}/bin/sed 's/-/0/')
+        CAP=$(${pkgs.zfs}/bin/zpool list -H -o capacity "$pool" | ${pkgs.gnused}/bin/sed 's/%$//')
+        HEALTH=$(${pkgs.zfs}/bin/zpool list -H -o health "$pool")
+
+        # Convert health to numeric value
+        case "$HEALTH" in
+          ONLINE) HEALTH_VAL=0 ;;
+          DEGRADED) HEALTH_VAL=1 ;;
+          FAULTED) HEALTH_VAL=2 ;;
+          OFFLINE) HEALTH_VAL=3 ;;
+          UNAVAIL) HEALTH_VAL=4 ;;
+          REMOVED) HEALTH_VAL=5 ;;
+          *) HEALTH_VAL=99 ;;
+        esac
+
+        # Write basic metrics
+        echo "node_zfs_zpool_size_bytes{zpool=\"$pool\"} $SIZE" >> "$TEMP_FILE"
+        echo "node_zfs_zpool_allocated_bytes{zpool=\"$pool\"} $ALLOC" >> "$TEMP_FILE"
+        echo "node_zfs_zpool_free_bytes{zpool=\"$pool\"} $FREE" >> "$TEMP_FILE"
+        echo "node_zfs_zpool_fragmentation_percent{zpool=\"$pool\"} $FRAG" >> "$TEMP_FILE"
+        echo "node_zfs_zpool_capacity_percent{zpool=\"$pool\"} $CAP" >> "$TEMP_FILE"
+        echo "node_zfs_zpool_health{zpool=\"$pool\"} $HEALTH_VAL" >> "$TEMP_FILE"
+
+        # Check for resilver/scrub status
+        STATUS=$(${pkgs.zfs}/bin/zpool status "$pool")
+
+        # Check for active resilver
+        if echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -q "resilver in progress"; then
+          echo "node_zfs_zpool_resilver_active{zpool=\"$pool\"} 1" >> "$TEMP_FILE"
+
+          # Extract resilver progress percentage
+          RESILVER_PCT=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+\.\d+% done' | ${pkgs.gnugrep}/bin/grep -oP '\d+\.\d+' || echo "0")
+          echo "node_zfs_zpool_resilver_percent{zpool=\"$pool\"} $RESILVER_PCT" >> "$TEMP_FILE"
+
+          # Extract scanned bytes (e.g., "123G scanned")
+          SCANNED=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+[\.,]?\d*[KMGTP]? scanned' | ${pkgs.gawk}/bin/awk '{print $1}' || echo "0")
+          SCANNED_BYTES=$(echo "$SCANNED" | ${pkgs.gnused}/bin/sed 's/K/*1024/; s/M/*1048576/; s/G/*1073741824/; s/T/*1099511627776/; s/P/*1125899906842624/' | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
+          echo "node_zfs_zpool_resilver_bytes_scanned{zpool=\"$pool\"} $SCANNED_BYTES" >> "$TEMP_FILE"
+
+          # Extract issued bytes (e.g., "456G issued")
+          ISSUED=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+[\.,]?\d*[KMGTP]? issued' | ${pkgs.gawk}/bin/awk '{print $1}' || echo "0")
+          ISSUED_BYTES=$(echo "$SCANNED" | ${pkgs.gnused}/bin/sed 's/K/*1024/; s/M/*1048576/; s/G/*1073741824/; s/T/*1099511627776/; s/P/*1125899906842624/' | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
+          echo "node_zfs_zpool_resilver_bytes_issued{zpool=\"$pool\"} $ISSUED_BYTES" >> "$TEMP_FILE"
+
+          # Calculate total bytes from percentage
+          if [ "$RESILVER_PCT" != "0" ]; then
+            TOTAL_BYTES=$(echo "$SCANNED_BYTES / ($RESILVER_PCT / 100)" | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
+            echo "node_zfs_zpool_resilver_bytes_total{zpool=\"$pool\"} $TOTAL_BYTES" >> "$TEMP_FILE"
+          fi
+
+          # Extract time remaining (e.g., "1h23m to go")
+          TIME_STR=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+h\d+m|\d+m|\d+h' | head -1 || echo "")
+          if [ -n "$TIME_STR" ]; then
+            HOURS=$(echo "$TIME_STR" | ${pkgs.gnugrep}/bin/grep -oP '\d+(?=h)' || echo "0")
+            MINS=$(echo "$TIME_STR" | ${pkgs.gnugrep}/bin/grep -oP '\d+(?=m)' || echo "0")
+            SECONDS=$((HOURS * 3600 + MINS * 60))
+            echo "node_zfs_zpool_resilver_seconds_remaining{zpool=\"$pool\"} $SECONDS" >> "$TEMP_FILE"
+          fi
+        else
+          echo "node_zfs_zpool_resilver_active{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+          echo "node_zfs_zpool_resilver_percent{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+        fi
+
+        # Check for active scrub
+        if echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -q "scrub in progress"; then
+          echo "node_zfs_zpool_scrub_active{zpool=\"$pool\"} 1" >> "$TEMP_FILE"
+        else
+          echo "node_zfs_zpool_scrub_active{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+        fi
+
+        # Extract error counts from zpool status
+        # Get the pool-level errors (shown in the "errors:" line at the bottom)
+        POOL_ERRORS=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep "^errors:")
+        if [ -n "$POOL_ERRORS" ]; then
+          # If errors line says "No known data errors" set all to 0
+          if echo "$POOL_ERRORS" | ${pkgs.gnugrep}/bin/grep -q "No known data errors"; then
+            echo "node_zfs_zpool_read_errors{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+            echo "node_zfs_zpool_write_errors{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+            echo "node_zfs_zpool_checksum_errors{zpool=\"$pool\"} 0" >> "$TEMP_FILE"
+          fi
+        fi
+
+        # Parse device-level errors from the status output
+        # Format: device_name  STATE  READ WRITE CKSUM
+        echo "$STATUS" | ${pkgs.gawk}/bin/awk -v pool="$pool" '
+          # Skip header lines and pool name line
+          /^[[:space:]]*(NAME|'$pool'|state:|scan:|config:|errors:)/ { next }
+          # Skip empty lines
+          /^[[:space:]]*$/ { next }
+          # Skip resilver/scrub status lines
+          /resilver|scanned|issued|done|to go/ { next }
+          # Match device lines with error counts
+          /^[[:space:]]+[a-zA-Z0-9_\-\/]+[[:space:]]+[A-Z]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+[[:space:]]+[0-9]+/ {
+            # Extract device name (remove leading spaces)
+            device = $1
+            # Skip if device name contains certain keywords that arent actual devices
+            if (device ~ /mirror|raidz|spare|cache|log/) next
+
+            # Get error columns (columns vary based on indentation)
+            # Look for the pattern: ONLINE/DEGRADED/etc followed by 3 numbers
+            for (i = 2; i <= NF-2; i++) {
+              if ($i ~ /^(ONLINE|DEGRADED|OFFLINE|FAULTED|UNAVAIL|REMOVED)$/) {
+                read_err = $(i+1)
+                write_err = $(i+2)
+                cksum_err = $(i+3)
+
+                print "node_zfs_device_read_errors{zpool=\"" pool "\",device=\"" device "\"} " read_err
+                print "node_zfs_device_write_errors{zpool=\"" pool "\",device=\"" device "\"} " write_err
+                print "node_zfs_device_checksum_errors{zpool=\"" pool "\",device=\"" device "\"} " cksum_err
+                break
+              }
+            }
+          }
+        ' >> "$TEMP_FILE"
+      done
+
+      # Atomically replace the output file
+      mv "$TEMP_FILE" "$OUTPUT_FILE"
+    '';
+    serviceConfig = {
+      Type = "oneshot";
+      User = "root";
+    };
+  };
+
+  # Run ZFS pool metrics collection every minute
+  systemd.timers.zfs-textfile = {
+    description = "Timer for ZFS pool metrics collection";
+    wantedBy = ["timers.target"];
+    timerConfig = {
+      OnBootSec = "30s";
+      OnUnitActiveSec = "1min";
+      Persistent = true;
+    };
+  };
+
   # Ensure the textfile directory exists
   systemd.tmpfiles.rules = [
     "d /var/lib/prometheus-node-exporter 0755 root root -"
