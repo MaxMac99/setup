@@ -8,8 +8,7 @@
   ];
 
   homebrew.casks = [
-    "affinity-designer"
-    "affinity-photo"
+    "affinity"
     "bambu-studio"
     "autodesk-fusion"
     "vlc"
