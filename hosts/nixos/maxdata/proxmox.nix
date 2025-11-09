@@ -205,6 +205,12 @@
       # TYPE node_zfs_device_write_errors gauge
       # HELP node_zfs_device_checksum_errors Checksum errors per device
       # TYPE node_zfs_device_checksum_errors gauge
+      # HELP node_zfs_special_allocated_bytes Bytes allocated on special (metadata) vdev
+      # TYPE node_zfs_special_allocated_bytes gauge
+      # HELP node_zfs_special_size_bytes Total size of special (metadata) vdev
+      # TYPE node_zfs_special_size_bytes gauge
+      # HELP node_zfs_special_free_bytes Free space on special (metadata) vdev
+      # TYPE node_zfs_special_free_bytes gauge
       EOF
 
       # Get list of pools
@@ -344,6 +350,26 @@
                 print "node_zfs_device_checksum_errors{zpool=\"" pool "\",device=\"" device "\"} " cksum_err
                 break
               }
+            }
+          }
+        ' >> "$TEMP_FILE"
+
+        # Extract special device (metadata vdev) usage
+        # Parse `zpool list -v` output to find special vdev allocation
+        VDEV_LIST=$(${pkgs.zfs}/bin/zpool list -v -H -p "$pool")
+
+        # Look for lines with "special" in them and extract size/alloc/free
+        echo "$VDEV_LIST" | ${pkgs.gawk}/bin/awk -v pool="$pool" '
+          /special/ && NF >= 4 {
+            # Format: special  SIZE  ALLOC  FREE  ...
+            # Or: NAME  SIZE  ALLOC  FREE if special is the vdev name
+            if ($1 == "special" || $1 ~ /^special-/) {
+              size = $2
+              alloc = $3
+              free = $4
+              print "node_zfs_special_size_bytes{zpool=\"" pool "\"} " size
+              print "node_zfs_special_allocated_bytes{zpool=\"" pool "\"} " alloc
+              print "node_zfs_special_free_bytes{zpool=\"" pool "\"} " free
             }
           }
         ' >> "$TEMP_FILE"
