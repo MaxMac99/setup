@@ -249,34 +249,40 @@
           RESILVER_PCT=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+\.\d+% done' | ${pkgs.gnugrep}/bin/grep -oP '\d+\.\d+' || echo "0")
           echo "node_zfs_zpool_resilver_percent{zpool=\"$pool\"} $RESILVER_PCT" >> "$TEMP_FILE"
 
-          # Extract scanned bytes (e.g., "123G scanned")
-          SCANNED=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+[\.,]?\d*[KMGTP]? scanned' | ${pkgs.gawk}/bin/awk '{print $1}' || echo "0")
-          SCANNED_BYTES=$(echo "$SCANNED" | ${pkgs.gnused}/bin/sed 's/K/*1024/; s/M/*1048576/; s/G/*1073741824/; s/T/*1099511627776/; s/P/*1125899906842624/' | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
-          echo "node_zfs_zpool_resilver_bytes_scanned{zpool=\"$pool\"} $SCANNED_BYTES" >> "$TEMP_FILE"
-
-          # Extract issued bytes (e.g., "456G issued")
-          ISSUED=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+[\.,]?\d*[KMGTP]? issued' | ${pkgs.gawk}/bin/awk '{print $1}' || echo "0")
-          ISSUED_BYTES=$(echo "$ISSUED" | ${pkgs.gnused}/bin/sed 's/K/*1024/; s/M/*1048576/; s/G/*1073741824/; s/T/*1099511627776/; s/P/*1125899906842624/' | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
-          echo "node_zfs_zpool_resilver_bytes_issued{zpool=\"$pool\"} $ISSUED_BYTES" >> "$TEMP_FILE"
-
-          # Calculate total bytes from percentage
-          if [ "$RESILVER_PCT" != "0" ] && [ "$RESILVER_PCT" != "" ]; then
-            TOTAL_BYTES=$(echo "scale=0; $SCANNED_BYTES * 100 / $RESILVER_PCT" | ${pkgs.bc}/bin/bc 2>/dev/null)
-            # If bc fails or returns empty, set to 0
-            if [ -z "$TOTAL_BYTES" ]; then
-              TOTAL_BYTES="0"
-            fi
+          # Extract scanned and total bytes from format: "2.70T / 4.98T scanned"
+          SCAN_LINE=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '[\d\.]+[KMGTP]? / [\d\.]+[KMGTP]? scanned' || echo "")
+          if [ -n "$SCAN_LINE" ]; then
+            # Extract scanned (first number)
+            SCANNED=$(echo "$SCAN_LINE" | ${pkgs.gawk}/bin/awk '{print $1}')
+            SCANNED_BYTES=$(echo "$SCANNED" | ${pkgs.gnused}/bin/sed 's/K/*1024/; s/M/*1048576/; s/G/*1073741824/; s/T/*1099511627776/; s/P/*1125899906842624/' | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
+            # Extract total (third number, after the /)
+            TOTAL=$(echo "$SCAN_LINE" | ${pkgs.gawk}/bin/awk '{print $3}')
+            TOTAL_BYTES=$(echo "$TOTAL" | ${pkgs.gnused}/bin/sed 's/K/*1024/; s/M/*1048576/; s/G/*1073741824/; s/T/*1099511627776/; s/P/*1125899906842624/' | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
           else
+            SCANNED_BYTES="0"
             TOTAL_BYTES="0"
           fi
+          echo "node_zfs_zpool_resilver_bytes_scanned{zpool=\"$pool\"} $SCANNED_BYTES" >> "$TEMP_FILE"
           echo "node_zfs_zpool_resilver_bytes_total{zpool=\"$pool\"} $TOTAL_BYTES" >> "$TEMP_FILE"
 
-          # Extract time remaining (e.g., "1h23m to go")
-          TIME_STR=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+h\d+m|\d+m|\d+h' | head -1 || echo "")
+          # Extract issued bytes from format: "998G / 4.96T issued"
+          ISSUED_LINE=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '[\d\.]+[KMGTP]? / [\d\.]+[KMGTP]? issued' || echo "")
+          if [ -n "$ISSUED_LINE" ]; then
+            ISSUED=$(echo "$ISSUED_LINE" | ${pkgs.gawk}/bin/awk '{print $1}')
+            ISSUED_BYTES=$(echo "$ISSUED" | ${pkgs.gnused}/bin/sed 's/K/*1024/; s/M/*1048576/; s/G/*1073741824/; s/T/*1099511627776/; s/P/*1125899906842624/' | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
+          else
+            ISSUED_BYTES="0"
+          fi
+          echo "node_zfs_zpool_resilver_bytes_issued{zpool=\"$pool\"} $ISSUED_BYTES" >> "$TEMP_FILE"
+
+          # Extract time remaining from format: "02:39:37 to go" (HH:MM:SS)
+          TIME_STR=$(echo "$STATUS" | ${pkgs.gnugrep}/bin/grep -oP '\d+:\d+:\d+ to go' | ${pkgs.gawk}/bin/awk '{print $1}' || echo "")
           if [ -n "$TIME_STR" ]; then
-            HOURS=$(echo "$TIME_STR" | ${pkgs.gnugrep}/bin/grep -oP '\d+(?=h)' || echo "0")
-            MINS=$(echo "$TIME_STR" | ${pkgs.gnugrep}/bin/grep -oP '\d+(?=m)' || echo "0")
-            SECONDS=$((HOURS * 3600 + MINS * 60))
+            # Split HH:MM:SS
+            HOURS=$(echo "$TIME_STR" | ${pkgs.gawk}/bin/awk -F: '{print $1}')
+            MINS=$(echo "$TIME_STR" | ${pkgs.gawk}/bin/awk -F: '{print $2}')
+            SECS=$(echo "$TIME_STR" | ${pkgs.gawk}/bin/awk -F: '{print $3}')
+            SECONDS=$((HOURS * 3600 + MINS * 60 + SECS))
           else
             SECONDS="0"
           fi
