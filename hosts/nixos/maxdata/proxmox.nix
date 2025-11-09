@@ -261,7 +261,11 @@
 
           # Calculate total bytes from percentage
           if [ "$RESILVER_PCT" != "0" ] && [ "$RESILVER_PCT" != "" ]; then
-            TOTAL_BYTES=$(echo "$SCANNED_BYTES / ($RESILVER_PCT / 100)" | ${pkgs.bc}/bin/bc 2>/dev/null || echo "0")
+            TOTAL_BYTES=$(echo "scale=0; $SCANNED_BYTES * 100 / $RESILVER_PCT" | ${pkgs.bc}/bin/bc 2>/dev/null)
+            # If bc fails or returns empty, set to 0
+            if [ -z "$TOTAL_BYTES" ]; then
+              TOTAL_BYTES="0"
+            fi
           else
             TOTAL_BYTES="0"
           fi
