@@ -2,7 +2,7 @@
 
 {
   # ZFS Prometheus Exporter
-  services.zfs-exporter = {
+  services.zfs-prometheus-exporter = {
     enable = true;
     port = 9134;
     openFirewall = true;
