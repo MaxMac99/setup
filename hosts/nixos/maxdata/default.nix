@@ -19,6 +19,7 @@
       ./microvms.nix
       ./microvm-bridge.nix
       inputs.proxmox-nixos.nixosModules.proxmox-ve
+      inputs.zfs-exporter.nixosModules.default
     ];
 
   nixpkgs.overlays = [

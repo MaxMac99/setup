@@ -1,6 +1,13 @@
 { config, lib, pkgs, ... }:
 
 {
+  # ZFS Prometheus Exporter
+  services.zfs-exporter = {
+    enable = true;
+    port = 9134;
+    openFirewall = true;
+  };
+
   # Promtail - Log shipping to Loki
   services.promtail = {
     enable = true;

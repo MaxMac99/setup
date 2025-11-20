@@ -49,6 +49,10 @@
       url = "github:astro/microvm.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    zfs-exporter = {
+      url = "github:MaxMac99/ZFS-Prometheus-Exporter";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {
