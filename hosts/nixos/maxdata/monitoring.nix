@@ -6,6 +6,7 @@
     enable = true;
     port = 9134;
     openFirewall = true;
+    logLevel = "debug";
   };
 
   # Promtail - Log shipping to Loki

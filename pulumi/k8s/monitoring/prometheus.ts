@@ -286,6 +286,23 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
             ],
             scrape_interval: "15s",
           },
+          // Maxdata ZFS metrics
+          {
+            job_name: "maxdata-zfs",
+            static_configs: [
+              {
+                targets: ["192.168.178.2:9134"],
+                labels: {
+                  instance: "maxdata",
+                  host: "maxdata",
+                  role: "storage",
+                  environment: "homelab",
+                  exporter: "zfs",
+                },
+              },
+            ],
+            scrape_interval: "30s",
+          },
         ],
       },
     },
