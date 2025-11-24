@@ -12,21 +12,21 @@
       isNormalUser = true;
       description = "Michael";
       home = "/home/michael";
-      extraGroups = [ "users" ];
+      extraGroups = ["users"];
     };
 
     anna = {
       isNormalUser = true;
       description = "Anna";
       home = "/home/anna";
-      extraGroups = [ "users" ];
+      extraGroups = ["users"];
     };
   };
 
   # Enable Samba service for data shares
   services.samba = {
     enable = true;
-    package = pkgs.samba4Full;
+    package = pkgs.samba;
     openFirewall = true;
 
     # Disable Windows-specific services (we only need smbd for macOS)
@@ -59,8 +59,8 @@
         "vfs objects" = "fruit streams_xattr";
 
         # Apple compatibility settings
-        "fruit:aapl" = "yes";  # Enable Apple extensions
-        "fruit:nfs_aces" = "yes";  # Enable Apple extensions
+        "fruit:aapl" = "yes"; # Enable Apple extensions
+        "fruit:nfs_aces" = "yes"; # Enable Apple extensions
         "fruit:model" = "TimeCapsule8,119";
         "fruit:metadata" = "stream";
         "fruit:veto_appledouble" = "no";
@@ -72,7 +72,6 @@
         # Logging
         "log level" = 1;
       };
-
 
       # Personal data shares
       "Daten Max" = {
@@ -157,3 +156,4 @@
     ];
   };
 }
+
