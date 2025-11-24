@@ -8,6 +8,7 @@ import "./prometheus";        // Metrics collection
 import "./loki";             // Log aggregation backend
 import "./promtail";         // Log collection agent (requires Loki)
 import "./tempo";            // Distributed tracing
+import "./ntfy";             // Push notification service
 import "./grafana-database"; // Grafana PostgreSQL database
 import "./grafana";          // Visualization and dashboards (requires all data sources)
 
@@ -17,6 +18,7 @@ export * from "./prometheus";
 export * from "./loki";
 export * from "./promtail";
 export * from "./tempo";
+export * from "./ntfy";
 export * from "./grafana";
 
 // Monitoring Stack Overview:
