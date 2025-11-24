@@ -1,12 +1,16 @@
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   # ZFS Prometheus Exporter
   services.zfs-prometheus-exporter = {
     enable = true;
     port = 9134;
     openFirewall = true;
     logLevel = "debug";
+    logFormat = "json";
   };
 
   # Promtail - Log shipping to Loki
@@ -42,15 +46,15 @@
           };
           relabel_configs = [
             {
-              source_labels = [ "__journal__systemd_unit" ];
+              source_labels = ["__journal__systemd_unit"];
               target_label = "unit";
             }
             {
-              source_labels = [ "__journal__hostname" ];
+              source_labels = ["__journal__hostname"];
               target_label = "hostname";
             }
             {
-              source_labels = [ "__journal_priority_keyword" ];
+              source_labels = ["__journal_priority_keyword"];
               target_label = "level";
             }
           ];
@@ -61,7 +65,7 @@
           job_name = "proxmox";
           static_configs = [
             {
-              targets = [ "localhost" ];
+              targets = ["localhost"];
               labels = {
                 job = "proxmox";
                 host = "maxdata";
@@ -76,7 +80,7 @@
           job_name = "samba";
           static_configs = [
             {
-              targets = [ "localhost" ];
+              targets = ["localhost"];
               labels = {
                 job = "samba";
                 host = "maxdata";
@@ -91,7 +95,7 @@
 
   # Open firewall for Promtail HTTP (for status/metrics)
   networking.firewall.allowedTCPPorts = [
-    3031  # Promtail HTTP
+    3031 # Promtail HTTP
   ];
 
   # Ensure log directories and promtail state directory exist
