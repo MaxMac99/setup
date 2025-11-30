@@ -13,6 +13,12 @@
     "autodesk-fusion"
   ];
 
+  environment.systemPackages = with pkgs; [
+    google-chrome
+    jetbrains.idea-ultimate
+    jetbrains.rust-rover
+  ];
+
   hostSpec = {
     username = "maxvissing";
     hostName = "kopf3-NB-26";

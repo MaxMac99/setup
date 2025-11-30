@@ -17,7 +17,9 @@
     python.enable = true;
     rust = {
       enable = true;
-      crates.enable = true;
+      extensions = {
+        crates-nvim.enable = true;
+      };
     };
     sql = {
       enable = true;

@@ -79,7 +79,7 @@
       owner = "wojciech-kulik";
       repo = "xcodebuild.nvim";
       rev = "v7.0.0";
-      hash = "sha256-9VSj5vKKUIUEHsh8MrLjqCAOtf+0a10pDikzOSNTtbs=";
+      hash = "sha256-+GeZzPf9aFufvszUDCFX8Osp4202c6p2hOeI2vbjYrc=";
     };
     nvimSkipModules = [
       "xcodebuild.ui.pickers"
@@ -88,6 +88,9 @@
       "xcodebuild.project.assets"
       "xcodebuild.integrations.xcode-build-server"
       "xcodebuild.integrations.dap"
+      "xcodebuild.integrations.fzf-lua"
+      "xcodebuild.integrations.telescope-nvim"
+      "xcodebuild.integrations.snacks-picker"
       "xcodebuild.code_coverage.report"
       "xcodebuild.dap"
     ];

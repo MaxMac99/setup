@@ -16,10 +16,6 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    mac-app-util = {
-      url = "github:hraban/mac-app-util";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
     homebrew-bundle = {
       url = "github:homebrew/homebrew-bundle";
@@ -61,7 +57,6 @@
     darwin,
     home-manager,
     nix-homebrew,
-    mac-app-util,
     ...
   } @ inputs: let
     inherit (self) outputs;
@@ -84,14 +79,9 @@
             };
             modules = [
               home-manager.darwinModules.home-manager
-              mac-app-util.darwinModules.default
               nix-homebrew.darwinModules.nix-homebrew
               (
-                {config, ...}: {
-                  # To enable it for all users:
-                  home-manager.sharedModules = [
-                    mac-app-util.homeManagerModules.default
-                  ];
+                {config, lib, pkgs, ...}: {
                   nixpkgs.config.allowUnfree = true;
                 }
               )

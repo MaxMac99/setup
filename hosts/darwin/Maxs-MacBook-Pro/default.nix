@@ -1,4 +1,4 @@
-{lib, ...}: {
+{lib, pkgs, ...}: {
   nixpkgs.hostPlatform = "aarch64-darwin";
 
   imports = lib.flatten [
@@ -12,6 +12,13 @@
     "bambu-studio"
     "autodesk-fusion"
     "vlc"
+  ];
+
+  environment.systemPackages = with pkgs; [
+    google-chrome
+    discord
+    jetbrains.idea-ultimate
+    jetbrains.rust-rover
   ];
 
   hostSpec = {

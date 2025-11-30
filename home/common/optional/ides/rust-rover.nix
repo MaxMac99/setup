@@ -15,7 +15,6 @@
 in {
   home.file.".rust-toolchain".source = rustToolchain;
   home.packages = with pkgs; [
-    jetbrains.rust-rover
     rustToolchain
     rust-analyzer
   ];
