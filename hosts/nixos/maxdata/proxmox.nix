@@ -4,6 +4,14 @@
   pkgs,
   ...
 }: {
+  # PAM configuration for Proxmox authentication
+  security.pam.services.pve-auth = {
+    text = ''
+      auth    required  pam_unix.so
+      account required  pam_unix.so
+    '';
+  };
+
   # Proxmox VE configuration (provided by proxmox-nixos module)
   services.proxmox-ve = {
     enable = true;
