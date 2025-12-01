@@ -92,7 +92,7 @@ const homepage = new k8s.helm.v3.Chart(
   "homepage",
   {
     chart: "homepage",
-    version: "2.0.2",
+    version: "2.1.0",
     namespace: homepageNamespace.metadata.name,
     fetchOpts: {
       repo: "https://jameswynn.github.io/helm-charts",
