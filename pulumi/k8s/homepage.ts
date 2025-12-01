@@ -92,7 +92,7 @@ const homepage = new k8s.helm.v3.Chart(
   "homepage",
   {
     chart: "homepage",
-    version: "2.1.0",
+    version: "2.0.2",
     namespace: homepageNamespace.metadata.name,
     fetchOpts: {
       repo: "https://jameswynn.github.io/helm-charts",
@@ -100,7 +100,7 @@ const homepage = new k8s.helm.v3.Chart(
     values: {
       image: {
         repository: "ghcr.io/gethomepage/homepage",
-        tag: "v1.7.0",
+        tag: "v1.6.1",
       },
 
       // Disable helm chart RBAC - we create our own ClusterRole with broader permissions
