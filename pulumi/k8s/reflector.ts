@@ -6,6 +6,7 @@ import * as k8s from "@pulumi/kubernetes";
 // Install Reflector using Helm
 const reflector = new k8s.helm.v3.Chart("reflector", {
   chart: "reflector",
+  version: "7.1.262",
   namespace: "kube-system", // Deploy to kube-system namespace
   fetchOpts: {
     repo: "https://emberstack.github.io/helm-charts",

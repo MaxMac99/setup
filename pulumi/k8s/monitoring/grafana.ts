@@ -32,6 +32,7 @@ const grafanaAdminPassword = new random.RandomPassword("grafana-admin-password",
 // Install Grafana using Helm chart
 const grafana = new k8s.helm.v3.Chart("grafana", {
   chart: "grafana",
+  version: "10.2.0",
   namespace: namespaceName,
   fetchOpts: {
     repo: "https://grafana.github.io/helm-charts",
@@ -78,6 +79,18 @@ const grafana = new k8s.helm.v3.Chart("grafana", {
       ingressClassName: "traefik",  // Changed from traefik-external - now using port forwarding on ionos
       annotations: {
         "cert-manager.io/cluster-issuer": "letsencrypt-prod",
+        // Homepage dashboard discovery
+        "gethomepage.dev/enabled": "true",
+        "gethomepage.dev/name": "Grafana",
+        "gethomepage.dev/description": "Dashboards & Visualization",
+        "gethomepage.dev/group": "Monitoring",
+        "gethomepage.dev/icon": "grafana",
+        "gethomepage.dev/href": "https://grafana.mvissing.de",
+        // Grafana widget - shows dashboard and alert stats
+        "gethomepage.dev/widget.type": "grafana",
+        "gethomepage.dev/widget.url": "http://grafana.monitoring.svc.cluster.local",
+        "gethomepage.dev/widget.username": "admin",
+        "gethomepage.dev/widget.password": '{{ "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}" }}',
       },
       hosts: ["grafana.mvissing.de"],
       tls: [

@@ -297,6 +297,19 @@ const authentikIngress = new k8s.networking.v1.Ingress("authentik-ingress", {
       // Redirect HTTP to HTTPS
       "traefik.ingress.kubernetes.io/redirect-entry-point": "websecure",
       "traefik.ingress.kubernetes.io/redirect-permanent": "true",
+      // Homepage dashboard discovery
+      "gethomepage.dev/enabled": "true",
+      "gethomepage.dev/name": "Authentik",
+      "gethomepage.dev/description": "Identity Provider",
+      "gethomepage.dev/group": "Infrastructure",
+      "gethomepage.dev/icon": "authentik",
+      "gethomepage.dev/pod-selector": "app=authentik-server",
+      "gethomepage.dev/href": "https://auth.mvissing.de",
+      // Authentik widget - shows user counts and login stats
+      "gethomepage.dev/widget.type": "authentik",
+      "gethomepage.dev/widget.url": "http://authentik.authentik.svc.cluster.local",
+      "gethomepage.dev/widget.key": "{{HOMEPAGE_VAR_AUTHENTIK_TOKEN}}",
+      "gethomepage.dev/widget.version": "2", // Authentik >= 2025.8.0
     },
   },
   spec: {

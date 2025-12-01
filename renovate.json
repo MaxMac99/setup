@@ -1,0 +1,64 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": ["before 6am on monday"],
+  "prHourlyLimit": 5,
+  "prConcurrentLimit": 10,
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Group all Helm chart updates",
+      "matchManagers": ["regex"],
+      "matchDatasources": ["helm"],
+      "groupName": "helm charts"
+    },
+    {
+      "description": "Group all Docker image updates",
+      "matchManagers": ["regex"],
+      "matchDatasources": ["docker"],
+      "groupName": "docker images"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Match Docker images in Pulumi TypeScript files",
+      "fileMatch": ["\\.ts$"],
+      "matchStrings": [
+        "image:\\s*[\"'](?<depName>[^:\"']+):(?<currentValue>[^\"']+)[\"']"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Match Helm chart versions (Chart API with fetchOpts)",
+      "fileMatch": ["\\.ts$"],
+      "matchStrings": [
+        "chart:\\s*[\"'](?<depName>[^\"']+)[\"'][\\s\\S]*?fetchOpts:\\s*\\{[\\s\\S]*?repo:\\s*[\"'](?<registryUrl>[^\"']+)[\"'][\\s\\S]*?version:\\s*[\"'](?<currentValue>[^\"']+)[\"']",
+        "chart:\\s*[\"'](?<depName>[^\"']+)[\"'][\\s\\S]*?fetchOpts:\\s*\\{[\\s\\S]*?version:\\s*[\"'](?<currentValue>[^\"']+)[\"'][\\s\\S]*?repo:\\s*[\"'](?<registryUrl>[^\"']+)[\"']"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "customType": "regex",
+      "description": "Match Helm chart versions (Release API with repositoryOpts)",
+      "fileMatch": ["\\.ts$"],
+      "matchStrings": [
+        "chart:\\s*[\"'](?<depName>[^\"']+)[\"'][\\s\\S]*?version:\\s*[\"'](?<currentValue>[^\"']+)[\"'][\\s\\S]*?repositoryOpts:\\s*\\{[\\s\\S]*?repo:\\s*[\"'](?<registryUrl>[^\"']+)[\"']"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "customType": "regex",
+      "description": "Match PostgreSQL image version in CloudNativePG",
+      "fileMatch": ["\\.ts$"],
+      "matchStrings": [
+        "imageName:\\s*[\"'](?<depName>[^:\"']+):(?<currentValue>[^\"']+)[\"']"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ]
+}

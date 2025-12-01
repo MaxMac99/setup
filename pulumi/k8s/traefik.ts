@@ -19,6 +19,7 @@ const traefik = new k8s.helm.v3.Chart(
   "traefik",
   {
     chart: "traefik",
+    version: "37.4.0",
     namespace: traefikNamespace.metadata.name,
     fetchOpts: {
       repo: "https://traefik.github.io/charts",
@@ -53,7 +54,7 @@ const traefik = new k8s.helm.v3.Chart(
       // Enable Traefik dashboard API
       api: {
         dashboard: true,
-        insecure: false, // Only accessible via IngressRoute, not insecure port
+        insecure: true, // Allow internal access on port 9000 for Homepage widget
       },
       // Configure entry points
       ports: {
@@ -69,10 +70,13 @@ const traefik = new k8s.helm.v3.Chart(
             enabled: true,
           },
         },
-        // Traefik dashboard (optional, for debugging)
+        // Traefik dashboard/API port - expose in service for Homepage widget
         traefik: {
           port: 9000,
           exposedPort: 9000,
+          expose: {
+            default: true,
+          },
         },
       },
       // Enable dashboard API
@@ -86,6 +90,7 @@ const traefik = new k8s.helm.v3.Chart(
         "--entrypoints.web.http.redirections.entryPoint.to=websecure",
         "--entrypoints.web.http.redirections.entryPoint.scheme=https",
         "--entrypoints.web.http.redirections.entrypoint.permanent=true",
+        "--api.insecure=true", // Enable API on port 9000 for Homepage widget
       ],
     },
   },
@@ -107,6 +112,15 @@ const authentikMiddleware = new k8s.apiextensions.CustomResource("traefik-authen
       // This ensures browser cookies are properly forwarded through the ingress
       address: "https://auth.mvissing.de/outpost.goauthentik.io/auth/traefik",
       trustForwardHeader: true,
+      // Forward these headers to Authentik so it can redirect back to the original URL
+      // Cookie is essential for Authentik to verify existing sessions
+      authRequestHeaders: [
+        "Cookie",
+        "X-Forwarded-Proto",
+        "X-Forwarded-Host",
+        "X-Forwarded-Uri",
+        "X-Forwarded-For",
+      ],
       authResponseHeaders: [
         "X-authentik-username",
         "X-authentik-groups",
@@ -120,7 +134,7 @@ const authentikMiddleware = new k8s.apiextensions.CustomResource("traefik-authen
 }, { dependsOn: [traefik, authentikOutpostService] });
 
 // Certificate for Traefik Internal Dashboard
-const dashboardCertificate = new k8s.apiextensions.CustomResource("traefik-internal-cert", {
+const dashboardCertificate = new k8s.apiextensions.CustomResource("traefik-cert", {
   apiVersion: "cert-manager.io/v1",
   kind: "Certificate",
   metadata: {
@@ -129,7 +143,7 @@ const dashboardCertificate = new k8s.apiextensions.CustomResource("traefik-inter
   },
   spec: {
     secretName: "traefik-dashboard-tls",
-    dnsNames: ["traefik-internal.mvissing.de"],
+    dnsNames: ["traefik.mvissing.de"],
     issuerRef: {
       name: "letsencrypt-prod",
       kind: "ClusterIssuer",
@@ -139,18 +153,31 @@ const dashboardCertificate = new k8s.apiextensions.CustomResource("traefik-inter
 }, { dependsOn: [traefik] });
 
 // IngressRoute for Traefik Internal Dashboard with Authentik Auth
-const dashboardIngressRoute = new k8s.apiextensions.CustomResource("traefik-internal-dashboard", {
+const dashboardIngressRoute = new k8s.apiextensions.CustomResource("traefik-dashboard", {
   apiVersion: "traefik.io/v1alpha1",
   kind: "IngressRoute",
   metadata: {
     name: "traefik-dashboard",
     namespace: traefikNamespace.metadata.name,
+    annotations: {
+      // Homepage dashboard discovery
+      "gethomepage.dev/enabled": "true",
+      "gethomepage.dev/name": "Traefik",
+      "gethomepage.dev/description": "Ingress Controller",
+      "gethomepage.dev/group": "Infrastructure",
+      "gethomepage.dev/icon": "traefik",
+      "gethomepage.dev/href": "https://traefik.mvissing.de",
+      "gethomepage.dev/pod-selector": "app.kubernetes.io/name=traefik",
+      // Traefik widget
+      "gethomepage.dev/widget.type": "traefik",
+      "gethomepage.dev/widget.url": "http://traefik.traefik.svc.cluster.local:9000",
+    },
   },
   spec: {
     entryPoints: ["websecure"],
     routes: [
       {
-        match: "Host(`traefik-internal.mvissing.de`)",
+        match: "Host(`traefik.mvissing.de`)",
         kind: "Rule",
         middlewares: [
           {

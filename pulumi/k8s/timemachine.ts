@@ -106,7 +106,7 @@ const timemachineDeployment = new k8s.apps.v1.Deployment("timemachine", {
                 },
                 containers: [{
                     name: "timemachine",
-                    image: "mbentley/timemachine:latest",
+                    image: "mbentley/timemachine:smb",
                     env: [
                         {
                             name: "ADVERTISED_HOSTNAME",

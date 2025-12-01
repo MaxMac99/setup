@@ -9,6 +9,7 @@ import { lokiUrl } from "./loki";
 // Install Promtail using Helm chart
 const promtail = new k8s.helm.v3.Chart("promtail", {
   chart: "promtail",
+  version: "6.17.1",
   namespace: namespaceName,
   fetchOpts: {
     repo: "https://grafana.github.io/helm-charts",
@@ -36,6 +37,21 @@ const promtail = new k8s.helm.v3.Chart("promtail", {
         firstline: '^\\[\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}\\]'
         max_wait_time: 3s
         max_lines: 100
+    # Parse Paperless log format: [timestamp] [level] [logger] message
+    - regex:
+        expression: '^\\[(?P<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3})\\] \\[(?P<level>\\w+)\\] \\[(?P<logger>[^\\]]+)\\] (?P<message>.*)$'
+    # Set log level as a label for filtering
+    - labels:
+        level:
+        logger:
+    # Use extracted timestamp (Paperless logs in Europe/Berlin timezone)
+    - timestamp:
+        source: timestamp
+        format: '2006-01-02 15:04:05,000'
+        location: Europe/Berlin
+    # Replace log line with just the message (optional - keeps full line if commented)
+    - output:
+        source: message
   kubernetes_sd_configs:
     - role: pod
   relabel_configs:

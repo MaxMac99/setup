@@ -8,6 +8,7 @@ import { namespaceName } from "./namespace";
 // Install Prometheus using Helm chart
 const prometheus = new k8s.helm.v3.Chart("prometheus", {
   chart: "prometheus",
+  version: "27.48.0",
   namespace: namespaceName,
   fetchOpts: {
     repo: "https://prometheus-community.github.io/helm-charts",
@@ -45,6 +46,17 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
           "cert-manager.io/cluster-issuer": "letsencrypt-prod",
           // Protect with Authentik forward auth
           "traefik.ingress.kubernetes.io/router.middlewares": "traefik-authentik@kubernetescrd",
+          // Homepage dashboard discovery
+          "gethomepage.dev/enabled": "true",
+          "gethomepage.dev/name": "Prometheus",
+          "gethomepage.dev/description": "Metrics & Alerting",
+          "gethomepage.dev/group": "Monitoring",
+          "gethomepage.dev/icon": "prometheus",
+          "gethomepage.dev/pod-selector": "app.kubernetes.io/name=prometheus,app.kubernetes.io/component=server",
+          "gethomepage.dev/href": "https://prometheus.mvissing.de",
+          // Prometheus widget - shows target status
+          "gethomepage.dev/widget.type": "prometheus",
+          "gethomepage.dev/widget.url": "http://prometheus-server.monitoring.svc.cluster.local",
         },
         hosts: ["prometheus.mvissing.de"],
         tls: [

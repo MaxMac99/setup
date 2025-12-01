@@ -193,7 +193,7 @@ const gotenbergDeployment = new k8s.apps.v1.Deployment("gotenberg", {
       spec: {
         containers: [{
           name: "gotenberg",
-          image: "gotenberg/gotenberg:8",
+          image: "gotenberg/gotenberg:8.25.0",
           ports: [{
             containerPort: 3000,
             name: "http",
@@ -482,7 +482,7 @@ const paperlessDeployment = new k8s.apps.v1.Deployment("paperless", {
         // Prometheus exporter sidecar
         {
           name: "metrics-exporter",
-          image: "ghcr.io/hansmi/prometheus-paperless-exporter:latest",
+          image: "ghcr.io/hansmi/prometheus-paperless-exporter:v0.0.8",
           args: [
             "--web.listen-address=:9999",
           ],
@@ -570,10 +570,22 @@ const paperlessIngress = new k8s.networking.v1.Ingress("paperless-ingress", {
       // Redirect HTTP to HTTPS
       "traefik.ingress.kubernetes.io/redirect-entry-point": "websecure",
       "traefik.ingress.kubernetes.io/redirect-permanent": "true",
+      // Homepage dashboard discovery
+      "gethomepage.dev/enabled": "true",
+      "gethomepage.dev/name": "Paperless",
+      "gethomepage.dev/description": "Document Management",
+      "gethomepage.dev/group": "Applications",
+      "gethomepage.dev/icon": "paperless-ngx",
+      "gethomepage.dev/pod-selector": "app=paperless",
+      "gethomepage.dev/href": "https://dms.mvissing.de",
+      // Paperless widget - shows document counts
+      "gethomepage.dev/widget.type": "paperlessngx",
+      "gethomepage.dev/widget.url": "http://paperless.paperless.svc.cluster.local",
+      "gethomepage.dev/widget.key": "{{HOMEPAGE_VAR_PAPERLESS_TOKEN}}",
     },
   },
   spec: {
-    // No ingressClassName specified - both Traefik instances will pick this up
+    ingressClassName: "traefik",
     rules: [{
       host: "dms.mvissing.de",
       http: {

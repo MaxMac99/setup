@@ -11,6 +11,8 @@ import "./tempo";            // Distributed tracing
 import "./ntfy";             // Push notification service
 import "./grafana-database"; // Grafana PostgreSQL database
 import "./grafana";          // Visualization and dashboards (requires all data sources)
+import "./diun";             // Container image update notifier
+import "./nova";             // Helm chart update checker
 
 // Re-export for external use if needed
 export * from "./namespace";
@@ -20,6 +22,8 @@ export * from "./promtail";
 export * from "./tempo";
 export * from "./ntfy";
 export * from "./grafana";
+export * from "./diun";
+export * from "./nova";
 
 // Monitoring Stack Overview:
 //
@@ -32,6 +36,8 @@ export * from "./grafana";
 //   - Promtail: Log collection agent (DaemonSet on all nodes)
 //   - Tempo: Distributed tracing backend (30d retention, 50Gi)
 //   - Grafana: Unified visualization with Authentik OAuth
+//   - Diun: Container image update notifier (checks every 6h)
+//   - Nova: Helm chart update checker (CronJob every 6h)
 //
 // Public endpoints (via traefik-external with Let's Encrypt):
 //   - https://grafana.mvissing.de - Main dashboard UI

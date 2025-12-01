@@ -103,7 +103,7 @@ const ntfyDeployment = new k8s.apps.v1.Deployment("ntfy", {
         containers: [
           {
             name: "ntfy",
-            image: "binwiederhier/ntfy:latest",
+            image: "binwiederhier/ntfy:v2.15.0",
             args: ["serve"],
             ports: [
               {
@@ -202,6 +202,14 @@ const ntfyIngress = new k8s.networking.v1.Ingress("ntfy", {
     namespace: namespaceName,
     annotations: {
       "cert-manager.io/cluster-issuer": "letsencrypt-prod",
+      // Homepage dashboard discovery
+      "gethomepage.dev/enabled": "true",
+      "gethomepage.dev/name": "ntfy",
+      "gethomepage.dev/description": "Push Notifications",
+      "gethomepage.dev/group": "Infrastructure",
+      "gethomepage.dev/icon": "ntfy",
+      "gethomepage.dev/href": "https://ntfy.mvissing.de",
+      "gethomepage.dev/pod-selector": "app=ntfy",
     },
   },
   spec: {
