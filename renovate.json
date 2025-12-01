@@ -3,6 +3,13 @@
   "extends": [
     "config:recommended"
   ],
+  "nix": {
+    "enabled": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
   "timezone": "Europe/Berlin",
   "schedule": ["before 6am on monday"],
   "prHourlyLimit": 5,
