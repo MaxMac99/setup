@@ -5,7 +5,9 @@
       "Bash(cat:*)",
       "WebSearch",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:community.traefik.io)"
+      "WebFetch(domain:community.traefik.io)",
+      "WebFetch(domain:gethomepage.dev)",
+      "WebFetch(domain:hub.docker.com)"
     ],
     "deny": [],
     "ask": []
