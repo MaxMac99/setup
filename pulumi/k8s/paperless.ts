@@ -325,7 +325,7 @@ const paperlessDeployment = new k8s.apps.v1.Deployment("paperless", {
       spec: {
         containers: [{
           name: "paperless",
-          image: "ghcr.io/paperless-ngx/paperless-ngx:2.15",
+          image: "ghcr.io/paperless-ngx/paperless-ngx:2.20",
           ports: [{
             containerPort: 8000,
             name: "http",
