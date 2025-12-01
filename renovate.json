@@ -37,8 +37,8 @@
       "description": "Match Helm chart versions (Chart API with fetchOpts)",
       "fileMatch": ["\\.ts$"],
       "matchStrings": [
-        "chart:\\s*[\"'](?<depName>[^\"']+)[\"'][\\s\\S]*?fetchOpts:\\s*\\{[\\s\\S]*?repo:\\s*[\"'](?<registryUrl>[^\"']+)[\"'][\\s\\S]*?version:\\s*[\"'](?<currentValue>[^\"']+)[\"']",
-        "chart:\\s*[\"'](?<depName>[^\"']+)[\"'][\\s\\S]*?fetchOpts:\\s*\\{[\\s\\S]*?version:\\s*[\"'](?<currentValue>[^\"']+)[\"'][\\s\\S]*?repo:\\s*[\"'](?<registryUrl>[^\"']+)[\"']"
+        "chart:\\s*[\"'](?<depName>[^\"']+)[\"'][\\s\\S]*?version:\\s*[\"'](?<currentValue>[^\"']+)[\"'][\\s\\S]*?fetchOpts:\\s*\\{[\\s\\S]*?repo:\\s*[\"'](?<registryUrl>[^\"']+)[\"']",
+        "chart:\\s*[\"'](?<depName>[^\"']+)[\"'][\\s\\S]*?fetchOpts:\\s*\\{[\\s\\S]*?repo:\\s*[\"'](?<registryUrl>[^\"']+)[\"'][\\s\\S]*?\\}[\\s\\S]*?version:\\s*[\"'](?<currentValue>[^\"']+)[\"']"
       ],
       "datasourceTemplate": "helm"
     },
