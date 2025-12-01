@@ -11,7 +11,6 @@ import "./tempo";            // Distributed tracing
 import "./ntfy";             // Push notification service
 import "./grafana-database"; // Grafana PostgreSQL database
 import "./grafana";          // Visualization and dashboards (requires all data sources)
-import "./diun";             // Container image update notifier
 
 // Re-export for external use if needed
 export * from "./namespace";
@@ -21,7 +20,6 @@ export * from "./promtail";
 export * from "./tempo";
 export * from "./ntfy";
 export * from "./grafana";
-export * from "./diun";
 
 // Monitoring Stack Overview:
 //
