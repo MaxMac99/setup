@@ -10,15 +10,22 @@
   "labels": ["dependencies"],
   "packageRules": [
     {
-      "description": "Group all Helm chart updates",
+      "description": "Auto-merge patch updates",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "Group all Helm chart updates (non-patch)",
       "matchManagers": ["regex"],
       "matchDatasources": ["helm"],
+      "matchUpdateTypes": ["minor", "major"],
       "groupName": "helm charts"
     },
     {
-      "description": "Group all Docker image updates",
+      "description": "Group all Docker image updates (non-patch)",
       "matchManagers": ["regex"],
       "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["minor", "major"],
       "groupName": "docker images"
     }
   ],
