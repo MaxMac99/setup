@@ -1,4 +1,8 @@
-{lib, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: {
   nixpkgs.hostPlatform = "aarch64-darwin";
 
   imports = lib.flatten [
@@ -8,6 +12,7 @@
   ];
 
   homebrew.casks = [
+    "affinity"
     "tunnelblick"
     "bambu-studio"
     "autodesk-fusion"
