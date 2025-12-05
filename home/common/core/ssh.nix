@@ -4,8 +4,7 @@
   ...
 }: {
   programs.ssh = {
-    enable = true;
-    enableDefaultConfig = false;
+    enable = !hostSpec.isWork;
     matchBlocks =
       {
         "*" = {
