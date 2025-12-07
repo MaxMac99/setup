@@ -18,6 +18,7 @@ import "./authentik-outpost";  // Authentik Forward Auth Outpost
 import "./paperless";          // Document Management System
 import "./homepage";           // Homepage Dashboard
 import "./unifi";              // UniFi Network Controller
+import "./adguard";            // AdGuard Home DNS Ad Blocker
 
 // Monitoring
 import "./monitoring";         // Prometheus, Grafana, Loki, Tempo

@@ -20,6 +20,12 @@ const metallb = new k8s.helm.v3.Release("metallb", {
     // Enable Prometheus metrics scraping via pod annotations
     prometheus: {
       scrapeAnnotations: true,
+      metricsPort: 7472,
+    },
+    speaker: {
+      frr: {
+        metricsPort: 7473,
+      },
     },
   },
 });
