@@ -23,9 +23,24 @@ const certManager = new k8s.helm.v3.Chart("cert-manager", {
     // Install CRDs automatically
     installCRDs: true,
 
-    // Prometheus monitoring - disabled (Prometheus Operator not installed)
+    // Prometheus monitoring
     prometheus: {
-      enabled: false,
+      enabled: true,
+    },
+
+    // JSON logging for all components
+    config: {
+      apiVersion: "controller.config.cert-manager.io/v1alpha1",
+      kind: "ControllerConfiguration",
+      logging: {
+        format: "json",
+      },
+    },
+    webhook: {
+      extraArgs: ["--logging-format=json"],
+    },
+    cainjector: {
+      extraArgs: ["--logging-format=json"],
     },
   },
 });

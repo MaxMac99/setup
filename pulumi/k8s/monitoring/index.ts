@@ -11,6 +11,7 @@ import "./tempo";            // Distributed tracing
 import "./ntfy";             // Push notification service
 import "./grafana-database"; // Grafana PostgreSQL database
 import "./grafana";          // Visualization and dashboards (requires all data sources)
+import "./unpoller";         // UniFi metrics exporter for Prometheus
 
 // Re-export for external use if needed
 export * from "./namespace";
@@ -20,6 +21,7 @@ export * from "./promtail";
 export * from "./tempo";
 export * from "./ntfy";
 export * from "./grafana";
+export * from "./unpoller";
 
 // Monitoring Stack Overview:
 //

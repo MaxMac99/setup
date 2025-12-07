@@ -241,12 +241,12 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
               {
                 source_labels: ["__meta_kubernetes_namespace"],
                 action: "replace",
-                target_label: "kubernetes_namespace",
+                target_label: "namespace",
               },
               {
                 source_labels: ["__meta_kubernetes_pod_name"],
                 action: "replace",
-                target_label: "kubernetes_pod_name",
+                target_label: "pod",
               },
             ],
           },

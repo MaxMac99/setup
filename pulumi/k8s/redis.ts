@@ -47,51 +47,75 @@ const redisDeployment = new k8s.apps.v1.Deployment("redis", {
         labels: {
           app: "redis",
         },
+        annotations: {
+          "prometheus.io/scrape": "true",
+          "prometheus.io/port": "9121",
+        },
       },
       spec: {
-        containers: [{
-          name: "redis",
-          image: "redis:8.4.0-alpine",
-          args: [
-            "redis-server",
-            "--appendonly", "yes",
-            "--appendfsync", "everysec",
-            "--maxmemory", "1gb",
-            "--maxmemory-policy", "allkeys-lru",
-          ],
-          ports: [{
-            containerPort: 6379,
+        containers: [
+          {
             name: "redis",
-          }],
-          volumeMounts: [{
-            name: "data",
-            mountPath: "/data",
-          }],
-          resources: {
-            requests: {
-              memory: "256Mi",
-              cpu: "100m",
+            image: "redis:8.4.0-alpine",
+            args: [
+              "redis-server",
+              "--appendonly", "yes",
+              "--appendfsync", "everysec",
+              "--maxmemory", "1gb",
+              "--maxmemory-policy", "allkeys-lru",
+            ],
+            ports: [{
+              containerPort: 6379,
+              name: "redis",
+            }],
+            volumeMounts: [{
+              name: "data",
+              mountPath: "/data",
+            }],
+            resources: {
+              requests: {
+                memory: "256Mi",
+                cpu: "100m",
+              },
+              limits: {
+                memory: "2Gi",
+                cpu: "1000m",
+              },
             },
-            limits: {
-              memory: "2Gi",
-              cpu: "1000m",
+            livenessProbe: {
+              exec: {
+                command: ["redis-cli", "ping"],
+              },
+              initialDelaySeconds: 30,
+              periodSeconds: 10,
+            },
+            readinessProbe: {
+              exec: {
+                command: ["redis-cli", "ping"],
+              },
+              initialDelaySeconds: 5,
+              periodSeconds: 5,
             },
           },
-          livenessProbe: {
-            exec: {
-              command: ["redis-cli", "ping"],
+          {
+            name: "redis-exporter",
+            image: "oliver006/redis_exporter:v1.66.0",
+            ports: [{
+              containerPort: 9121,
+              name: "metrics",
+            }],
+            resources: {
+              requests: {
+                memory: "32Mi",
+                cpu: "10m",
+              },
+              limits: {
+                memory: "64Mi",
+                cpu: "100m",
+              },
             },
-            initialDelaySeconds: 30,
-            periodSeconds: 10,
           },
-          readinessProbe: {
-            exec: {
-              command: ["redis-cli", "ping"],
-            },
-            initialDelaySeconds: 5,
-            periodSeconds: 5,
-          },
-        }],
+        ],
         volumes: [{
           name: "data",
           persistentVolumeClaim: {

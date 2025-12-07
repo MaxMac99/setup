@@ -98,10 +98,23 @@ const promtail = new k8s.helm.v3.Chart("promtail", {
     - action: labelmap
       regex: __meta_kubernetes_pod_label_(.+)
 
-# All other pods - standard single-line processing
+# All other pods - with JSON timestamp support
 - job_name: kubernetes-pods
   pipeline_stages:
     - cri: {}
+    # Try to parse as JSON and extract timestamp
+    - json:
+        expressions:
+          ts: ts
+          level: level
+          msg: msg
+    # Use ts field as timestamp (Unix milliseconds)
+    - timestamp:
+        source: ts
+        format: UnixMs
+    # Add level as label if present
+    - labels:
+        level:
   kubernetes_sd_configs:
     - role: pod
   relabel_configs:

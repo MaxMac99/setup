@@ -16,6 +16,12 @@ const metallb = new k8s.helm.v3.Release("metallb", {
   repositoryOpts: {
     repo: "https://metallb.github.io/metallb",
   },
+  values: {
+    // Enable Prometheus metrics scraping via pod annotations
+    prometheus: {
+      scrapeAnnotations: true,
+    },
+  },
 });
 
 // Configure IP address pool for LoadBalancer services

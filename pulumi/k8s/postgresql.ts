@@ -215,6 +215,14 @@ const postgresCluster = new k8s.apiextensions.CustomResource("postgres-cluster",
       },
     },
 
+    // Add Prometheus scrape annotations to pods (metrics on port 9187)
+    inheritedMetadata: {
+      annotations: {
+        "prometheus.io/scrape": "true",
+        "prometheus.io/port": "9187",
+      },
+    },
+
     // Note: No CloudNativePG backup configuration
     // Backups are handled by sanoid/syncoid at the ZFS pool level
     // - Sanoid creates snapshots on fast pool (48 hourly, 30 daily, 6 monthly)

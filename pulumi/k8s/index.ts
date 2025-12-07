@@ -10,12 +10,14 @@ import "./reflector"
 // Databases
 import "./postgresql";        // Shared PostgreSQL with CloudNativePG (operator only)
 import "./redis";             // Shared Redis for caching and sessions
+import "./mongodb";           // Shared MongoDB for document storage
 
 // Applications
 import "./authentik";          // Identity Provider and SSO
 import "./authentik-outpost";  // Authentik Forward Auth Outpost
 import "./paperless";          // Document Management System
 import "./homepage";           // Homepage Dashboard
+import "./unifi";              // UniFi Network Controller
 
 // Monitoring
 import "./monitoring";         // Prometheus, Grafana, Loki, Tempo
