@@ -94,6 +94,17 @@
   };
 
   # SMART monitoring daemon - automated self-tests and health checks
+  # Create notification script for smartd
+  environment.etc."smartd-notify.sh" = {
+    text = ''
+      #!/bin/sh
+      # Smartd notification script - logs to systemd journal
+      echo "SMART Alert on $SMARTD_DEVICE: $SMARTD_FAILTYPE - $SMARTD_MESSAGE" | \
+        ${pkgs.systemd}/bin/systemd-cat -t smartd -p warning
+    '';
+    mode = "0755";
+  };
+
   services.smartd = {
     enable = true;
     # Don't send emails, we'll use systemd journal and Prometheus alerts instead
@@ -103,7 +114,7 @@
     };
     # Monitor all devices with comprehensive settings
     defaults.monitored = ''
-      -a -o on -S on -n standby,q -s (S/../.././02|L/../../6/03) -W 4,35,45 -m root -M exec ${pkgs.bash}/bin/bash -c 'echo "SMART Alert on $SMARTD_DEVICE: $SMARTD_FAILTYPE - $SMARTD_MESSAGE" | ${pkgs.systemd}/bin/systemd-cat -t smartd -p warning'
+      -a -o on -S on -n standby,q -s (S/../.././02|L/../../6/03) -W 4,35,45 -m root -M exec /etc/smartd-notify.sh
     '';
     # Explanation of flags:
     # -a: Monitor all SMART attributes
@@ -112,8 +123,8 @@
     # -n standby,q: Don't wake up sleeping disks
     # -s (S/../.././02|L/../../6/03): Run short test daily at 2am, long test every Saturday at 3am
     # -W 4,35,45: Warn on temp change of 4°C, or temp below 35°C or above 45°C
-    # -m root: Send to root (but we override with -M exec)
-    # -M exec: Log to systemd journal instead of email
+    # -m root: Send to root
+    # -M exec: Execute notification script
   };
 
   # Enable Prometheus node exporter for monitoring
