@@ -93,6 +93,29 @@
     };
   };
 
+  # SMART monitoring daemon - automated self-tests and health checks
+  services.smartd = {
+    enable = true;
+    # Don't send emails, we'll use systemd journal and Prometheus alerts instead
+    notifications = {
+      mail.enable = false;
+      wall.enable = false;
+    };
+    # Monitor all devices with comprehensive settings
+    defaults.monitored = ''
+      -a -o on -S on -n standby,q -s (S/../.././02|L/../../6/03) -W 4,35,45 -m root -M exec ${pkgs.bash}/bin/bash -c 'echo "SMART Alert on $SMARTD_DEVICE: $SMARTD_FAILTYPE - $SMARTD_MESSAGE" | ${pkgs.systemd}/bin/systemd-cat -t smartd -p warning'
+    '';
+    # Explanation of flags:
+    # -a: Monitor all SMART attributes
+    # -o on: Enable automatic offline tests
+    # -S on: Enable attribute autosave
+    # -n standby,q: Don't wake up sleeping disks
+    # -s (S/../.././02|L/../../6/03): Run short test daily at 2am, long test every Saturday at 3am
+    # -W 4,35,45: Warn on temp change of 4°C, or temp below 35°C or above 45°C
+    # -m root: Send to root (but we override with -M exec)
+    # -M exec: Log to systemd journal instead of email
+  };
+
   # Enable Prometheus node exporter for monitoring
   services.prometheus.exporters = {
     node = {

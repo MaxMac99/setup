@@ -74,14 +74,26 @@
     };
   };
 
-  # ZFS email notifications (optional)
-  # services.zfs.zed = {
-  #   enableMail = true;
-  #   settings = {
-  #     ZED_EMAIL_ADDR = [ "admin@example.com" ];
-  #     ZED_EMAIL_PROG = "${pkgs.msmtp}/bin/msmtp";
-  #   };
-  # };
+  # ZFS Event Daemon - immediate notifications on pool events
+  services.zfs.zed = {
+    enableMail = false; # We'll use systemd journal and Prometheus alerts instead
+    settings = {
+      # Logging
+      ZED_DEBUG_LOG = "/var/log/zed.debug.log";
+      ZED_SYSLOG_TAG = "zed";
+
+      # Use systemd notification instead of email
+      ZED_NOTIFY_VERBOSE = "1";
+      ZED_NOTIFY_DATA = "1";
+
+      # Auto-scrub after resilver completes
+      ZED_SCRUB_AFTER_RESILVER = "1";
+
+      # Spare disk handling (if you have hot spares)
+      ZED_SPARE_ON_IO_ERRORS = "0"; # Set to 1 if you have spare disks configured
+      ZED_SPARE_ON_CHECKSUM_ERRORS = "0"; # Set to 1 if you have spare disks configured
+    };
+  };
 
   # Systemd service for monitoring ZFS pool health
   systemd.services.zfs-health-check = {
