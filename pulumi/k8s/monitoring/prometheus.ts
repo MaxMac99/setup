@@ -3,7 +3,27 @@
 // Accessible via prometheus.mvissing.de
 
 import * as k8s from "@pulumi/kubernetes";
+import * as pulumi from "@pulumi/pulumi";
 import { namespaceName } from "./namespace";
+
+// Get Home Assistant Prometheus token from config
+const config = new pulumi.Config();
+const homeassistantPrometheusToken =
+  config.getSecret("homeassistant-prometheus-token") || "";
+
+// Create secret for Home Assistant Prometheus authentication
+const homeassistantPrometheusTokenSecret = new k8s.core.v1.Secret(
+  "homeassistant-prometheus-token",
+  {
+    metadata: {
+      name: "homeassistant-prometheus-token",
+      namespace: namespaceName,
+    },
+    stringData: {
+      token: homeassistantPrometheusToken,
+    },
+  },
+);
 
 // Install Prometheus using Helm chart
 const prometheus = new k8s.helm.v3.Chart("prometheus", {
@@ -41,22 +61,25 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
       // Ingress for Prometheus UI
       ingress: {
         enabled: true,
-        ingressClassName: "traefik",  // Changed from traefik-external - now using port forwarding on ionos
+        ingressClassName: "traefik", // Changed from traefik-external - now using port forwarding on ionos
         annotations: {
           "cert-manager.io/cluster-issuer": "letsencrypt-prod",
           // Protect with Authentik forward auth
-          "traefik.ingress.kubernetes.io/router.middlewares": "traefik-authentik@kubernetescrd",
+          "traefik.ingress.kubernetes.io/router.middlewares":
+            "traefik-authentik@kubernetescrd",
           // Homepage dashboard discovery
           "gethomepage.dev/enabled": "true",
           "gethomepage.dev/name": "Prometheus",
           "gethomepage.dev/description": "Metrics & Alerting",
           "gethomepage.dev/group": "Monitoring",
           "gethomepage.dev/icon": "prometheus",
-          "gethomepage.dev/pod-selector": "app.kubernetes.io/name=prometheus,app.kubernetes.io/component=server",
+          "gethomepage.dev/pod-selector":
+            "app.kubernetes.io/name=prometheus,app.kubernetes.io/component=server",
           "gethomepage.dev/href": "https://prometheus.mvissing.de",
           // Prometheus widget - shows target status
           "gethomepage.dev/widget.type": "prometheus",
-          "gethomepage.dev/widget.url": "http://prometheus-server.monitoring.svc.cluster.local",
+          "gethomepage.dev/widget.url":
+            "http://prometheus-server.monitoring.svc.cluster.local",
         },
         hosts: ["prometheus.mvissing.de"],
         tls: [
@@ -71,6 +94,16 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
       service: {
         type: "ClusterIP",
       },
+
+      // Mount secrets for authentication
+      extraSecretMounts: [
+        {
+          name: "homeassistant-prometheus-token",
+          mountPath: "/etc/prometheus/secrets/homeassistant-prometheus-token",
+          secretName: "homeassistant-prometheus-token",
+          readOnly: true,
+        },
+      ],
     },
 
     // AlertManager - for handling alerts (optional, can be disabled initially)
@@ -146,7 +179,8 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
             tls_config: {
               ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
             },
-            bearer_token_file: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+            bearer_token_file:
+              "/var/run/secrets/kubernetes.io/serviceaccount/token",
             relabel_configs: [
               {
                 source_labels: [
@@ -171,7 +205,8 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
             tls_config: {
               ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
             },
-            bearer_token_file: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+            bearer_token_file:
+              "/var/run/secrets/kubernetes.io/serviceaccount/token",
             relabel_configs: [
               {
                 action: "labelmap",
@@ -192,7 +227,8 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
             tls_config: {
               ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
             },
-            bearer_token_file: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+            bearer_token_file:
+              "/var/run/secrets/kubernetes.io/serviceaccount/token",
             relabel_configs: [
               {
                 action: "labelmap",
@@ -211,13 +247,17 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
             relabel_configs: [
               // Only scrape pods with prometheus.io/scrape annotation
               {
-                source_labels: ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"],
+                source_labels: [
+                  "__meta_kubernetes_pod_annotation_prometheus_io_scrape",
+                ],
                 action: "keep",
                 regex: "true",
               },
               // Use custom path if specified
               {
-                source_labels: ["__meta_kubernetes_pod_annotation_prometheus_io_path"],
+                source_labels: [
+                  "__meta_kubernetes_pod_annotation_prometheus_io_path",
+                ],
                 action: "replace",
                 target_label: "__metrics_path__",
                 regex: "(.+)",
@@ -250,12 +290,31 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
               },
             ],
           },
+          // Home Assistant - requires bearer token authentication
+          {
+            job_name: "homeassistant",
+            static_configs: [
+              {
+                targets: ["homeassistant.homeassistant.svc.cluster.local:80"],
+                labels: {
+                  namespace: "homeassistant",
+                  app: "homeassistant",
+                },
+              },
+            ],
+            metrics_path: "/api/prometheus",
+            bearer_token_file:
+              "/etc/prometheus/secrets/homeassistant-prometheus-token/token",
+            scrape_interval: "30s",
+          },
           // Kube-state-metrics - cluster state metrics
           {
             job_name: "kube-state-metrics",
             static_configs: [
               {
-                targets: ["prometheus-kube-state-metrics.monitoring.svc.cluster.local:8080"],
+                targets: [
+                  "prometheus-kube-state-metrics.monitoring.svc.cluster.local:8080",
+                ],
               },
             ],
           },
@@ -269,9 +328,7 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
             ],
             relabel_configs: [
               {
-                source_labels: [
-                  "__meta_kubernetes_endpoints_name",
-                ],
+                source_labels: ["__meta_kubernetes_endpoints_name"],
                 action: "keep",
                 regex: "prometheus-prometheus-node-exporter",
               },
@@ -315,6 +372,22 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
             ],
             scrape_interval: "30s",
           },
+          // Maxdata Smartmon metrics
+          {
+            job_name: "maxdata-smartctl",
+            static_configs: [
+              {
+                targets: ["192.168.178.2:9116"],
+                labels: {
+                  instance: "maxdata",
+                  host: "maxdata",
+                  role: "storage",
+                  environment: "homelab",
+                },
+              },
+            ],
+            scrape_interval: "60s",
+          },
         ],
       },
     },
@@ -322,7 +395,8 @@ const prometheus = new k8s.helm.v3.Chart("prometheus", {
 });
 
 // Export Prometheus service URL for Grafana data source
-export const prometheusUrl = "http://prometheus-server.monitoring.svc.cluster.local";
+export const prometheusUrl =
+  "http://prometheus-server.monitoring.svc.cluster.local";
 
 export { prometheus };
 
