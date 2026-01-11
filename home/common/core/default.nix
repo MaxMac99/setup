@@ -51,6 +51,7 @@
         fzf
         eza
         htop
+        ncdu
       ]
       ++ lib.optionals (!config.hostSpec.isMinimal) [
         claude-code
@@ -63,6 +64,7 @@
         pulumi
         pulumiPackages.pulumi-nodejs
         openapi-generator-cli
+        openapi-down-convert
       ]
       ++ lib.optionals (!config.hostSpec.isServer && !config.hostSpec.isMinimal) [
         azure-cli
