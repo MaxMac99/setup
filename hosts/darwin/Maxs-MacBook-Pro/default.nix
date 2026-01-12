@@ -1,4 +1,8 @@
-{lib, pkgs, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: {
   nixpkgs.hostPlatform = "aarch64-darwin";
 
   imports = lib.flatten [
@@ -17,7 +21,7 @@
   environment.systemPackages = with pkgs; [
     google-chrome
     discord
-    jetbrains.idea-ultimate
+    jetbrains.idea
     jetbrains.rust-rover
     renovate
   ];

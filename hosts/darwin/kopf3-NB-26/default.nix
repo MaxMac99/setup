@@ -20,7 +20,7 @@
 
   environment.systemPackages = with pkgs; [
     google-chrome
-    jetbrains.idea-ultimate
+    jetbrains.idea
     jetbrains.rust-rover
   ];
 
