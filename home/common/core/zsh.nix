@@ -1,4 +1,9 @@
-{config, lib, hostSpec, ...}: {
+{
+  config,
+  lib,
+  hostSpec,
+  ...
+}: {
   programs.zsh = {
     enable = true;
 
@@ -50,7 +55,6 @@
         "sudo" # press Esc twice to get the previous command prefixed with sudo https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/sudo
         "dirhistory"
         "docker"
-        "docker-compose"
         "jsontools"
         "themes"
       ];
@@ -94,6 +98,9 @@
 
       #-------------Git Goodness-------------
       # just reference `$ alias` and use the defaults, they're good.
+
+      #-------------Docker---------------
+      dco = "docker compose";
     };
   };
 }
