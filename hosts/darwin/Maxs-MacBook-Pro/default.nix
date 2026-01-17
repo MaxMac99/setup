@@ -24,6 +24,7 @@
     jetbrains.idea
     jetbrains.rust-rover
     renovate
+    zed-editor
   ];
 
   hostSpec = {
