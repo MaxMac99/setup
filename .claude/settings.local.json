@@ -8,7 +8,8 @@
       "WebFetch(domain:community.traefik.io)",
       "WebFetch(domain:gethomepage.dev)",
       "WebFetch(domain:hub.docker.com)",
-      "WebFetch(domain:nvf.notashelf.dev)"
+      "WebFetch(domain:nvf.notashelf.dev)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
