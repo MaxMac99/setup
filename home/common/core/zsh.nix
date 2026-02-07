@@ -73,7 +73,7 @@
       cat = "bat --paging=never";
       diff = "batdiff";
       rg = "batgrep";
-      man = "batman";
+      man = "batman --paging=always";
 
       #------------Navigation------------
       # doc = "cd $HOME/documents";
