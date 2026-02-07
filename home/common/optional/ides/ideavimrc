@@ -41,7 +41,7 @@ map K {
 " location
 nmap <C-o> <Action>(Back)
 nmap <C-i> <Action>(Forward)
-nmap g. <Action>(ShowIntentActions)
+nmap g. <Action>(ShowIntentionActions)
 
 " buffer (buffer < window < tab)
 nmap <leader>xx <Action>(CloseContent)
