@@ -5,6 +5,15 @@
 }: {
   nixpkgs.hostPlatform = "aarch64-darwin";
 
+  # Override nushell to disable tests (they fail in macOS sandbox)
+  nixpkgs.overlays = [
+    (final: prev: {
+      nushell = prev.nushell.overrideAttrs (oldAttrs: {
+        doCheck = false;
+      });
+    })
+  ];
+
   imports = lib.flatten [
     (map lib.custom.relativeToRoot [
       "hosts/common/core"
