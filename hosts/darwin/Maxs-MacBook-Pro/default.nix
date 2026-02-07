@@ -32,7 +32,7 @@
     discord
     jetbrains.idea
     jetbrains.rust-rover
-    renovate
+#    renovate
     zed-editor
   ];
 
