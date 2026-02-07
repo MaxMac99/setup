@@ -142,6 +142,10 @@
       languages = {
         Rust = {
           format_on_save = "on";
+          formatter = [
+            {code_action = "source.organizeImports";}
+            {language_server = {name = "rust-analyzer";};}
+          ];
         };
         Nix = {
           format_on_save = "on";
@@ -161,10 +165,10 @@
       {
         context = "VimControl && !menu";
         bindings = {
-          H = ["editor::MoveToBeginningOfLine" {stop_at_soft_wraps=true;stop_at_indent=true;}];
-          L = ["editor::MoveToEndOfLine" {stop_at_soft_wraps=true;}];
-          J = "editor::MoveToEndOfParagraph";
-          K = "editor::MoveToStartOfParagraph";
+          H = "vim::FirstNonWhitespace";
+          L = "vim::EndOfLine";
+          J = "vim::EndOfParagraph";
+          K = "vim::StartOfParagraph";
         };
       }
 
