@@ -83,4 +83,14 @@
     secrets."kopf3/github-token" = {};
     secrets."kopf3/pulumi-token" = {};
   };
+
+  # Fix for sops-nix on macOS - ensure launchd agent has correct PATH
+  launchd.agents.sops-nix = lib.mkIf hostSpec.isWork {
+    enable = true;
+    config = {
+      EnvironmentVariables = {
+        PATH = lib.mkForce "/usr/bin:/bin:/usr/sbin:/sbin";
+      };
+    };
+  };
 }
