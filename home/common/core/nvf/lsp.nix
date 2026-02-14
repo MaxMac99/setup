@@ -37,32 +37,32 @@
           end
         '';
       };
-      "vue_ls" = {
-        cmd = ["${pkgs.vue-language-server}/bin/vue-language-server" "--stdio"];
-        filetypes = ["typescript" "javascript" "javascriptreact" "typescriptreact" "vue"];
-        init_options = {
-          vue = {
-            hybridMode = false;
-          };
-        };
-        settings = {
-          typescript = {
-            tsdk = "${pkgs.typescript-language-server}/lib";
-            inlayHints = {
-              enumMemberValues.enabled = true;
-              functionLikeReturnTypes.enabled = true;
-              propertyDeclarationTypes.enabled = true;
-              parameterTypes = {
-                enabled = true;
-                suppressWhenArgumentMatchesName = true;
-              };
-              variableTypes = {
-                enabled = true;
-              };
-            };
-          };
-        };
-      };
+#      "vue_ls" = {
+#        cmd = ["${pkgs.vue-language-server}/bin/vue-language-server" "--stdio"];
+#        filetypes = ["typescript" "javascript" "javascriptreact" "typescriptreact" "vue"];
+#        init_options = {
+#          vue = {
+#            hybridMode = false;
+#          };
+#        };
+#        settings = {
+#          typescript = {
+#            tsdk = "${pkgs.typescript-language-server}/lib";
+#            inlayHints = {
+#              enumMemberValues.enabled = true;
+#              functionLikeReturnTypes.enabled = true;
+#              propertyDeclarationTypes.enabled = true;
+#              parameterTypes = {
+#                enabled = true;
+#                suppressWhenArgumentMatchesName = true;
+#              };
+#              variableTypes = {
+#                enabled = true;
+#              };
+#            };
+#          };
+#        };
+#      };
     };
   };
 }

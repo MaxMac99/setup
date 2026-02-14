@@ -1,13 +1,8 @@
 {
   description = "Configuration for all Nix managed devices";
 
-  nixConfig = {
-    extra-substituters = [ "https://cache.saumon.network/proxmox-nixos" ];
-    extra-trusted-public-keys = [ "proxmox-nixos:D9RYSWpQQC/msZUWphOY2I5RLH5Dd6yQcaHIuug7dWM=" ];
-  };
-
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     darwin = {
       url = "github:nix-darwin/nix-darwin/master";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -36,10 +31,6 @@
     nvf = {
       url = "github:notashelf/nvf";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-    proxmox-nixos = {
-      url = "github:SaumonNet/proxmox-nixos";
-      inputs.nixpkgs-unstable.follows = "nixpkgs";
     };
     microvm = {
       url = "github:astro/microvm.nix";

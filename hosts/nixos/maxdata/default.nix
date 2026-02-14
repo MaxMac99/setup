@@ -18,13 +18,8 @@
       ./hardware-configuration.nix
       ./microvms.nix
       ./microvm-bridge.nix
-      inputs.proxmox-nixos.nixosModules.proxmox-ve
       inputs.zfs-exporter.nixosModules.default
     ];
-
-  nixpkgs.overlays = [
-    inputs.proxmox-nixos.overlays.x86_64-linux
-  ];
 
   hostSpec = {
     username = "max";
