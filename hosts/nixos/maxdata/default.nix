@@ -11,7 +11,6 @@
     ])
     ++ [
       ./networking.nix
-      ./proxmox.nix
       ./zfs.nix
       ./smb.nix
       ./monitoring.nix
