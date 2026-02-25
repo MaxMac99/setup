@@ -43,6 +43,7 @@ in {
   nix = {
     settings = {
       connect-timeout = 5;
+      download-buffer-size = 268435456; # 256 MiB
 
       allowed-users = ["@admin" "${config.hostSpec.username}"];
       trusted-users = ["@admin" "${config.hostSpec.username}"];
