@@ -105,6 +105,7 @@ in
       [
         "--disable=servicelb"  # Use MetalLB for LoadBalancer services
         "--disable=traefik"    # Use Pulumi-managed Traefik instead
+        "--disable=local-storage"
         "--write-kubeconfig-mode=644"
         "--tls-san=${cfg.nodeName}"
         "--tls-san=${config.networkConfig.staticIPv6s.${cfg.nodeName}}"
@@ -137,72 +138,135 @@ in
 
     # Configure local-path provisioner to use fast ZFS pool (first node only)
     systemd.tmpfiles.rules = lib.mkIf cfg.isFirstNode (
-      let
-        localPathConfigMap = {
-          apiVersion = "v1";
-          kind = "ConfigMap";
-          metadata = {
-            name = "local-path-config";
-            namespace = "kube-system";
-          };
-          data = {
-            "config.json" = builtins.toJSON {
-              nodePathMap = [{
-                node = "DEFAULT_PATH_FOR_NON_LISTED_NODES";
-                paths = [ "/mnt/k8s-fast" ];
-              }];
-            };
-            setup = ''
-              #!/bin/sh
-              set -eu
-              mkdir -m 0777 -p "$VOL_DIR"
-              chmod 700 "$VOL_DIR/.."
-            '';
-            teardown = ''
-              #!/bin/sh
-              set -eu
-              rm -rf "$VOL_DIR"
-            '';
-            "helperPod.yaml" = lib.generators.toYAML {} {
-              apiVersion = "v1";
-              kind = "Pod";
-              metadata = {
-                name = "helper-pod";
-              };
-              spec = {
-                containers = [{
-                  name = "helper-pod";
-                  image = "rancher/mirrored-library-busybox:1.36.1";
-                  imagePullPolicy = "IfNotPresent";
-                }];
-              };
-            };
-          };
-        };
-        configMapYaml = lib.generators.toYAML {} localPathConfigMap;
-      in [
-        "d /var/lib/rancher/k3s/server/manifests 0755 root root -"
-        "f /var/lib/rancher/k3s/server/manifests/local-path-config.yaml 0644 root root - ${pkgs.writeText "local-path-config.yaml" configMapYaml}"
-      ]
-    );
-
-    systemd.services.local-path-config = lib.mkIf cfg.isFirstNode {
-        description = "Configure local-path-provisioner to use ZFS pool";
-        after = [ "k3s.service" ];
-        requires = [ "k3s.service" ];
-        wantedBy = [ "multi-user.target" ];
-        path = [ pkgs.kubectl ];
-        environment.KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
-        script = ''
-          until kubectl get configmap -n kube-system local-path-config 2>/dev/null; do sleep 5; done
-          kubectl patch configmap -n kube-system local-path-config --type merge \
-            -p '{"data":{"config.json":"{\"nodePathMap\":[{\"node\":\"DEFAULT_PATH_FOR_NON_LISTED_NODES\",\"paths\":[\"/mnt/k8s-fast/local-path-provisioner\"]}]}"}}'
-        '';
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-      };
+        let
+          localPathManifest = pkgs.writeText "local-path-provisioner.yaml" ''
+            apiVersion: v1
+            kind: ServiceAccount
+            metadata:
+              name: local-path-provisioner-service-account
+              namespace: kube-system
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: local-path-provisioner-role
+            rules:
+              - apiGroups: [""]
+                resources: ["nodes", "persistentvolumeclaims", "configmaps", "pods", "pods/log"]
+                verbs: ["get", "list", "watch"]
+              - apiGroups: [""]
+                resources: ["persistentvolumes"]
+                verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+              - apiGroups: [""]
+                resources: ["events"]
+                verbs: ["create", "patch"]
+              - apiGroups: ["storage.k8s.io"]
+                resources: ["storageclasses"]
+                verbs: ["get", "list", "watch"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: local-path-provisioner-bind
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: local-path-provisioner-role
+            subjects:
+              - kind: ServiceAccount
+                name: local-path-provisioner-service-account
+                namespace: kube-system
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: local-path-provisioner
+              namespace: kube-system
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: local-path-provisioner
+              template:
+                metadata:
+                  labels:
+                    app: local-path-provisioner
+                spec:
+                  serviceAccountName: local-path-provisioner-service-account
+                  containers:
+                    - name: local-path-provisioner
+                      image: rancher/local-path-provisioner:v0.0.30
+                      command:
+                        - local-path-provisioner
+                        - --debug
+                        - start
+                        - --config
+                        - /etc/config/config.json
+                        - --service-account-name
+                        - local-path-provisioner-service-account
+                      volumeMounts:
+                        - name: config-volume
+                          mountPath: /etc/config/
+                      env:
+                        - name: POD_NAMESPACE
+                          valueFrom:
+                            fieldRef:
+                              fieldPath: metadata.namespace
+                  volumes:
+                    - name: config-volume
+                      configMap:
+                        name: local-path-config
+            ---
+            apiVersion: storage.k8s.io/v1
+            kind: StorageClass
+            metadata:
+              name: local-path
+              annotations:
+                storageclass.kubernetes.io/is-default-class: "true"
+            provisioner: rancher.io/local-path
+            volumeBindingMode: WaitForFirstConsumer
+            reclaimPolicy: Delete
+            ---
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: local-path-config
+              namespace: kube-system
+            data:
+              config.json: |-
+                {
+                  "nodePathMap": [
+                    {
+                      "node": "DEFAULT_PATH_FOR_NON_LISTED_NODES",
+                      "paths": ["/mnt/k8s-fast/local-path-provisioner"]
+                    }
+                  ]
+                }
+              setup: |-
+                #!/bin/sh
+                set -eu
+                mkdir -m 0777 -p "$VOL_DIR"
+                chmod 700 "$VOL_DIR/.."
+              teardown: |-
+                #!/bin/sh
+                set -eu
+                rm -rf "$VOL_DIR"
+              helperPod.yaml: |-
+                apiVersion: v1
+                kind: Pod
+                metadata:
+                  name: helper-pod
+                spec:
+                  containers:
+                    - name: helper-pod
+                      image: rancher/mirrored-library-busybox:1.36.1
+                      imagePullPolicy: IfNotPresent
+          '';
+        in [
+          "d /var/lib/rancher/k3s/server/manifests 0755 root root -"
+          "L+ /var/lib/rancher/k3s/server/manifests/local-path-provisioner.yaml - - - - ${localPathManifest}"
+        ]
+      );
 
     # Disable nix store optimization (incompatible with writableStoreOverlay)
     nix = {
