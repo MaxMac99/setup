@@ -10,7 +10,8 @@
       "WebFetch(domain:hub.docker.com)",
       "WebFetch(domain:nvf.notashelf.dev)",
       "Bash(find:*)",
-      "WebFetch(domain:zed.dev)"
+      "WebFetch(domain:zed.dev)",
+      "WebFetch(domain:discourse.nixos.org)"
     ],
     "deny": [],
     "ask": []

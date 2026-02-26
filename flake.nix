@@ -48,6 +48,7 @@
     darwin,
     home-manager,
     nix-homebrew,
+    sops-nix,
     ...
   } @ inputs: let
     inherit (self) outputs;
@@ -56,6 +57,38 @@
     # NOTE: This approach allows lib.custom to propagate into hm
     # see: https://github.com/nix-community/home-manager/pull/3454
     lib = nixpkgs.lib.extend (self: super: {custom = import ./lib {inherit (nixpkgs) lib;};});
+
+    mkDarwinHost = host:
+      darwin.lib.darwinSystem {
+        specialArgs = {inherit inputs outputs lib;};
+        modules = [
+          ./modules/data/host-spec.nix
+          ./modules/data/network-config.nix
+          ./modules/system/base.nix
+          ./modules/system/darwin.nix
+          ./modules/system/darwin-homebrew.nix
+          home-manager.darwinModules.home-manager
+          nix-homebrew.darwinModules.nix-homebrew
+          sops-nix.darwinModules.sops
+          {nixpkgs.config.allowUnfree = true;}
+          ./hosts/darwin/${host}
+        ];
+      };
+
+    mkNixosHost = host:
+      nixpkgs.lib.nixosSystem {
+        specialArgs = {inherit self inputs outputs lib;};
+        modules = [
+          ./modules/data/host-spec.nix
+          ./modules/data/network-config.nix
+          ./modules/system/base.nix
+          ./modules/system/nixos.nix
+          home-manager.nixosModules.home-manager
+          sops-nix.nixosModules.sops
+          {nixpkgs.config.allowUnfree = true;}
+          ./hosts/nixos/${host}
+        ];
+      };
   in {
     darwinConfigurations =
       builtins.listToAttrs
@@ -63,22 +96,7 @@
         map
         (host: {
           name = host;
-          value = darwin.lib.darwinSystem {
-            specialArgs = {
-              inherit inputs outputs lib;
-              isDarwin = true;
-            };
-            modules = [
-              home-manager.darwinModules.home-manager
-              nix-homebrew.darwinModules.nix-homebrew
-              (
-                {config, lib, pkgs, ...}: {
-                  nixpkgs.config.allowUnfree = true;
-                }
-              )
-              ./hosts/darwin/${host}
-            ];
-          };
+          value = mkDarwinHost host;
         })
         (builtins.attrNames (builtins.readDir ./hosts/darwin))
       );
@@ -88,21 +106,7 @@
         map
         (host: {
           name = host;
-          value = nixpkgs.lib.nixosSystem {
-            specialArgs = {
-              inherit self inputs outputs lib;
-              isDarwin = false;
-            };
-            modules = [
-              home-manager.nixosModules.home-manager
-              (
-                {config, ...}: {
-                  nixpkgs.config.allowUnfree = true;
-                }
-              )
-              ./hosts/nixos/${host}
-            ];
-          };
+          value = mkNixosHost host;
         })
         (builtins.attrNames (builtins.readDir ./hosts/nixos))
       );

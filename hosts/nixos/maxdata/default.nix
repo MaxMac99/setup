@@ -1,4 +1,5 @@
 {
+  config,
   lib,
   pkgs,
   inputs,
@@ -6,10 +7,15 @@
 }: {
   imports =
     (map lib.custom.relativeToRoot [
-      "hosts/common/core"
-      "hosts/common/optional/nixos/openssh.nix"
+      "modules/system/openssh.nix"
+      "modules/profiles/core-user"
+      "modules/profiles/development.nix"
+      "modules/profiles/gcloud.nix"
+      "modules/profiles/full-nvim.nix"
+      "modules/profiles/personal-ssh.nix"
     ])
     ++ [
+      inputs.zfs-exporter.nixosModules.default
       ./networking.nix
       ./zfs.nix
       ./smb.nix
@@ -17,16 +23,11 @@
       ./hardware-configuration.nix
       ./microvms.nix
       ./microvm-bridge.nix
-      inputs.zfs-exporter.nixosModules.default
     ];
 
   hostSpec = {
     username = "max";
     hostName = "maxdata";
-    isDarwin = false;
-    isWork = false;
-    isServer = true;
-    isMinimal = false;
   };
 
   boot = {
@@ -55,7 +56,7 @@
   };
 
   # CRITICAL: Required for ZFS
-  networking.hostId = "ec7b6b2d"; # Generate your own with: head -c 8 /dev/urandom | od -A n -t x8 | tr -d ' '
+  networking.hostId = "ec7b6b2d";
 
   console = {
     font = "Lat2-Terminus16";
@@ -89,15 +90,15 @@
   # Enable the OpenSSH daemon with emergency mode support
   services.openssh = {
     openFirewall = true;
-    startWhenNeeded = false;  # Always start, don't wait for socket activation
+    startWhenNeeded = false; # Always start, don't wait for socket activation
   };
 
   # Keep SSH running even in emergency/rescue mode
   systemd.services.sshd = {
     unitConfig = {
-      IgnoreOnIsolate = true;  # Don't stop SSH when switching to emergency mode
+      IgnoreOnIsolate = true; # Don't stop SSH when switching to emergency mode
     };
-    wantedBy = lib.mkForce [ "multi-user.target" "emergency.target" "rescue.target" ];
+    wantedBy = lib.mkForce ["multi-user.target" "emergency.target" "rescue.target"];
     serviceConfig = {
       Restart = "always";
       RestartSec = "5s";
@@ -110,8 +111,5 @@
     DefaultTimeoutStopSec = "30s";
   };
 
-  # This value determines the NixOS release from which the default
-  # settings for stateful data, like file locations and database versions
-  # on your system were taken. Don't change this unless you know what you're doing.
-  system.stateVersion = "24.11"; # Did you read the comment?
+  system.stateVersion = "24.11";
 }

@@ -1,8 +1,6 @@
-{ lib, ... }:
-
-{
+{lib, ...}: {
   imports = [
-    (lib.custom.relativeToRoot "modules/nixos/k3s-node-shared.nix")
+    (lib.custom.relativeToRoot "modules/system/k3s-node.nix")
   ];
 
   k3sNode = {
