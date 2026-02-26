@@ -63,6 +63,15 @@
     keyMap = "de";
   };
 
+  # NFS server for K3s persistent volumes
+  services.nfs.server = {
+    enable = true;
+    exports = ''
+      /tank/k8s/nfs 192.168.178.0/24(rw,sync,no_subtree_check,no_root_squash)
+      /tank/k8s/timemachine 192.168.178.0/24(rw,async,no_subtree_check,no_root_squash)
+    '';
+  };
+
   # System packages
   environment.systemPackages = with pkgs; [
     zfs
