@@ -61,10 +61,14 @@
   # Set zsh as default shell for users
   users.defaultUserShell = pkgs.zsh;
 
-  # Ensure the user's home has a .zshrc to prevent the config wizard
-  system.activationScripts.createUserZshrc = lib.mkIf config.hostSpec.isMinimal ''
+  # Prevent zsh config wizard by providing a default .zshrc via skel
+  environment.etc."skel/.zshrc".text = "# managed by nix";
+
+  # Also create .zshrc for existing users on activation
+  system.activationScripts.createUserZshrc = ''
+    mkdir -p /home/${config.hostSpec.username}
     if [ ! -f /home/${config.hostSpec.username}/.zshrc ]; then
-      touch /home/${config.hostSpec.username}/.zshrc
+      echo "# managed by nix" > /home/${config.hostSpec.username}/.zshrc
       chown ${config.hostSpec.username}:users /home/${config.hostSpec.username}/.zshrc
     fi
   '';
