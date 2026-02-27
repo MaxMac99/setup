@@ -8,7 +8,9 @@
   },
   "lockFileMaintenance": {
     "enabled": true,
-    "automerge": true
+    "automerge": true,
+    "schedule": ["at any time"],
+    "rebaseWhen": "behind-base-branch"
   },
   "timezone": "Europe/Berlin",
   "schedule": ["before 6am on monday"],
