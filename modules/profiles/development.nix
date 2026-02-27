@@ -13,7 +13,7 @@
     statix
 
     # Cloud / API
-    # azure-cli  # TODO: broken in nixpkgs — re-enable when fixed
+    azure-cli
     pulumi
     pulumiPackages.pulumi-nodejs
     openapi-generator-cli
