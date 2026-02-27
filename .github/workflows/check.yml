@@ -1,0 +1,32 @@
+name: Check Nix Configuration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: nix flake check
+        run: nix flake check --all-systems
+
+      - name: Dry-run build darwin configs
+        run: |
+          nix build .#darwinConfigurations.Maxs-MacBook-Pro.system --dry-run
+          nix build .#darwinConfigurations.kopf3-NB-26.system --dry-run
+
+      - name: Dry-run build NixOS configs
+        run: |
+          nix build .#nixosConfigurations.maxdata.config.system.build.toplevel --dry-run
+          nix build .#nixosConfigurations.ionos.config.system.build.toplevel --dry-run
+          nix build .#nixosConfigurations.k3s-node1.config.system.build.toplevel --dry-run
+          nix build .#nixosConfigurations.k3s-node2.config.system.build.toplevel --dry-run
+          nix build .#nixosConfigurations.k3s-node3.config.system.build.toplevel --dry-run
