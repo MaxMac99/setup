@@ -44,14 +44,14 @@
       devNodes = "/dev/disk/by-id";
     };
 
-    # ZFS ARC tuning for 32GB RAM
+    # ZFS ARC tuning for 32GB RAM (18GB reserved for 3x 6GB microVMs)
     kernelParams = [
-      "zfs.zfs_arc_max=17179869184" # 16GB ARC max
-      "zfs.zfs_arc_min=4294967296" # 4GB ARC min
+      "zfs.zfs_arc_max=8589934592" # 8GB ARC max
+      "zfs.zfs_arc_min=2147483648" # 2GB ARC min
     ];
     extraModprobeConfig = ''
-      options zfs zfs_arc_max=17179869184
-      options zfs zfs_arc_min=4294967296
+      options zfs zfs_arc_max=8589934592
+      options zfs zfs_arc_min=2147483648
     '';
   };
 

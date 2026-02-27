@@ -136,8 +136,8 @@
 
   # Performance tuning via /etc/modprobe.d/ for persistence
   environment.etc."modprobe.d/zfs.conf".text = ''
-    options zfs zfs_arc_max=17179869184
-    options zfs zfs_arc_min=4294967296
+    options zfs zfs_arc_max=8589934592
+    options zfs zfs_arc_min=2147483648
     options zfs zfs_compressed_arc_enabled=1
     options zfs l2arc_write_max=104857600
     options zfs l2arc_write_boost=209715200
