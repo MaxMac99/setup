@@ -9,7 +9,7 @@
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
-    "schedule": ["at any time"],
+    "schedule": ["before 6am on monday"],
     "rebaseWhen": "behind-base-branch"
   },
   "timezone": "Europe/Berlin",
