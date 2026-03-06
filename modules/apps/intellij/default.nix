@@ -1,6 +1,6 @@
-# IntelliJ IDEA Ultimate - nixpkgs + HM .ideavimrc
-{config, pkgs, ...}: {
-  environment.systemPackages = [pkgs.jetbrains.idea];
+# IntelliJ IDEA Ultimate - homebrew cask + HM .ideavimrc
+{config, ...}: {
+  homebrew.casks = ["intellij-idea"];
 
   home-manager.users.${config.hostSpec.username} = {
     home.file.".ideavimrc" = {
