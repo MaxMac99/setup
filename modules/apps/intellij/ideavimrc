@@ -23,7 +23,7 @@ set incsearch
 set ignorecase
 set smartcase
 set gdefault
-nmap <leader>nh :noh<CR>
+nmap <Esc> :noh<CR>
 
 " ideavim settings
 set ideajoin
@@ -37,6 +37,13 @@ map H ^
 map L $
 map J }
 map K {
+
+" toggle panels (works from editor and tool windows)
+sethandler <C-e> a:vim
+sethandler <C-t> a:ide
+nmap <C-e> <Action>(ActivateProjectToolWindow)
+nmap <C-t> <Action>(ActivateTerminalToolWindow)
+nmap <leader>gg <Action>(ActivateVersionControlToolWindow)
 
 " location
 nmap <C-o> <Action>(Back)
@@ -58,10 +65,14 @@ nmap <leader>p <Action>(PinActiveEditorTab)
 map <leader>sh <Action>(SplitHorizontally)
 map <leader>sl <Action>(SplitVertically)
 
+sethandler <C-h> a:vim
+sethandler <C-j> a:vim
+sethandler <C-k> a:vim
+sethandler <C-l> a:vim
+nmap <C-h> <Action>(PrevSplitter)
+nmap <C-l> <Action>(NextSplitter)
 nmap <C-k> <C-w>k
 nmap <C-j> <C-w>j
-nmap <C-h> <C-w>h
-nmap <C-l> <C-w>l
 
 " menu
 nmap <leader>mm <Action>(MainMenu)
@@ -81,22 +92,22 @@ nmap <leader>rf <Action>(RecentFiles)
 nmap <leader>rl <Action>(RecentLocations)
 nmap <leader>rp <Action>(ManageRecentProjects)
 nmap <leader>sh <Action>(LocalHistory.ShowHistory)
-nmap <leader>sf <Action>(ShowFilePath)
+nmap <leader>sf <Action>(GotoFile)
 nmap <leader>si <Action>(SelectIn)
-nmap <leader>fp <Action>(FindInPath)
+nmap <leader>sg <Action>(FindInPath)
 nmap <leader>rp <Action>(ReplaceInPath)
 
 " code
 map <leader>c <Action>(CommentByLineComment)
 map <leader>C <Action>(CommentByBlockComment)
-nmap <leader>qf <Action>(ShowIntentionActions)
+nmap <leader>ca <Action>(ShowIntentionActions)
 nmap <leader>se <Action>(ShowErrorDescription)
 nmap <leader>om <Action>(OverrideMethods)
 nmap <leader>im <Action>(ImplementMethods)
 nmap <leader>fc <Action>(ReformatCode)
 nmap <leader>ic <Action>(InspectCode)
 nmap <leader>so <Action>(SelectAllOccurrences)
-nmap <leader>gc <Action>(Generate)
+nmap <leader>cg <Action>(Generate)
 nmap <leader>gt <Action>(GoToTest)
 
 " run
@@ -121,7 +132,7 @@ nmap <leader>rn <Action>(RenameElement)
 nmap <leader>re <Action>(Refactorings.QuickListPopupAction)
 nmap <leader>uw <Action>(Unwrap)
 xmap <leader>sw <Action>(SurroundWith)
-nmap <leader>sd <Action>(SafeDelete)
+nmap <leader>cd <Action>(SafeDelete)
 nmap <leader>oi <Action>(OptimizeImports)
 
 " hierarchy
@@ -131,10 +142,9 @@ nmap <leader>ht <Action>(TypeHierarchy)
 
 " goto
 nmap <leader>a <Action>(GotoAction)
-nmap <leader>gg <Action>(Gradle.ExecuteTask)
-nmap ga <Action>(SearchEverywhere)
+nmap <leader>ge <Action>(Gradle.ExecuteTask)
+nmap <leader>sa <Action>(SearchEverywhere)
 nmap gc <Action>(GotoClass)
-nmap gf <Action>(GotoFile)
 nmap gs <Action>(GotoSymbol)
 nmap gt <Action>(GoToTest)
 nmap gT <Action>(TextSearchAction)
@@ -171,6 +181,14 @@ Plug 'dbakker/vim-paragraph-motion'
 Plug 'preservim/nerdtree'
 Plug 'tpope/vim-surround'
 Plug 'terryma/vim-multiple-cursors'
+
+" Which-key popup for leader key hints
+set which-key
+set notimeout
+let g:WhichKey_FontSize = 12
+let g:WhichKey_KeyColor = "#87afaf"
+let g:WhichKey_PrefixColor = "#d7af87"
+let g:WhichKey_ShowVimActions = "true"
 
 " Remap multiple-cursors shortcuts to match terryma/vim-multiple-cursors
 nmap <C-n> <Plug>NextWholeOccurrence
