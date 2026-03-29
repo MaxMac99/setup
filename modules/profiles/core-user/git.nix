@@ -2,6 +2,7 @@
   programs.git = {
     enable = true;
     lfs.enable = true;
+    signing.format = null;
     ignores = [
       ".DS_Store"
       ".idea"
