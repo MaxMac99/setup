@@ -1,6 +1,8 @@
 # Development tools profile
 {config, pkgs, ...}: {
-  home-manager.users.${config.hostSpec.username}.home.packages = with pkgs; [
+  home-manager.users.${config.hostSpec.username}.home = {
+    sessionVariables.PUPPETEER_EXECUTABLE_PATH = "/Applications/Nix Apps/Google Chrome.app/Contents/MacOS/Google Chrome";
+    packages = with pkgs; [
     # General dev tools
     claude-code
     exiftool
@@ -19,10 +21,15 @@
     openapi-generator-cli
     openapi-down-convert
 
+    # Documentation
+    asciidoctor-with-extensions
+    mermaid-cli
+
     # JS / Java
     nodejs_24
     yarn
     maven
     temurin-bin-21
   ];
+  };
 }
