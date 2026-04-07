@@ -29,5 +29,6 @@
     "modules/apps/autodesk-fusion.nix"
     "modules/apps/arc.nix"
     "modules/apps/docker-desktop.nix"
+    "modules/apps/k9s.nix"
   ];
 }
