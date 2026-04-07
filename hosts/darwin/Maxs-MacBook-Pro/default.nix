@@ -33,6 +33,7 @@
     "modules/apps/autodesk-fusion.nix"
     "modules/apps/arc.nix"
     "modules/apps/docker-desktop.nix"
+    "modules/apps/insomnia.nix"
     "modules/apps/k9s.nix"
   ];
 
