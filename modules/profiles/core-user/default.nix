@@ -19,6 +19,7 @@
     ];
 
     programs.home-manager.enable = true;
+    xdg.enable = true;
 
     home = {
       username = lib.mkDefault config.hostSpec.username;
@@ -26,7 +27,6 @@
       stateVersion = lib.mkDefault "23.05";
       sessionVariables = {
         EDITOR = "nvim";
-        XDG_CONFIG_HOME = "$HOME/.config";
       };
       packages = with pkgs; [
         sops

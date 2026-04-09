@@ -11,7 +11,8 @@
       "WebFetch(domain:nvf.notashelf.dev)",
       "Bash(find:*)",
       "WebFetch(domain:zed.dev)",
-      "WebFetch(domain:discourse.nixos.org)"
+      "WebFetch(domain:discourse.nixos.org)",
+      "WebFetch(domain:k9scli.io)"
     ],
     "deny": [],
     "ask": []
