@@ -128,8 +128,8 @@ nmap <leader>dv <Action>(ViewBreakpoints)
 nmap <leader>bb <Action>(CompileDirty)
 
 " refactor
-nmap <leader>rn <Action>(RenameElement)
-nmap <leader>re <Action>(Refactorings.QuickListPopupAction)
+map <leader>rn <Action>(RenameElement)
+map <leader>re <Action>(Refactorings.QuickListPopupAction)
 nmap <leader>uw <Action>(Unwrap)
 xmap <leader>sw <Action>(SurroundWith)
 nmap <leader>cd <Action>(SafeDelete)
