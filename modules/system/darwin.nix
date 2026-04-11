@@ -1,8 +1,5 @@
 # macOS system configuration - included on every darwin host via flake.nix
-{
-  config,
-  ...
-}: {
+{config, ...}: {
   system.primaryUser = config.hostSpec.username;
 
   users.users.${config.hostSpec.username} = {

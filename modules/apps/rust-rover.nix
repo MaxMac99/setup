@@ -1,5 +1,9 @@
 # Rust Rover - nixpkgs + HM rust toolchain
-{config, pkgs, ...}: let
+{
+  config,
+  pkgs,
+  ...
+}: let
   rustToolchain = pkgs.symlinkJoin {
     name = "rust-toolchain";
     paths = [

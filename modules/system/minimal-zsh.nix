@@ -1,6 +1,9 @@
-{ config, pkgs, lib, ... }:
-
 {
+  config,
+  pkgs,
+  lib,
+  ...
+}: {
   # Basic zsh configuration for minimal systems without home-manager
   programs.zsh = {
     enable = true;
@@ -10,7 +13,7 @@
 
     ohMyZsh = {
       enable = true;
-      plugins = [ "git" "sudo" "docker" ];
+      plugins = ["git" "sudo" "docker"];
       theme = "robbyrussell";
     };
 

@@ -1,6 +1,9 @@
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   # Enable networking
   networking.networkmanager.enable = false; # We use systemd-networkd for servers
   networking.useDHCP = false; # Disable default DHCP since we use systemd-networkd
@@ -8,7 +11,7 @@
 
   # Use systemd-networkd for consistent network configuration
   systemd.network.enable = true;
-  
+
   # Proxmox bridge interface (vmbr0)
   # This is where VM network interfaces will be attached
   systemd.network.netdevs."20-vmbr0" = {
@@ -28,32 +31,32 @@
   systemd.network.networks."30-vmbr0" = {
     matchConfig.Name = "vmbr0";
     # Static IP on bridge from networkConfig
-     networkConfig = {
-       Address = "${config.networkConfig.staticIPs.maxdata}/24";
-       Gateway = config.networkConfig.gateway;
-       DNS = config.networkConfig.dns.servers;
-       IPv6AcceptRA = true;
-     };
+    networkConfig = {
+      Address = "${config.networkConfig.staticIPs.maxdata}/24";
+      Gateway = config.networkConfig.gateway;
+      DNS = config.networkConfig.dns.servers;
+      IPv6AcceptRA = true;
+    };
   };
 
   # Open firewall for Proxmox
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [
-      22    # SSH
-      8006  # Proxmox Web UI
-      9090  # Cockpit Web UI
-      5900  # VNC (for VM consoles) - adjust range as needed
-      111   # NFS portmapper
-      2049  # NFS
-      3128  # Proxmox Subscription (optional)
+      22 # SSH
+      8006 # Proxmox Web UI
+      9090 # Cockpit Web UI
+      5900 # VNC (for VM consoles) - adjust range as needed
+      111 # NFS portmapper
+      2049 # NFS
+      3128 # Proxmox Subscription (optional)
     ];
     allowedUDPPorts = [
-      111   # NFS portmapper
-      2049  # NFS
+      111 # NFS portmapper
+      2049 # NFS
     ];
     # Allow traffic between VMs on the bridge
-    trustedInterfaces = [ "vmbr0" ];
+    trustedInterfaces = ["vmbr0"];
   };
 
   # Enable avahi for mDNS (optional - for .local domain)

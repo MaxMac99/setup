@@ -1,6 +1,11 @@
-{ self, config, pkgs, inputs, lib, ... }:
-
 {
+  self,
+  config,
+  pkgs,
+  inputs,
+  lib,
+  ...
+}: {
   imports = [
     inputs.microvm.nixosModules.host
     ./microvms/k3s-node1.nix

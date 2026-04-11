@@ -1,12 +1,15 @@
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   # Enable K3S
   services.k3s = {
     enable = true;
     role = "server"; # Will be overridden in individual node configs
     extraFlags = lib.mkDefault (toString [
-      "--disable=servicelb"  # Use MetalLB instead
+      "--disable=servicelb" # Use MetalLB instead
       "--write-kubeconfig-mode=644"
       "--tls-san=${config.networking.hostName}"
     ]);
@@ -15,13 +18,13 @@
   # Open firewall for K3S
   networking.firewall = {
     allowedTCPPorts = [
-      6443  # Kubernetes API
+      6443 # Kubernetes API
       10250 # Kubelet
-      2379  # etcd client
-      2380  # etcd peer
+      2379 # etcd client
+      2380 # etcd peer
     ];
     allowedUDPPorts = [
-      8472  # Flannel VXLAN
+      8472 # Flannel VXLAN
     ];
   };
 
@@ -39,7 +42,7 @@
   };
 
   # Kernel modules for container networking and NFS
-  boot.kernelModules = [ "br_netfilter" "overlay" "nfs" ];
+  boot.kernelModules = ["br_netfilter" "overlay" "nfs"];
   boot.kernel.sysctl = {
     "net.bridge.bridge-nf-call-iptables" = 1;
     "net.bridge.bridge-nf-call-ip6tables" = 1;
@@ -62,5 +65,5 @@
   services.timesyncd.enable = true;
 
   # Disable swap (Kubernetes requirement)
-  swapDevices = [ ];
+  swapDevices = [];
 }

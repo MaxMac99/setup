@@ -14,7 +14,7 @@
     lua.enable = true;
     markdown = {
       enable = true;
-      lsp.enable = false;  # marksman LSP pulls in dotnet SDK built from source
+      lsp.enable = false; # marksman LSP pulls in dotnet SDK built from source
     };
     nix.enable = true;
     python.enable = true;

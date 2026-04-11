@@ -134,18 +134,18 @@
       port = 9100;
       # Enable comprehensive collectors for storage server monitoring
       enabledCollectors = [
-        "systemd"      # Systemd units and services
-        "filesystem"   # Filesystem usage and stats
-        "diskstats"    # Disk I/O statistics
-        "nfs"          # NFS server statistics
-        "nfsd"         # NFS daemon statistics
-        "processes"    # Process statistics
-        "interrupts"   # Hardware interrupts
+        "systemd" # Systemd units and services
+        "filesystem" # Filesystem usage and stats
+        "diskstats" # Disk I/O statistics
+        "nfs" # NFS server statistics
+        "nfsd" # NFS daemon statistics
+        "processes" # Process statistics
+        "interrupts" # Hardware interrupts
       ];
     };
     smartctl = {
-        enable = true;
-        port = 9116;
+      enable = true;
+      port = 9116;
     };
   };
 

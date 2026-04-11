@@ -1,8 +1,5 @@
 # Global Network Configuration
-{
-  lib,
-  ...
-}: {
+{lib, ...}: {
   options.networkConfig = {
     dns = {
       primary = lib.mkOption {
@@ -12,7 +9,7 @@
       };
       servers = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [ "192.168.178.1" "1.1.1.1" ];
+        default = ["192.168.178.1" "1.1.1.1"];
         description = "List of DNS servers";
       };
     };
@@ -42,7 +39,7 @@
         k3s-node1 = "192.168.178.5";
         k3s-node2 = "192.168.178.6";
         k3s-node3 = "192.168.178.7";
-        ionos = "192.168.178.201";  # Via WireGuard
+        ionos = "192.168.178.201"; # Via WireGuard
       };
       description = "Static IP assignments for hosts";
     };
@@ -56,7 +53,7 @@
         k3s-node1 = "fda8:a1db:5685::5";
         k3s-node2 = "fda8:a1db:5685::6";
         k3s-node3 = "fda8:a1db:5685::7";
-        ionos = "fda8:a1db:5685::201";  # Via WireGuard
+        ionos = "fda8:a1db:5685::201"; # Via WireGuard
       };
       description = "Static IPv6 assignments (private ULA - not internet routable)";
     };

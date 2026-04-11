@@ -84,4 +84,3 @@
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
   services.fstrim.enable = true;
 }
-

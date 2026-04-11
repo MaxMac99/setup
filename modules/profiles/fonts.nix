@@ -1,5 +1,9 @@
 # Fonts profile - SFMono Nerd Font
-{config, pkgs, ...}: {
+{
+  config,
+  pkgs,
+  ...
+}: {
   home-manager.users.${config.hostSpec.username} = {
     fonts.fontconfig.enable = true;
     home.packages = [

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Format staged .nix files with alejandra and re-stage them.
+set -euo pipefail
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.nix$' || true)
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+echo "$staged" | xargs nix fmt --
+echo "$staged" | xargs git add

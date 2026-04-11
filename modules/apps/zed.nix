@@ -1,5 +1,9 @@
 # Zed editor - nixpkgs + HM config
-{config, pkgs, ...}: {
+{
+  config,
+  pkgs,
+  ...
+}: {
   environment.systemPackages = [pkgs.zed-editor];
 
   home-manager.users.${config.hostSpec.username} = {

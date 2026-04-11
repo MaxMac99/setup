@@ -1,6 +1,8 @@
-{ config, lib, ... }:
-
 {
+  config,
+  lib,
+  ...
+}: {
   # MicroVM TAP interfaces use the existing vmbr0 bridge
   # (configured in networking.nix)
 

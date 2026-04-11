@@ -1,4 +1,9 @@
-{config, pkgs, lib, ...}: let
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}: let
   kube-metrics = pkgs.buildGoModule rec {
     pname = "kube-metrics";
     version = "0.1.1";
