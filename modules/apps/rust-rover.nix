@@ -25,6 +25,7 @@ in {
     home.packages = [
       rustToolchain
       pkgs.rust-analyzer
+      pkgs.protobuf
     ];
   };
 }
