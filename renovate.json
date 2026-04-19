@@ -9,11 +9,11 @@
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
-    "schedule": ["before 6am on monday"],
+    "schedule": ["before 6am on friday"],
     "rebaseWhen": "behind-base-branch"
   },
   "timezone": "Europe/Berlin",
-  "schedule": ["before 6am on monday"],
+  "schedule": ["before 6am on friday"],
   "prHourlyLimit": 5,
   "prConcurrentLimit": 10,
   "labels": ["dependencies"],
