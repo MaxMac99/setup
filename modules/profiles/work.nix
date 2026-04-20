@@ -14,7 +14,6 @@ in {
       defaultSopsFormat = "yaml";
       age.keyFile = "${homeDir}/.config/sops/age/keys.txt";
       secrets."kopf3/github-token" = {};
-      secrets."kopf3/pulumi-token" = {};
     };
 
     # Fix for sops-nix on macOS - ensure launchd agent has correct PATH
@@ -42,7 +41,6 @@ in {
     # Zsh: export work env vars
     programs.zsh.initContent = lib.mkAfter ''
       export GITHUB_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
-      export PULUMI_ACCESS_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
     '';
   };
 }

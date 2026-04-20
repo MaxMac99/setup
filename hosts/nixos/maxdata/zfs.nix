@@ -26,15 +26,7 @@
   services.sanoid = {
     enable = true;
     datasets = {
-      "tank/pve" = {
-        useTemplate = ["production"];
-        recursive = true;
-      };
       "tank/data" = {
-        useTemplate = ["production"];
-        recursive = true;
-      };
-      "fast/pve" = {
         useTemplate = ["production"];
         recursive = true;
       };
@@ -60,12 +52,6 @@
   # Syncoid for replication (fast → tank backup)
   services.syncoid = {
     enable = true;
-    commands."fast-pve-to-tank" = {
-      source = "fast/pve";
-      target = "tank/fast-backup/pve";
-      recursive = true;
-      sendOptions = "w";
-    };
     commands."fast-k8s-to-tank" = {
       source = "fast/k8s";
       target = "tank/fast-backup/k8s";

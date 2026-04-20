@@ -43,11 +43,6 @@
     fsType = "zfs";
   };
 
-  fileSystems."/fast/pve" = {
-    device = "fast/pve";
-    fsType = "zfs";
-  };
-
   fileSystems."/tank/data" = {
     device = "tank/data";
     fsType = "zfs";
@@ -55,11 +50,6 @@
 
   fileSystems."/tank/backups" = {
     device = "tank/backups";
-    fsType = "zfs";
-  };
-
-  fileSystems."/tank/pve" = {
-    device = "tank/pve";
     fsType = "zfs";
   };
 

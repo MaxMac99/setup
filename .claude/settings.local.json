@@ -12,7 +12,8 @@
       "Bash(find:*)",
       "WebFetch(domain:zed.dev)",
       "WebFetch(domain:discourse.nixos.org)",
-      "WebFetch(domain:k9scli.io)"
+      "WebFetch(domain:k9scli.io)",
+      "WebFetch(domain:grafana.com)"
     ],
     "deny": [],
     "ask": []

@@ -13,85 +13,63 @@
     logFormat = "json";
   };
 
-  # Promtail - Log shipping to Loki
-  services.promtail = {
+  # Grafana Alloy - Log shipping to Loki (replaces promtail)
+  services.alloy = {
     enable = true;
-    configuration = {
-      server = {
-        http_listen_port = 3031;
-        grpc_listen_port = 0;
-      };
-
-      # Send logs to Loki LoadBalancer in Kubernetes cluster
-      clients = [
-        {
-          url = "http://192.168.178.11:3100/loki/api/v1/push";
-        }
-      ];
-
-      positions = {
-        filename = "/var/lib/promtail/positions.yaml";
-      };
-
-      scrape_configs = [
-        # System journal logs
-        {
-          job_name = "journal";
-          journal = {
-            max_age = "12h";
-            labels = {
-              job = "systemd-journal";
-              host = "maxdata";
-            };
-          };
-          relabel_configs = [
-            {
-              source_labels = ["__journal__systemd_unit"];
-              target_label = "unit";
-            }
-            {
-              source_labels = ["__journal__hostname"];
-              target_label = "hostname";
-            }
-            {
-              source_labels = ["__journal_priority_keyword"];
-              target_label = "level";
-            }
-          ];
-        }
-
-        # Proxmox logs
-        {
-          job_name = "proxmox";
-          static_configs = [
-            {
-              targets = ["localhost"];
-              labels = {
-                job = "proxmox";
-                host = "maxdata";
-                __path__ = "/var/log/pve/**/*.log";
-              };
-            }
-          ];
-        }
-
-        # Samba logs
-        {
-          job_name = "samba";
-          static_configs = [
-            {
-              targets = ["localhost"];
-              labels = {
-                job = "samba";
-                host = "maxdata";
-                __path__ = "/var/log/samba/*.log";
-              };
-            }
-          ];
-        }
-      ];
-    };
+    extraFlags = ["--disable-reporting"];
   };
+
+  environment.etc."alloy/config.alloy".text = ''
+    // System journal logs
+    loki.source.journal "journal" {
+      forward_to    = [loki.relabel.journal.receiver]
+      max_age       = "12h"
+      labels        = {
+        job  = "systemd-journal",
+        host = "maxdata",
+      }
+    }
+
+    loki.relabel "journal" {
+      forward_to = [loki.write.loki.receiver]
+
+      rule {
+        source_labels = ["__journal__systemd_unit"]
+        target_label  = "unit"
+      }
+      rule {
+        source_labels = ["__journal__hostname"]
+        target_label  = "hostname"
+      }
+      rule {
+        source_labels = ["__journal_priority_keyword"]
+        target_label  = "level"
+      }
+    }
+
+    // Samba logs
+    local.file_match "samba" {
+      path_targets = [{
+        __path__ = "/var/log/samba/*.log",
+      }]
+    }
+
+    loki.source.file "samba" {
+      targets    = local.file_match.samba.targets
+      forward_to = [loki.write.loki.receiver]
+      labels     = {
+        job  = "samba",
+        host = "maxdata",
+      }
+    }
+
+    // Send logs to Loki in Kubernetes cluster
+    loki.write "loki" {
+      endpoint {
+        url = "http://192.168.178.11:3100/loki/api/v1/push"
+      }
+    }
+  '';
 
   # SMART monitoring daemon - automated self-tests and health checks
   # Create notification script for smartd
@@ -149,15 +127,8 @@
     };
   };
 
-  # Open firewall for Promtail HTTP (for status/metrics)
-  networking.firewall.allowedTCPPorts = [
-    3031 # Promtail HTTP
-  ];
-
-  # Ensure log directories and promtail state directory exist
+  # Ensure log directories exist
   systemd.tmpfiles.rules = [
-    "d /var/log/pve 0755 root root -"
     "d /var/lib/prometheus-node-exporter 0755 root root -"
-    "d /var/lib/promtail 0755 promtail promtail -"
   ];
 }
