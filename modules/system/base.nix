@@ -10,12 +10,6 @@
   ifTheyExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
   pubKeys = lib.filesystem.listFilesRecursive (lib.custom.relativeToRoot "modules/data/keys");
 in {
-  nixpkgs.overlays = [
-    (_final: prev: {
-      nushell = prev.nushell.overrideAttrs {doCheck = false;};
-    })
-  ];
-
   time.timeZone = "Europe/Berlin";
 
   networking = {
