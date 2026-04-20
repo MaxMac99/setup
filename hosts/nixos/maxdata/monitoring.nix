@@ -51,16 +51,14 @@
     local.file_match "samba" {
       path_targets = [{
         __path__ = "/var/log/samba/*.log",
+        job      = "samba",
+        host     = "maxdata",
       }]
     }
 
     loki.source.file "samba" {
       targets    = local.file_match.samba.targets
       forward_to = [loki.write.loki.receiver]
-      labels     = {
-        job  = "samba",
-        host = "maxdata",
-      }
     }
 
     // Send logs to Loki in Kubernetes cluster
