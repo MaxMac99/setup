@@ -25,7 +25,6 @@
     "modules/apps/discord.nix"
     "modules/apps/intellij"
     "modules/apps/rust-rover.nix"
-    "modules/apps/zed.nix"
     "modules/apps/vlc.nix"
     "modules/apps/ghostty.nix"
     "modules/apps/affinity.nix"
