@@ -13,7 +13,9 @@
       "WebFetch(domain:zed.dev)",
       "WebFetch(domain:discourse.nixos.org)",
       "WebFetch(domain:k9scli.io)",
-      "WebFetch(domain:grafana.com)"
+      "WebFetch(domain:grafana.com)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl describe:*)"
     ],
     "deny": [],
     "ask": []

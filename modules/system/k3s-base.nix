@@ -61,6 +61,11 @@
   # Enable NFS client support
   services.rpcbind.enable = true;
 
+  # Limit journal size on disk — logs are shipped to Loki via Alloy
+  services.journald.extraConfig = ''
+    SystemMaxUse=500M
+  '';
+
   # Time synchronization (critical for etcd)
   services.timesyncd.enable = true;
 
