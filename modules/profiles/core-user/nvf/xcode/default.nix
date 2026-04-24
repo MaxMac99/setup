@@ -119,5 +119,7 @@ in {
     coreutils
     xcode-build-server
     xcode-project-cli
+    swiftformat
+    swiftlint
   ];
 }
