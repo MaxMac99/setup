@@ -22,6 +22,8 @@
     "modules/apps/ghostty.nix"
     "modules/apps/affinity.nix"
     "modules/apps/tunnelblick.nix"
+    "modules/apps/tailscale.nix"
+    "modules/apps/1password.nix"
     "modules/apps/bambu-studio.nix"
     "modules/apps/autodesk-fusion.nix"
     "modules/apps/arc.nix"
