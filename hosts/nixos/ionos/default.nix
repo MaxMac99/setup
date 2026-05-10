@@ -112,6 +112,7 @@
   # Configure K3s as agent (worker node)
   services.k3s = {
     role = lib.mkForce "agent";
+    tokenFile = config.sops.secrets.k3s_token.path;
     serverAddr = "https://192.168.178.5:6443"; # k3s-node1
     extraFlags = lib.mkForce (toString [
       "--node-name=ionos"
