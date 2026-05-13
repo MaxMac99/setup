@@ -42,6 +42,7 @@
     supportedFilesystems = ["zfs"];
     zfs = {
       devNodes = "/dev/disk/by-id";
+      forceImportRoot = false;
     };
 
     # ZFS ARC tuning for 32GB RAM (18GB reserved for 3x 6GB microVMs)
