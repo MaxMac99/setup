@@ -87,6 +87,24 @@
       CustomUserPreferences = {
         NSGlobalDomain = {
           NSStatusItemSpacing = 8;
+          AppleLocale = "de_DE";
+          AppleMeasurementUnits = "Centimeters";
+          AppleMetricUnits = 1;
+          AppleTemperatureUnit = "Celsius";
+          AppleICUForce24HourTime = true;
+          AppleFirstWeekday = {gregorian = 2;};
+          AppleICUDateFormatStrings = {
+            "1" = "dd.MM.y";
+            "2" = "dd.MM.y";
+            "3" = "d. MMMM y";
+            "4" = "EEEE, d. MMMM y";
+          };
+          AppleICUNumberSymbols = {
+            "0" = ",";
+            "1" = ".";
+            "10" = ",";
+            "17" = ".";
+          };
         };
       };
     };
