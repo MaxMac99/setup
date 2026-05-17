@@ -36,6 +36,7 @@
       type = lib.types.attrsOf lib.types.str;
       default = {
         maxdata = "192.168.178.2";
+        k3s-pi = "192.168.178.3";
         k3s-node1 = "192.168.178.5";
         k3s-node2 = "192.168.178.6";
         k3s-node3 = "192.168.178.7";
@@ -50,6 +51,7 @@
         # Private ULA addresses - NOT exposed to internet
         # Only accessible via local network or WireGuard tunnel
         maxdata = "fda8:a1db:5685::2";
+        k3s-pi = "fda8:a1db:5685::3";
         k3s-node1 = "fda8:a1db:5685::5";
         k3s-node2 = "fda8:a1db:5685::6";
         k3s-node3 = "fda8:a1db:5685::7";

@@ -6,6 +6,7 @@ keys:
   - &k3s-node1 age10jf99q3ygydry992384x0sc6qh4l7auvyun92arvsm2mm5lttvwqf2z3t3
   - &k3s-node2 age135dpxcvascd3clh3dczmx827z9nn26f0gtcsa9e0nrjpj8eht55slnh2zj
   - &k3s-node3 age1jcxzku7rqksy8juwtj6jvmvfyt63ywa386r3dj59cu2u35cgzqts4jxk0c
+  - &k3s-pi age1acjwunaejf345typ42284yxlreqqp39ndcfjqvcf8frsawwntf6sq3u23k
 creation_rules:
   - path_regex: secrets/common.yaml
     key_groups:
@@ -23,3 +24,4 @@ creation_rules:
           - *k3s-node1
           - *k3s-node2
           - *k3s-node3
+          - *k3s-pi
