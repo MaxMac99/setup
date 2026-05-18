@@ -34,7 +34,7 @@
       };
       typescript = {
         enable = true;
-        lsp.enable = false;
+        lsp.enable = true;
       };
       yaml.enable = true;
     };
