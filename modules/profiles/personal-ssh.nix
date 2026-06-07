@@ -34,7 +34,7 @@
           IdentityFile = "~/.ssh/id_ionos_vps";
         };
         "k3s-pi" = lib.hm.dag.entryAfter ["*"] {
-          HostName = "192.168.178.3";
+          HostName = "k3s-pi.local";
           User = "max";
           IdentityFile = "~/.ssh/id_ionos_vps";
         };
