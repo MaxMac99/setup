@@ -2,10 +2,7 @@
   programs.nvf.settings.vim.visuals = {
     fidget-nvim = {
       enable = true;
-      setupOpts.integration = {
-        nvim-tree.enable = true;
-        xcodebuild-nvim.enable = true;
-      };
+      setupOpts.notification.window.avoid = ["TestExplorer"];
     };
     indent-blankline.enable = true;
     nvim-cursorline.enable = true;
