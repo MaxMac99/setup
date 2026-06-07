@@ -1,5 +1,6 @@
 {
   programs.nvf.settings.vim.utility = {
+    diffview-nvim.enable = true;
     multicursors.enable = true;
     snacks-nvim = {
       enable = true;

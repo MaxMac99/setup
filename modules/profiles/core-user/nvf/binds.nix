@@ -148,6 +148,22 @@
       group = "[G]it";
       icon = "";
     };
+    "<leader>gm" = {
+      desc = "3-way [M]erge view";
+      icon = "";
+    };
+    "<leader>gM" = {
+      desc = "Close Diffview";
+      icon = "";
+    };
+    "<leader>gn" = {
+      desc = "[N]ext conflict";
+      icon = "";
+    };
+    "<leader>gp" = {
+      desc = "[P]rev conflict";
+      icon = "";
+    };
 
     "<leader>a" = {
       group = "[A]i";

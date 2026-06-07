@@ -131,6 +131,30 @@
     }
     {
       mode = "n";
+      key = "<leader>gm";
+      action = "<cmd>DiffviewOpen<CR>";
+      desc = "3-way [M]erge view";
+    }
+    {
+      mode = "n";
+      key = "<leader>gM";
+      action = "<cmd>DiffviewClose<CR>";
+      desc = "Close Diffview";
+    }
+    {
+      mode = "n";
+      key = "<leader>gn";
+      action = "<cmd>lua require('diffview.actions').next_conflict()<CR>";
+      desc = "[N]ext conflict";
+    }
+    {
+      mode = "n";
+      key = "<leader>gp";
+      action = "<cmd>lua require('diffview.actions').prev_conflict()<CR>";
+      desc = "[P]rev conflict";
+    }
+    {
+      mode = "n";
       key = "<leader>X";
       action = "<cmd>XcodebuildPicker<CR>";
       desc = "[X]code picker";
