@@ -28,7 +28,6 @@
       };
       sql = {
         enable = true;
-        dialect = "postgres";
         extraDiagnostics.enable = false;
         format.enable = false;
       };
