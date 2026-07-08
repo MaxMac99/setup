@@ -21,7 +21,7 @@
         # Nix tooling
         nixpkgs-fmt
         selene
-        statix
+        (statix.overrideAttrs (_: {doCheck = false;}))
 
         # Cloud / API
         azure-cli
