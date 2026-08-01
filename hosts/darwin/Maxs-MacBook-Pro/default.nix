@@ -35,6 +35,7 @@
     "modules/apps/insomnia.nix"
     "modules/apps/k9s.nix"
     "modules/apps/1password.nix"
+    "modules/apps/teleport.nix"
   ];
 
   # Ad-hoc packages & Pulumi secrets (personal use only)
