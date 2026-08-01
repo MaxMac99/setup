@@ -26,6 +26,11 @@
     params = {};
   };
 
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+  };
+
   hostSpec = {
     username = "max";
     hostName = "k3s-pi";
@@ -59,15 +64,40 @@
 
   services.home-assistant = {
     enable = true;
-    config = {
-      homeassistant = {
-        name = "Home";
-        time_zone = "Europe/Berlin";
-        unit_system = "metric";
-        country = "DE";
-      };
-      default_config = {};
-    };
+    # Integrations whose Python deps must be bundled.
+    # Add only ones with devices you actually have on the network — each
+    # rebuild of HA recompiles with these baked in.
+    #
+    # NOTE: with `config = null` (imperative/UI config), the module can no
+    # longer scan configuration.yaml to discover which integrations to bundle,
+    # so every integration you configure via the UI must be listed here.
+    # `default_config` pulls in the standard set (frontend, history, the
+    # automation/scene/script editors, mobile_app, zeroconf discovery, ...).
+    extraComponents = [
+      "default_config"
+      "apple_tv"
+      "google_translate"
+      "homekit_controller"
+      "hue"
+      "matter"
+      "met"
+      "roborock"
+      "sonos"
+      "wled"
+      "shelly"
+      "unifi"
+      "unifi_discovery"
+    ];
+    # null => Home Assistant owns configuration.yaml; everything is configured
+    # from the UI. Setting `config` to an attrset would make NixOS write a
+    # read-only configuration.yaml symlinked from the Nix store, which blocks
+    # UI configuration. Core settings (name, time zone, country, units) are
+    # set during UI onboarding / Settings → System → General.
+    config = null;
+  };
+
+  services.matter-server = {
+    enable = true;
   };
 
   system.stateVersion = "25.11";
