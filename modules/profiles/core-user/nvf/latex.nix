@@ -1,9 +1,7 @@
 {pkgs, ...}: {
   home.packages = with pkgs; [
-    (texlive.combine {
-      inherit
-        (texlive)
-        scheme-medium
+    (texliveMedium.withPackages (ps:
+      with ps; [
         latexmk
         minted
         fvextra
@@ -12,8 +10,7 @@
         xstring
         framed
         enumitem
-        ;
-    })
+      ]))
     python3
     python3Packages.pygments
   ];
