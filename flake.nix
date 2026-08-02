@@ -42,6 +42,7 @@
       url = "github:MaxMac99/ZFS-Prometheus-Exporter";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    meridian.url = "github:rynfar/meridian";
   };
 
   outputs = {
