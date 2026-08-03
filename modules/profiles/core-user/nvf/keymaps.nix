@@ -99,6 +99,20 @@
       action = "<cmd>Neotree toggle<CR>";
       desc = "Explorer NeoTree (cwd)";
     }
+    # Companions to <leader>xx (bufferline closeCurrent, see tabline.nix).
+    # bufdelete keeps the window layout intact and won't discard unsaved work.
+    {
+      mode = "n";
+      key = "<leader>xo";
+      action = "<cmd>lua require('bufdelete').bufdelete(vim.tbl_filter(function(b) return vim.bo[b].buflisted and b ~= vim.api.nvim_get_current_buf() end, vim.api.nvim_list_bufs()))<CR>";
+      desc = "Close [O]ther buffers";
+    }
+    {
+      mode = "n";
+      key = "<leader>xa";
+      action = "<cmd>%Bdelete<CR>";
+      desc = "Close [A]ll buffers";
+    }
     {
       mode = "n";
       key = "<leader>sp";
