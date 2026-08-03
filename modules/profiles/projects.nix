@@ -21,7 +21,12 @@
       *) exit 1 ;;
     esac
   '';
-  kopf3Match = "Match host github.com exec %d/${inKopf3DirName}";
+  # `originalhost` (the name as typed) rather than `host`, so the kopf3.github.com
+  # alias below is not also caught by these blocks. The two are mutually exclusive
+  # on purpose: IdentityFile accumulates across matching blocks and ssh offers
+  # agent-resident keys first, so overlapping blocks would offer the wrong key.
+  kopf3Match = "Match originalhost github.com exec %d/${inKopf3DirName}";
+  defaultMatch = "Match originalhost github.com !exec %d/${inKopf3DirName}";
 in {
   home-manager.users.${username} = {lib, ...}: {
     home.activation.projectDirs = lib.hm.dag.entryAfter ["writeBoundary"] ''
@@ -51,7 +56,6 @@ in {
         "*" = {
           AddKeysToAgent = "yes";
         };
-        # Must come before the plain github.com block: ssh uses the first value it obtains.
         ${kopf3Match} = {
           IdentitiesOnly = true;
           IdentityFile = "~/.ssh/id_kopf3_github";
@@ -62,8 +66,7 @@ in {
           IdentitiesOnly = true;
           IdentityFile = "~/.ssh/id_kopf3_github";
         };
-        "github.com" = lib.hm.dag.entryAfter ["kopf3.github.com"] {
-          HostName = "github.com";
+        ${defaultMatch} = lib.hm.dag.entryAfter ["kopf3.github.com"] {
           IdentitiesOnly = true;
           IdentityFile = "~/.ssh/id_github";
         };
