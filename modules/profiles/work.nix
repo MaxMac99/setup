@@ -26,18 +26,6 @@ in {
       };
     };
 
-    # Git: work directory override
-    programs.git.includes = [
-      {
-        condition = "gitdir:~/kopf3/";
-        path = "~/.gitconfig-kopf3";
-      }
-    ];
-    home.file.".gitconfig-kopf3".text = ''
-      [user]
-        email = max.vissing@kopf3.de
-    '';
-
     # Zsh: export work env vars
     programs.zsh.initContent = lib.mkAfter ''
       export GITHUB_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})

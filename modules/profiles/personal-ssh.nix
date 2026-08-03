@@ -2,22 +2,7 @@
 {config, ...}: {
   home-manager.users.${config.hostSpec.username} = {lib, ...}: {
     programs.ssh = {
-      enable = true;
-      enableDefaultConfig = false;
       settings = {
-        "*" = {
-          AddKeysToAgent = "yes";
-        };
-        "kopf3.github.com" = lib.hm.dag.entryAfter ["*"] {
-          HostName = "github.com";
-          IdentitiesOnly = true;
-          IdentityFile = "~/.ssh/id_kopf3_github";
-        };
-        "github.com" = lib.hm.dag.entryAfter ["kopf3.github.com"] {
-          HostName = "github.com";
-          IdentitiesOnly = true;
-          IdentityFile = "~/.ssh/id_github";
-        };
         "ionos" = lib.hm.dag.entryAfter ["*"] {
           HostName = "212.132.82.102";
           User = "max";
