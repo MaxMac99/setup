@@ -18,8 +18,16 @@
         enable = true;
         lsp.enable = false; # marksman LSP pulls in dotnet SDK built from source
       };
-      nix.enable = true;
-      python.enable = true;
+      # Server choice is aligned with opencode's built-ins (modules/data/lsp.nix):
+      # opencode only knows nixd, and its pyright recipe handles venv detection.
+      nix = {
+        enable = true;
+        lsp.servers = ["nixd"];
+      };
+      python = {
+        enable = true;
+        lsp.servers = ["pyright"];
+      };
       rust = {
         enable = true;
         extensions = {

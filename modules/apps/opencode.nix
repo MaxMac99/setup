@@ -49,6 +49,9 @@ in {
       package = pkgs.writeShellScriptBin "opencode" ''
         export ANTHROPIC_BASE_URL="http://${host}:${port}"
         export ANTHROPIC_API_KEY=x
+        # Nix supplies the language servers; without this opencode fetches its
+        # own from GitHub/npm into ~/.local/share/opencode/bin.
+        export OPENCODE_DISABLE_LSP_DOWNLOAD=1
         exec ${signedBin} "$@"
       '';
 
@@ -58,6 +61,16 @@ in {
         autoupdate = false;
         share = "manual";
         plugin = ["${meridian}/lib/meridian/plugin/meridian.ts"];
+
+        # Enables every built-in server; each one only starts if it finds its
+        # binary, which config.lspPackages puts on PATH. The two entries below
+        # are the exceptions - their built-ins download a release from GitHub,
+        # so pin them to nixpkgs. nvf resolves the same derivations, so neovim
+        # and opencode stay on identical binaries.
+        lsp = {
+          jdtls.command = ["${pkgs.jdt-language-server}/bin/jdtls"];
+          kotlin-ls.command = ["${pkgs.kotlin-language-server}/bin/kotlin-language-server"];
+        };
       };
 
       tui = {

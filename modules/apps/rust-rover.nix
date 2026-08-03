@@ -22,9 +22,9 @@ in {
 
   home-manager.users.${config.hostSpec.username} = {
     home.file.".rust-toolchain".source = rustToolchain;
+    # rust-analyzer comes from config.lspPackages (modules/data/lsp.nix).
     home.packages = [
       rustToolchain
-      pkgs.rust-analyzer
       pkgs.protobuf
     ];
   };

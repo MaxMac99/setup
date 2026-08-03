@@ -6,6 +6,8 @@
   inputs,
   ...
 }: {
+  imports = [(lib.custom.relativeToRoot "modules/data/lsp.nix")];
+
   home-manager.users.${config.hostSpec.username} = {
     imports = [
       inputs.sops-nix.homeManagerModules.sops
@@ -28,23 +30,25 @@
       sessionVariables = {
         EDITOR = "nvim";
       };
-      packages = with pkgs; [
-        sops
-        age
-        ssh-to-age
-        gh
-        pwgen
-        curl
-        jq
-        nix-tree
-        zip
-        unzip
-        tree
-        fzf
-        eza
-        htop
-        ncdu
-      ];
+      packages =
+        (with pkgs; [
+          sops
+          age
+          ssh-to-age
+          gh
+          pwgen
+          curl
+          jq
+          nix-tree
+          zip
+          unzip
+          tree
+          fzf
+          eza
+          htop
+          ncdu
+        ])
+        ++ config.lspPackages;
     };
   };
 }

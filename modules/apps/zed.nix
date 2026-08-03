@@ -7,8 +7,7 @@
   environment.systemPackages = [pkgs.zed-editor];
 
   home-manager.users.${config.hostSpec.username} = {
-    home.packages = with pkgs; [nil nixd];
-
+    # Language servers come from config.lspPackages (modules/data/lsp.nix).
     programs.zed-editor = {
       enable = true;
       package = null; # Installed via environment.systemPackages
@@ -117,9 +116,9 @@
               check = {command = "clippy";};
             };
           };
-          nil = {
+          nixd = {
             initialization_options = {
-              formatting = {command = ["nixfmt"];};
+              formatting = {command = ["${pkgs.alejandra}/bin/alejandra"];};
             };
           };
         };
