@@ -1,0 +1,264 @@
+# OpenCode - terminal AI coding agent, fronted by Meridian
+{
+  config,
+  pkgs,
+  inputs,
+  ...
+}: let
+  inherit (pkgs.stdenv.hostPlatform) system;
+  meridian = inputs.meridian.packages.${system}.meridian;
+  scrub = inputs.meridian.legacyPackages.${system}.meridianPlugins.opencode-scrub;
+
+  pluginManifest = (pkgs.formats.json {}).generate "plugins.json" {
+    plugins = [
+      {
+        path = scrub.path;
+        enabled = true;
+      }
+    ];
+  };
+
+  host = "127.0.0.1";
+  port = "3456";
+
+  # Estimated cost is noise on a subscription. The TUI only renders a dollar
+  # figure when it is > 0, so zeroing the catalog pricing removes it from the
+  # prompt footer and the subagent panel. Model overrides merge field-by-field
+  # over the models.dev entry, so limit.context and capabilities survive.
+  # Models added upstream after this list will show cost again until added here.
+  anthropicModels = [
+    "claude-fable-5"
+    "claude-haiku-4-5"
+    "claude-haiku-4-5-20251001"
+    "claude-opus-4-5"
+    "claude-opus-4-5-20251101"
+    "claude-opus-4-6"
+    "claude-opus-4-6-fast"
+    "claude-opus-4-7"
+    "claude-opus-4-7-fast"
+    "claude-opus-4-8"
+    "claude-opus-4-8-fast"
+    "claude-opus-5"
+    "claude-opus-5-fast"
+    "claude-sonnet-4-5"
+    "claude-sonnet-4-5-20250929"
+    "claude-sonnet-4-6"
+    "claude-sonnet-5"
+  ];
+  noCost = {
+    cost = {
+      input = 0;
+      output = 0;
+      cache_read = 0;
+      cache_write = 0;
+    };
+  };
+
+  # opencode scans ~/.claude/skills for Claude-compatible skills, so pinning
+  # Anthropic's collection here serves both opencode and claude-code. Fetched at
+  # build time, never redistributed, so the source-available document skills are
+  # not a licensing concern. Note their scripts shell out to Python libraries
+  # that are not in this profile, so those skills may not run until added.
+  anthropicSkills = pkgs.fetchFromGitHub {
+    owner = "anthropics";
+    repo = "skills";
+    rev = "b29e7cf65e5cb78a5ac33d582270551bc74a14eb";
+    hash = "sha256-RH2B03gj4kzw1j5LORezgUZPPu8mW+mWb+Kl2U7WUbY=";
+  };
+
+  # Per-directory profiles, selected by the wrapper below. The settings file is
+  # generated outside the profile directory on purpose: anything named
+  # opencode.json *inside* OPENCODE_CONFIG_DIR is loaded at a precedence that
+  # would outrank a repo's own .opencode/opencode.json.
+  profileConfig = name: settings:
+    (pkgs.formats.json {}).generate "opencode-${name}.json" ({
+        "$schema" = "https://opencode.ai/config.json";
+      }
+      // settings);
+
+  # Work code must never end up on a public share URL.
+  workConfig = profileConfig "work" {share = "disabled";};
+  personalConfig = profileConfig "personal" {share = "manual";};
+in {
+  home-manager.users.${config.hostSpec.username} = {
+    config,
+    lib,
+    ...
+  }: let
+    # pkgs.opencode's bun payload ships an ad-hoc signature that macOS 27
+    # rejects, so AMFI SIGKILLs it. Re-signing fixes it, but sigtool aborts on
+    # a binary this size - only /usr/bin/codesign works, hence activation.
+    signedDir = "${config.xdg.stateHome}/opencode";
+    signedBin = "${signedDir}/opencode";
+    payload = "${pkgs.opencode}/bin/.opencode-wrapped";
+  in {
+    home.packages = [meridian];
+
+    home.file.".claude/skills".source = "${anthropicSkills}/skills";
+
+    home.activation.signOpencode = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      if [ "$(cat ${signedDir}/.source 2>/dev/null)" != "${payload}" ]; then
+        $DRY_RUN_CMD mkdir -p ${signedDir}
+        $DRY_RUN_CMD install -m 755 ${payload} ${signedBin}
+        $DRY_RUN_CMD /usr/bin/codesign -f -s - ${signedBin}
+        $DRY_RUN_CMD sh -c 'printf %s "${payload}" > ${signedDir}/.source'
+      fi
+    '';
+
+    programs.opencode = {
+      # Env is scoped here; a shell-wide export would also reroute claude-code.
+      package = pkgs.writeShellScriptBin "opencode" ''
+        export ANTHROPIC_BASE_URL="http://${host}:${port}"
+        export ANTHROPIC_API_KEY=x
+        # Nix supplies the language servers; without this opencode fetches its
+        # own from GitHub/npm into ~/.local/share/opencode/bin.
+        export OPENCODE_DISABLE_LSP_DOWNLOAD=1
+
+        # Profile is picked from the launch directory and fixed for the session.
+        # Mirrors the identity split in modules/profiles/projects.nix - keep the
+        # two patterns in sync. OPENCODE_CONFIG merges above the global config
+        # but below a project's own .opencode/, so per-repo settings still win.
+        # OPENCODE_CONFIG_DIR contributes the profile's agent/, command/, skills/.
+        case "$PWD/" in
+          "$HOME"/projects/kopf3/*)
+            export OPENCODE_CONFIG=${workConfig}
+            export OPENCODE_CONFIG_DIR=${./profiles/work}
+            ;;
+          *)
+            export OPENCODE_CONFIG=${personalConfig}
+            export OPENCODE_CONFIG_DIR=${./profiles/personal}
+            ;;
+        esac
+
+        exec ${signedBin} "$@"
+      '';
+
+      enable = true;
+
+      settings = {
+        autoupdate = false;
+        share = "manual";
+        plugin = ["${meridian}/lib/meridian/plugin/meridian.ts"];
+        provider.anthropic.models = lib.genAttrs anthropicModels (_: noCost);
+
+        # Enables every built-in server; each one only starts if it finds its
+        # binary, which config.lspPackages puts on PATH. The two entries below
+        # are the exceptions - their built-ins download a release from GitHub,
+        # so pin them to nixpkgs. nvf resolves the same derivations, so neovim
+        # and opencode stay on identical binaries.
+        lsp = {
+          jdtls.command = ["${pkgs.jdt-language-server}/bin/jdtls"];
+          kotlin-ls.command = ["${pkgs.kotlin-language-server}/bin/kotlin-language-server"];
+        };
+
+        # Read freely, ask before writing.
+        #
+        # opencode applies the LAST matching rule. Nix attrsets are unordered and
+        # serialize alphabetically, so the order written here is NOT the order
+        # opencode sees - do not try to express precedence by position. What
+        # makes this safe is that no `allow` pattern is a superset of a `deny`
+        # one, and "*" sorts first so it stays the fallback. Before adding a
+        # broad allow (`git p*`, `kubectl *`), check it cannot swallow a deny
+        # that sorts earlier.
+        #
+        # `git add` is allowed on purpose: the /commit workflow stages logical
+        # groups for you, and staging is undone with `git reset`. Commit, push,
+        # `pulumi up` and `kubectl apply` fall through to the catch-all and ask.
+        #
+        # `gh api` is deliberately absent: `gh api repos/O/R/issues -f title=x`
+        # implies POST, so any `gh api repos/*` allow would auto-approve writes.
+        permission = {
+          bash = {
+            "*" = "ask";
+
+            # Inspection
+            "ls *" = "allow";
+            "cat *" = "allow";
+            "head *" = "allow";
+            "tail *" = "allow";
+            "wc *" = "allow";
+            "find *" = "allow";
+            "rg *" = "allow";
+            "jq *" = "allow";
+
+            # Git, read-only plus staging
+            "git status*" = "allow";
+            "git diff*" = "allow";
+            "git log*" = "allow";
+            "git show*" = "allow";
+            "git branch" = "allow";
+            "git remote -v" = "allow";
+            "git worktree list*" = "allow";
+            "git add*" = "allow";
+
+            # Rust
+            "cargo check*" = "allow";
+            "cargo clippy*" = "allow";
+            "cargo test*" = "allow";
+            "cargo tree*" = "allow";
+            "cargo fmt --check*" = "allow";
+
+            # Nix
+            "nix eval*" = "allow";
+            "nix flake check*" = "allow";
+            "nix flake metadata*" = "allow";
+            "nix fmt -- --check*" = "allow";
+
+            # Infra, read-only
+            "kubectl get*" = "allow";
+            "kubectl describe*" = "allow";
+            "kubectl logs*" = "allow";
+            "pulumi preview*" = "allow";
+
+            # GitHub, read-only
+            "gh pr view*" = "allow";
+            "gh pr diff*" = "allow";
+            "gh pr list*" = "allow";
+            "gh issue view*" = "allow";
+            "gh issue list*" = "allow";
+
+            # Irreversible or outward-facing: never without a human.
+            "git push --force*" = "deny";
+            "git reset --hard*" = "deny";
+            "kubectl delete*" = "deny";
+            "pulumi destroy*" = "deny";
+          };
+        };
+      };
+
+      # Universal habits, shared by both profiles. Identity-specific commands
+      # and skills live in profiles/*/ instead.
+      commands = ./global/commands;
+      agents = ./global/agents;
+      skills = ./global/skills;
+
+      tui = {
+        theme = "tokyonight";
+        # Swaps the built-in sidebar section (tokens / % used / $ spent) for a
+        # percentage-only one. Must be listed here rather than in settings:
+        # settings.plugin is the server plugin list and does not load TUI plugins.
+        plugin = ["${./context-percent.tsx}"];
+        plugin_enabled = {
+          "internal:sidebar-context" = false;
+        };
+      };
+    };
+
+    launchd.agents.meridian = {
+      enable = true;
+      config = {
+        ProgramArguments = ["${meridian}/bin/meridian"];
+        RunAtLoad = true;
+        KeepAlive.SuccessfulExit = false;
+        ThrottleInterval = 5;
+        EnvironmentVariables = {
+          MERIDIAN_HOST = host;
+          MERIDIAN_PORT = port;
+          MERIDIAN_PLUGIN_CONFIG = "${pluginManifest}";
+        };
+        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/meridian.log";
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/meridian.err.log";
+      };
+    };
+  };
+}

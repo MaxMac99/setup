@@ -31,6 +31,6 @@
     "modules/apps/docker-desktop.nix"
     "modules/apps/insomnia.nix"
     "modules/apps/k9s.nix"
-    "modules/apps/opencode.nix"
+    "modules/apps/opencode"
   ];
 }

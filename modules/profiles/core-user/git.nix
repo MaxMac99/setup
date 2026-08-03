@@ -14,6 +14,9 @@
       "build"
       "target"
       "*.log"
+      # Scratch space for the opencode ticket workflow - drafts, fetched ticket
+      # bodies. See docs/opencode-workflow.md.
+      ".work/"
     ];
     settings = {
       user = {
