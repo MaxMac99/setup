@@ -34,6 +34,47 @@
 
       # K3s cluster kubeconfig
       export KUBECONFIG=~/.kube/k3s-config
+
+      # Clone a repo into a worktree layout:
+      #   <name>/.bare      the bare repository
+      #   <name>/.git       "gitdir: ./.bare", so git works from <name> itself
+      #   <name>/<branch>   worktree of the remote's default branch
+      gclone() {
+        local url=''${1:-}
+        local dir=''${2:-}
+
+        if [[ -z $url ]]; then
+          print -u2 "usage: gclone <repository-url> [directory]"
+          return 1
+        fi
+
+        if [[ -z $dir ]]; then
+          dir=''${url##*/}
+          dir=''${dir%.git}
+        fi
+
+        if [[ -e $dir ]]; then
+          print -u2 "gclone: $dir already exists"
+          return 1
+        fi
+
+        mkdir -p "$dir" || return 1
+        if ! git clone --bare "$url" "$dir/.bare"; then
+          rmdir "$dir" 2>/dev/null
+          return 1
+        fi
+
+        print "gitdir: ./.bare" > "$dir/.git"
+        git -C "$dir" config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*" || return 1
+        git -C "$dir" fetch origin || return 1
+
+        local base
+        base=$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null) || base=main
+        git -C "$dir" worktree add "$base" || return 1
+        git -C "$dir" branch --set-upstream-to="origin/$base" "$base" >/dev/null 2>&1
+
+        print "gclone: $dir ($base)"
+      }
     '';
 
     oh-my-zsh = {
