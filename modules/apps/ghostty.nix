@@ -7,6 +7,7 @@
 }: let
   ghosttySettings = {
     font-family = "SFMono Nerd Font";
+    font-feature = "-calt,-liga,-dlig";
     font-size = 16;
     theme = "Dark Pastel";
     fullscreen = true;
