@@ -198,6 +198,10 @@ in {
             "cargo tree*" = "allow";
             "cargo fmt --check*" = "allow";
 
+            # Diagram rendering for /diagram - reads a mermaid source, writes a
+            # PNG into gitignored .work/.
+            "mmdc *" = "allow";
+
             # Nix
             "nix eval*" = "allow";
             "nix flake check*" = "allow";

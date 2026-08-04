@@ -10,18 +10,39 @@ Status: **base config built, pipeline not yet built.** See [Status](#status).
 
 | # | Step | Command | Scope |
 | --- | --- | --- | --- |
-| 1 | Rough description → local draft | `/epic` | per-profile |
+| 1 | Rough description → local draft | `/epic` | personal |
 | 2 | Q&A refinement until confident | `refinement-loop` skill | global |
-| 3 | Architecture pass (DDD, deployment fit, mermaid) | `architecture` skill | global |
-| 4 | Business viability, only when asked | `/business-case` | personal |
-| 5 | Create epic + child tickets | `/epic` (continues) | per-profile |
-| 6 | Refine a child ticket | `/refine <id>` | per-profile fetch |
-| 7 | Take a ticket → worktree | `/start <id>` | per-profile fetch |
-| 8 | Implement | built-in `build` agent | — |
-| 9 | Quality / business / security review | `/review-all` | global |
-| 10 | Stage small commits, user commits | `/commit` | global |
+| 3 | Codebase grounding + architecture analysis | `codebase-locator`, `codebase-pattern-finder`, `analyst-architecture` | global |
+| 4 | Architecture pass (DDD, deployment fit, mermaid) | `architecture` skill | global |
+| 5 | Business viability, only when asked | `/business-case` | personal |
+| 6 | Create epic + child stories | `/epic` (continues) | personal |
+| 7 | Refine a story | `/refine <id> [--deep]` | personal |
+| 8 | Take a ticket → worktree | `/workspace <id>` | personal |
+| 9 | Implement | built-in `build` agent | — |
+| 10 | Architecture / quality / tests / business / security review | `/review-all` | global |
+| 11 | Stage small commits, user commits | `/commit` | global |
 
-Steps 8–10 loop until the ticket is done, then `/pr`.
+Steps 9–11 loop until the ticket is done, then `/pr`.
+
+Anything that talks to a tracker is per-profile; anything that only reads
+`.work/ticket.md` or the diff is global. That is why `/epic`, `/refine` and
+`/workspace` sit in `profiles/personal/` while the reviewers do not.
+
+## Decisions
+
+Settled during design; recorded so they are not re-litigated.
+
+| Decision | Choice | Why |
+| --- | --- | --- |
+| Hierarchy depth | Two levels: Epic → Story | A story is the unit you branch from; a third level needs its own refinement pass for little gain |
+| Ticket template | Context / Acceptance Criteria / Out of Scope / Design / Open Questions | `reviewer-business` checks the implementation against the criteria, so the shape must be consistent |
+| Open Questions at creation | Must be empty | Otherwise the thinking is deferred to implementation time, where it costs most |
+| Review strictness | Report, blocking marked, never gates | Matches the ask-before-writing posture; you decide whether to proceed |
+| Milestones | Untouched | Release containers on a different axis; an epic can span several |
+| Refinement budget | ≤3 rounds of 3-5 questions | Bounded, with a confidence check between rounds |
+| Analysts at refinement | Architecture only | Automatic in `/epic`, opt-in via `--deep` in `/refine` |
+| Security knowledge | In `reviewer-security.md`, not a skill | Only one agent uses it; a skill would be indirection with a standing context cost |
+| Model pins on agents | None | A pinned model is what rotted the upstream `agentic` files |
 
 ## Tracker-agnostic seam
 
@@ -132,19 +153,53 @@ Not yet configured — deferred. When it is:
   will appear as unrendered code blocks unless the instance has a plugin.
   Mermaid does render natively on GitHub.
 
-## Review triad
+## Visualisation
 
-`/review-all` fans out to three subagents in parallel, each `edit: deny`,
-`write: deny`, read-only bash. Each burns its own context window, which is the
-point — findings come back, exploration does not.
+Mermaid is the only diagram format that renders everywhere you need it, which
+is why the workflow standardises on it rather than anything richer.
 
-| Agent | Answers |
+| Surface | How |
 | --- | --- |
-| `reviewer-quality` | Conventions and style, test coverage, tests actually green (`cargo clippy -- -D warnings`, `cargo test`, `nix flake check`) |
-| `reviewer-business` | Is every requirement in `.work/ticket.md` met? Anything silently dropped or quietly expanded? |
-| `reviewer-security` | Injection, authz, secret handling, dependency surface, error paths that leak |
+| GitHub issues and PRs | native mermaid rendering in markdown |
+| neovim | `snacks.image` (`nvf/utility.nix`) shells out to `mmdc` for mermaid blocks; Ghostty speaks the kitty graphics protocol |
+| opencode TUI | `/diagram` renders with `mmdc` and reads the PNG back as an attachment; opentui detects kitty graphics (`OPENTUI_GRAPHICS`, default on) |
+| ad hoc | `mmdc -i x.mmd -o x.png` for SVG/PNG/PDF |
+| IntelliJ / RustRover | built-in mermaid preview in markdown |
 
-Findings are reported as `file:line` with a suggested fix, not just a complaint.
+The same source text therefore renders in the draft you are refining, the
+GitHub issue, and the pull request — with no additional infrastructure.
+
+`imagemagick` is in `development.nix` because `snacks.image` calls `identify`
+for image dimensions; `mmdc` emits PNG directly, so it is not needed for the
+conversion itself. Only mermaid is available — no `d2`, `plantuml` or Graphviz.
+
+## Reviewers
+
+`/review-all` fans out to five subagents in parallel, each `edit: deny`,
+`write: deny`. Each burns its own context window, which is the point — findings
+come back, exploration does not. A bare `/review-all` runs all five;
+`/review-all quality tests` runs a subset for a cheap pass mid-implementation.
+
+Remits are deliberately disjoint, and each file carries an explicit "not your
+remit" section, so two reviewers never report the same thing.
+
+| Agent | Owns | Explicitly not |
+| --- | --- | --- |
+| `reviewer-architecture` | boundaries, layering, coupling, cycles, deployment fit | style, test depth |
+| `reviewer-quality` | conventions, naming, readability, error handling, dead code | test depth, structure |
+| `reviewer-tests` | meaningfulness, edge/error coverage, determinism, runs the suite | production-code style |
+| `reviewer-business` | acceptance criteria in `.work/ticket.md` met, scope drift | how it is built |
+| `reviewer-security` | injection, authz, secrets, deps, disclosure | general quality |
+
+Findings carry a severity (**blocking** / **advisory**), a category (**Gap** /
+**Bug** / **Verification miss** / **Scope drift**, borrowed from
+`agent-watchdog`), a `file:line`, and a concrete fix. `/review-all` merges,
+deduplicates, ranks, and names any reviewer that found nothing — silence is
+otherwise indistinguishable from failure.
+
+The merged report and the PR body share a structure: behaviour before → after,
+then Schema, Contracts and Structure sections, omitted when empty. That
+taxonomy is the one genuinely good idea taken from `visual-recap`.
 
 ## Prior art
 
@@ -159,8 +214,34 @@ Surveyed before building. Conclusion: **build our own, steal two ideas.**
 | `darrenhinde/OpenAgentsControl` | 4.7k★, maintained, but `curl \| bash` install, TypeScript/Next.js content, and its `/commit` auto-pushes without asking. Skip. |
 | `oh-my-openagent` | 67k★, hyperactive. Mutates `~/.config/opencode`, prebuilt npm binaries, telemetry on by default, auto-merges PRs. SUL-1.0, not open source. Skip. |
 | `spec-kit-worktree`, `spec-kit-review` | A paragraph of prose and a quality-only reviewer respectively. Not dependencies. |
+| [`BuilderIO/skills`](https://github.com/BuilderIO/skills) | 3.9k★, MIT, actively maintained. Took `read-the-damn-docs` (forked as `docs-first`). Rejected the visual skills — see below. |
 
 Nothing surveyed contains a single line about Nix, Pulumi or Kubernetes.
+
+### Why `visual-plan` / `visual-recap` were rejected
+
+They are well made, and the temptation is real. Three disqualifying reasons:
+
+1. **They refuse to produce markdown.** From their own `references/
+   connection.md`: *"The deliverable is ALWAYS a published Agent-Native Plan,
+   never inline chat content… Falling back to inline content is a defect, not a
+   degraded mode."* This workflow's entire output is markdown in a GitHub issue
+   or PR body. GitHub does not render MDX/JSX.
+2. **Hosted mode uploads the diff** — real paths, verbatim hunks, schema with
+   column types, API routes — to a third-party database. Secret redaction is an
+   LLM instruction, not a filter. Unacceptable for work code.
+3. **Local mode is not offline and not vendorable.** It needs
+   `npx @agent-native/core plan local serve` at runtime, the renderer is still
+   `plan.agent-native.com` reading from a localhost bridge, and valid MDX
+   requires a live `get-plan-blocks` call because the tag names drift.
+
+What was worth taking: the diff taxonomy — schema change, contract change,
+structural move, before/after as the headline — now used in `/pr` and
+`/review-all` with mermaid, which renders natively where it is needed.
+
+Also rejected: `plow-ahead` (converts clarifying questions into assumptions —
+the exact inverse of the refinement design), `rewind` (a signed macOS
+screen-recording app plus an MCP broker installed via npx).
 
 **Do not install any of them.** Every installer is incompatible with declarative
 Nix management.
@@ -169,18 +250,28 @@ Nix management.
 
 Built:
 
-- `skills/conventional-commits`, `skills/rust-workflow`
-- `commands/commit`
-- personal `skills/github-personal`, `command/pr`
-- permission posture, profile anchor, `.work/` gitignore, Anthropic skills pin
+- Global skills — `conventional-commits`, `rust-workflow`, `refinement-loop`,
+  `architecture`, `docs-first`
+- Global agents — `analyst-architecture`, `reviewer-{architecture,quality,
+  tests,business,security}`, `codebase-locator`, `codebase-pattern-finder`
+- Global commands — `commit`, `review-all`, `diagram`
+- Personal — `skills/{github-personal,github-issues}`,
+  `command/{pr,epic,refine,workspace,business-case}`
+- Config — permission posture, profile anchor, `.work/` gitignore, Anthropic
+  skills pin, `imagemagick`
 
 Not built yet:
 
-- `skills/refinement-loop`, `skills/architecture`
-- `commands/refine`, `start`, `review-all`
-- `agents/reviewer-quality`, `reviewer-business`, `reviewer-security`
-- `agents/codebase-locator`, `codebase-pattern-finder` — to be adapted from
-  `Cluster444/agentic` (MIT, attribute in a header; strip the dead
-  `claude-opus-4-1-20250805` model pin and the JS/Python/Go directory guides)
-- personal `command/epic`, `command/business-case`, `skills/github-issues`
-- work `command/epic`, `skills/jira-issues`, Rovo MCP config
+- Work profile: `command/epic`, `command/refine`, `command/workspace`,
+  `skills/jira-issues`, and the Rovo MCP server. Deferred until Jira is wanted;
+  the GitHub versions are the reference implementation.
+
+Untested:
+
+- The whole pipeline is written but has not been exercised end to end. First
+  real run should be a small epic on a personal repository.
+- `/diagram` depends on the opencode TUI actually displaying an image
+  attachment. The capability exists (`OPENTUI_GRAPHICS`); it has not been
+  confirmed in practice.
+- Inline mermaid in neovim needs `imagemagick`, added at the same time as this
+  batch and not yet verified after a rebuild.

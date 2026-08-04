@@ -33,6 +33,9 @@
         # Documentation
         asciidoctor-with-extensions
         mermaid-cli
+        # snacks.image shells out to `mmdc` to render mermaid inline in neovim,
+        # and to ImageMagick's `identify` for image dimensions.
+        imagemagick
 
         # JS / Java
         nodejs_24
