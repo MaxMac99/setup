@@ -33,4 +33,10 @@
     "modules/apps/k9s.nix"
     "modules/apps/opencode"
   ];
+
+  # ~/.ssh/config is managed outside nix here, so home-manager must not generate
+  # it (this also drops the blocks from projects.nix). The username is spelled
+  # out because a `config.hostSpec.username` attr name would recurse into the
+  # hostSpec defined above.
+  home-manager.users.maxvissing.programs.ssh.enable = lib.mkForce false;
 }
