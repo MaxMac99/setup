@@ -12,7 +12,6 @@
       "modules/profiles/development.nix"
       "modules/profiles/gcloud.nix"
       "modules/profiles/full-nvim.nix"
-      "modules/profiles/personal-ssh.nix"
     ])
     ++ [
       inputs.zfs-exporter.nixosModules.default

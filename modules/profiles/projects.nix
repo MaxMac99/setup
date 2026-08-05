@@ -27,15 +27,36 @@
   # agent-resident keys first, so overlapping blocks would offer the wrong key.
   kopf3Match = "Match originalhost github.com exec %d/${inKopf3DirName}";
   defaultMatch = "Match originalhost github.com !exec %d/${inKopf3DirName}";
+
+  # Private keys live in 1Password, not on disk, and ssh reaches them through
+  # the 1Password agent. IdentitiesOnly still needs a file to decide *which*
+  # agent-resident key to offer, so the public halves are deployed to
+  # ~/.ssh/1password/ — a directory of its own, so nothing collides with an
+  # existing unmanaged ~/.ssh/id_*.pub on either Mac.
+  # The literal quotes are load-bearing: the path contains a space, and ssh
+  # aborts the whole config file with "extra arguments at end of line" if the
+  # value is unquoted — which takes every other host block down with it.
+  onePasswordAgent = ''"~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"'';
+  pubKeyDir = ".ssh/1password";
+  pubKey = name: "~/${pubKeyDir}/${name}.pub";
 in {
   home-manager.users.${username} = {lib, ...}: {
     home.activation.projectDirs = lib.hm.dag.entryAfter ["writeBoundary"] ''
       run mkdir -p "${homeDir}/projects/kopf3" "${homeDir}/projects/private"
     '';
 
-    home.file.${inKopf3DirName} = {
-      source = inKopf3Dir;
-      executable = true;
+    home.file = {
+      ${inKopf3DirName} = {
+        source = inKopf3Dir;
+        executable = true;
+      };
+
+      "${pubKeyDir}/id_github.pub".text = ''
+        ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAgvwvw1a6IamoAyq+l0p1X+yPx85fI5HyZcj4om9y1k id_github
+      '';
+      "${pubKeyDir}/id_kopf3_github.pub".text = ''
+        ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIZ/kbCrWJcz6MYcwmVmhyBiMbHOCZKOESyhPc9cbs+I id_kopf3_github
+      '';
     };
 
     programs.git.includes = [
@@ -55,20 +76,21 @@ in {
       settings = {
         "*" = {
           AddKeysToAgent = "yes";
+          IdentityAgent = onePasswordAgent;
         };
         ${kopf3Match} = {
           IdentitiesOnly = true;
-          IdentityFile = "~/.ssh/id_kopf3_github";
+          IdentityFile = pubKey "id_kopf3_github";
         };
         # Escape hatch for remotes that still spell out the alias.
         "kopf3.github.com" = lib.hm.dag.entryAfter [kopf3Match] {
           HostName = "github.com";
           IdentitiesOnly = true;
-          IdentityFile = "~/.ssh/id_kopf3_github";
+          IdentityFile = pubKey "id_kopf3_github";
         };
         ${defaultMatch} = lib.hm.dag.entryAfter ["kopf3.github.com"] {
           IdentitiesOnly = true;
-          IdentityFile = "~/.ssh/id_github";
+          IdentityFile = pubKey "id_github";
         };
       };
     };
