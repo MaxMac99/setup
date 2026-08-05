@@ -64,7 +64,7 @@
     // Send logs to Loki in Kubernetes cluster
     loki.write "loki" {
       endpoint {
-        url = "http://192.168.178.11:3100/loki/api/v1/push"
+        url = "http://${config.networkConfig.legacy.lokiVIP}:3100/loki/api/v1/push"
       }
     }
   '';
