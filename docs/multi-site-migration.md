@@ -23,7 +23,7 @@ One session per phase. Read this section first, update it last.
 |---|-------|-------|------|-------|
 | 0 | Groundwork and inventory | ✅ done | 2026-08-05 | Router state captured; addresses verified on the wire |
 | 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed (0 errors). UniFi `.unf` exported — confirm where it is stored |
-| 2 | Overlay spike | not started | | |
+| 2 | Overlay spike | 🔄 decided, 24 h RTT pending | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Read the sampler CSVs after 2026-08-06 17:26, finalise D4, then tear down (§9) |
 | 2b | Secret management (1Password) | not started | | new — see D11 |
 | 3 | Overlay rollout | not started | | |
 | 4 | DNS | not started | | |
@@ -43,11 +43,16 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 
 | Item | Value | Source |
 |---|---|---|
-| Overlay product | *pending* | Phase 2 |
+| Overlay product | **Headscale + Tailscale** | Phase 2, 2026-08-05 |
 | Secret split (vault vs on-host) | 1Password = vault; sops-nix = boot-critical delivery (D11) | Phase 2b |
-| Cross-site RTT / jitter | *pending* | Phase 2 → feeds D4 etcd tuning |
-| Overlay path (direct vs relayed) | *pending* | Phase 2 |
-| Overlay MTU → flannel MTU | *pending* | Phase 2 → D3 |
+| Cross-site RTT / jitter | ~5.5 ms direct, ~24 ms relayed via ionos — **24 h figure still pending** | Phase 2 → feeds D4 etcd tuning |
+| Overlay path (direct vs relayed) | **Direct**, over native IPv6. Asymmetric: brink→winkel over IPv6, winkel→brink over CGNAT IPv4 | Phase 2 |
+| Overlay MTU → flannel MTU | overlay **1280** → flannel **1230** (VXLAN −50) | Phase 2 → D3 |
+| IONOS Cloud firewall | **default-deny, only 22/80/443 inbound** — invisible from inside the VPS; the control plane needs an explicit opening | Phase 2, 2026-08-05 |
+| Control-plane TLS | **mandatory** — plain HTTP on an alternate port wedges clients permanently after any control outage | Phase 2 |
+| `ip_forward` on subnet routers | `0` on both pi and maxdata; neither overlay sets it — must be declared | Phase 2 |
+| Cold start needs the control server | a host rebooting while ionos is unreachable loses the overlay entirely (both products) | Phase 2 → Phases 6, 7, 13 |
+| UniFi OS Tailscale app | **no first-party app found** — §2.2/§3.2 premise looks wrong; third-party pkg only, **unverified** | Phase 2 |
 | Brink DHCP range | `192.168.1.6-.199` — shrink from auto `.6-.254` | UDM SE, 2026-08-05 |
 | Winkel DHCP range | `192.168.178.20-.200` — already clear, no change | FritzBox, 2026-08-05 |
 | Overlay IPs per host | *pending* | Phase 3 → `networkConfig.hosts.*.overlayIPv4` |
@@ -535,9 +540,18 @@ use the same underlying NAT-traversal approach.
 
 ## 2.4 Exit criteria
 
-- [ ] `docs/overlay-evaluation.md` written with measurements for both
-- [ ] Decision recorded with rationale
-- [ ] Measured cross-site RTT recorded for D4
+- [x] `docs/overlay-evaluation.md` written with measurements for both — both
+      products fully deployed on ionos and measured end-to-end, 2026-08-05
+- [x] Decision recorded with rationale — **Headscale + Tailscale**. Data plane
+      was a tie; decided on relay fallback, bootstrap cost, git-managed policy
+      and firewall surface
+- [ ] **Measured cross-site RTT recorded for D4** — the 24 h window runs to
+      **2026-08-06 17:26 CEST**. Read
+      `/var/lib/tailscale-spike/rtt-brink-to-winkel.csv` on `k3s-pi` and
+      `rtt-winkel-to-brink.csv` on `maxdata`, write the figure into the
+      Decision log, finalise D4, **then** tear the spike down per
+      `overlay-evaluation.md` §9 (which also closes the IONOS firewall ports
+      and removes the spike DNS records)
 
 ---
 
@@ -688,11 +702,21 @@ Phase 0 verified both routers expose a configurable static-route table, so the
 "unmodified client reaches the other site" requirement has a mechanism at both
 ends. No contingency needed.
 
-Still worth evaluating in Phase 2: **UniFi OS ships a first-party Tailscale app**
-for the UDM/UDR line. If it accepts a self-hosted Headscale URL, the UDM SE can
-be the subnet router itself — which removes brink-server as a single point of
-failure for cross-site routing at Brink, and is strictly better than a static
-route pointing at one host. NetBird has no UniFi OS integration.
+⚠️ **Corrected by Phase 2.** This section previously stated that UniFi OS ships
+a *first-party* Tailscale app for the UDM/UDR line. No such first-party app was
+found. What exists is a third-party community package
+(`SierraSoftworks/tailscale-unifi`), installed by `curl … | sh` over SSH and
+persisting under `/data`. It runs a real `tailscaled`, so it would accept a
+self-hosted Headscale URL and could advertise routes — but it is unsupported by
+Ubiquiti, needs SSH on the UDM SE, and is a candidate to break on UniFi OS
+upgrades. That is a poor foundation for the thing keeping cross-site routing
+alive.
+
+**Still unverified** — this needs someone to open the UniFi OS app store and
+confirm. Until then assume the UDM SE is **not** its own subnet router,
+brink-server remains the single point of failure for cross-site routing at
+Brink, and the static-route design in this phase stands as written. NetBird has
+no UniFi OS integration either way, so this never favoured NetBird.
 
 ## 3.3 Replacing the FritzBox VPN
 
