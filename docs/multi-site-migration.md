@@ -24,7 +24,7 @@ One session per phase. Read this section first, update it last.
 | 0 | Groundwork and inventory | ✅ done | 2026-08-05 | Router state captured; addresses verified on the wire |
 | 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed (0 errors). UniFi `.unf` exported — confirm where it is stored |
 | 2 | Overlay spike | 🔄 decided, 24 h RTT pending | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Read the sampler CSVs after 2026-08-06 17:26, finalise D4, then tear down (§9) |
-| 2b | Secret management (1Password) | not started | | new — see D11 |
+| 2b | Secret hygiene | 🔄 in progress | 2026-08-05 | Rescoped — 1Password is *not* the infrastructure vault (D11 revised). SSH agent done; maxdata sops, ionos age+WireGuard, Pulumi outstanding |
 | 3 | Overlay rollout | not started | | |
 | 4 | DNS | not started | | |
 | 5 | brink-server + pi relocation | not started | | pi move deadline: before Phase 6 |
@@ -44,7 +44,7 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | Item | Value | Source |
 |---|---|---|
 | Overlay product | **Headscale + Tailscale** | Phase 2, 2026-08-05 |
-| Secret split (vault vs on-host) | 1Password = vault; sops-nix = boot-critical delivery (D11) | Phase 2b |
+| Secret mechanism | sops-nix for all infrastructure secrets; 1Password for human/family credentials and the SSH agent only (D11, revised) | Phase 2b, 2026-08-05 |
 | Cross-site RTT / jitter | ~5.5 ms direct, ~24 ms relayed via ionos — **24 h figure still pending** | Phase 2 → feeds D4 etcd tuning |
 | Overlay path (direct vs relayed) | **Direct**, over native IPv6. Asymmetric: brink→winkel over IPv6, winkel→brink over CGNAT IPv4 | Phase 2 |
 | Overlay MTU → flannel MTU | overlay **1280** → flannel **1230** (VXLAN −50) | Phase 2 → D3 |
@@ -155,7 +155,7 @@ Two things are deliberately *not* in the cluster:
 | **D8** | cert-manager DNS-01 via IONOS webhook | Domain stays at IONOS (`ns*.ui-dns.*`). Needs the community `cert-manager-webhook-ionos` rather than a built-in solver. Removes the inbound-port-80-per-hostname dependency and enables a wildcard, cutting issuance volume. Note `CLAUDE.md:51` already falsely claims DNS-01; the code is HTTP-01 (`infrastructure/cert-manager.ts:72-80`). |
 | **D9** | AdGuard native on brink-server + pi | Per above. Overlay DNS layered on top for node names. Split-horizon for `*.mvissing.de`. |
 | **D10** | Pi lives at Winkel | Brink already has an always-on x86 node. Winkel's only machine is the unattended one — with the pi there, a `nixos-rebuild` on maxdata does not simultaneously kill Winkel's DNS, subnet router and your only route in. Cost: Brink becomes single-node for site infra. |
-| **D11** | 1Password is the vault; sops-nix stays the on-host delivery for boot-critical secrets | 1Password becomes the source of truth for everything a human touches, and for disaster recovery. But secrets a host needs *at boot* — k3s token, overlay keys — must decrypt **offline**. opnix fetches over the network from 1password.com; a host with a broken network config cannot fetch them, which is exactly the situation Phase 6 creates. See Phase 2b. |
+| **D11** | sops-nix is the single mechanism for infrastructure secrets. 1Password holds human and family credentials, and is the SSH agent — it is deliberately *outside* the secret path | **Revised 2026-08-05.** Originally "1Password is the vault; sops-nix stays the on-host delivery." The offline rule that motivated the split — *if a host needs a secret before the network is up, it must decrypt offline* — turned out to exclude every boot-critical secret from 1Password anyway, leaving one laptop token as the sole candidate for opnix. That does not justify a flake input, a service account and a token file per host. sops-nix already does this offline, in git, with per-host scoping. See Phase 2b.1 for the full reasoning, including why host age identities can never live in the vault. |
 
 ---
 
@@ -168,7 +168,7 @@ Two things are deliberately *not* in the cluster:
 | 0 | Groundwork and inventory | read-only | address plan written, both repos tagged |
 | 1 | Backups | additive | Postgres restore rehearsed |
 | 2 | Overlay spike: Headscale vs NetBird | throwaway | comparison doc + decision |
-| 2b | Secret management with 1Password | additive | vault + service account live, split documented |
+| 2b | Secret hygiene | additive | maxdata decrypts sops; ionos rebuildable from the flake |
 | 3 | Overlay rollout and site-to-site | additive | unmodified client ↔ unmodified client, both directions |
 | 4 | DNS | additive | both sites resolve via local AdGuard, failover verified |
 | 5 | brink-server bring-up + pi relocation | additive | Winkel reachable without maxdata |
@@ -555,82 +555,154 @@ use the same underlying NAT-traversal approach.
 
 ---
 
-# Phase 2b — Secret management with 1Password
+# Phase 2b — Secret hygiene
 
 Numbered `2b` rather than renumbering everything downstream. It sits here because
 Phase 3 is where the first *new* secrets get created (overlay auth keys), and the
 policy should be settled before that.
 
-## 2b.1 The constraint that shapes the design
+⚠️ **Rescoped 2026-08-05.** This phase was "Secret management with 1Password"
+and assumed 1Password would become the source of truth for infrastructure
+secrets, delivered to hosts by `opnix`. Working through it, that plan did not
+survive its own rationale — see 2b.1. What remains is sops hygiene, which is
+where the actual risk was hiding, plus 1Password as personal tooling.
 
-1Password is the right vault. It is not automatically the right *delivery*
-mechanism, and the difference matters here.
+## 2b.1 Why 1Password is not the vault for infrastructure secrets
 
-`opnix` (`github:brizzbuzz/opnix` — NixOS, nix-darwin and home-manager modules)
-authenticates with a **1Password service account token** at `/etc/opnix-token`
-and fetches secrets over the network from 1password.com. sops-nix instead
-decrypts a file already in the repo, using a key already on disk — **offline, no
-network, no external service.**
+The original argument was that 1Password is "the right vault" and only the
+*delivery* was in question. Both halves turned out to be weaker than assumed.
 
-Two consequences:
+**opnix buys nothing here.** It authenticates with a service-account token at
+`/etc/opnix-token` and fetches over the network from 1password.com. sops-nix
+decrypts a file already in the repo with a key already on disk — offline, no
+network, no external service. D11 already excludes every boot-critical secret
+from opnix, because a host that cannot reach the internet cannot fetch the key
+that brings up its own network, which is exactly what Phases 6 and 7 create.
+Once boot-critical secrets are excluded, the only remaining candidate in this
+estate was `kopf3/github-token` on a laptop. A flake input, a service account
+and a token file to manage one non-critical token is not a good trade.
 
-1. **The bootstrap secret does not go away, it moves.** The service-account token
-   sits unencrypted at `/etc/opnix-token`, exactly as the sops age key does
-   today. Neither is worse; both must be placed out-of-band on a new host.
-2. **Reachability becomes a dependency.** A host that cannot reach the internet
-   cannot fetch its secrets. Phase 6 deliberately rebuilds maxdata's networking
-   remotely, and Phase 7 brings up k3s across a fresh overlay — the two moments
-   most likely to leave a host without a working network. If the k3s token can
-   only arrive over that network, a mistake becomes unrecoverable-without-console
-   rather than merely inconvenient.
+**The service account only existed to feed opnix.** Dropping opnix drops it.
+Nothing else needed it: 1Password for human use requires only a normal login.
 
-That is the whole argument for D11's split. It is not a rejection of 1Password.
+**Importing every host age identity is close to busywork.** A host identity is
+disposable — reinstall, generate a fresh one, add it to `.sops.yaml`,
+`sops updatekeys` from a surviving recipient. Only *one* recipient has to
+survive. Backing up all eight adds eight copies of highly sensitive material to
+defend, to buy convenience that is rarely used. What actually cannot be
+recovered by re-keying is plaintext that exists nowhere else — see the Pulumi
+passphrase in 2b.3.
 
-## 2b.2 The split
+**`programs._1password` does not exist on darwin.** Both `_1password.nix` and
+`_1password-gui.nix` live in `nixos/modules/programs/` and are implemented with
+`security.wrappers` (setgid), `users.groups.onepassword-cli.gid` and polkit.
+The original work item 1 was not implementable as written.
+
+**The SSH-agent collision was overstated.** Both Macs already use a standalone
+`age.keyFile` (`Maxs-MacBook-Pro/default.nix:48`, `work.nix:15`); they do not
+derive at runtime. `ssh-to-age` is run once by hand when onboarding a machine.
+So the agent breaks nothing operationally — the only casualty was the onboarding
+instruction in `README.md`.
+
+**What survives unchanged is the offline rule**, which is D11's real content:
+
+> **If a host needs a secret before the network is up, it must decrypt offline.**
+
+## 2b.2 Where each secret lives
 
 | Secret | Home | Why |
 |---|---|---|
-| Pulumi passphrase + access token | **1Password** | The passphrase is the master key for all 16 Pulumi config secrets. Human-operated, never needed at boot. |
-| GitHub PAT, admin passwords, WiFi, recovery keys | **1Password** | Human-facing. |
-| `maxPassword` / `michaelPassword` / `annaPassword` (SMB) | **1Password** | Shared with actual humans. |
-| The sops **age private keys** and host SSH keys | **1Password** (copies) | Disaster recovery. Today, if a host's disk dies its age identity dies with it. |
 | k3s token | **sops-nix** | Needed at every `k3s.service` start. |
 | Overlay pre-auth / node keys | **sops-nix** | Needed to bring up the network itself. |
-| WireGuard keys (until Phase 13) | **sops-nix** | Currently unmanaged files under `/home/max/.wireguard/` — fixing that is already on the list. |
-| Non-boot-critical host secrets | **opnix**, optional | Convenience, once the pattern is proven. |
-
-Rule of thumb: **if the host needs it before the network is up, it decrypts
-offline.** Everything else can come from 1Password.
+| WireGuard keys (until Phase 13) | **sops-nix** | Currently unmanaged files under `/home/max/.wireguard/`. |
+| Every other host secret | **sops-nix** | It already works, offline, in git, with per-host scoping. Moving it into a networked vault is lateral. |
+| SSH client keys (human) | **1Password** | Done — see 2b.4. The agent never exposes private material, which is why the sops key is excluded from it. |
+| WiFi, router admin, recovery keys, LE account, IONOS panel | **1Password** | Managed nowhere today. This is where the vault earns its place. |
+| `maxPassword` / `michaelPassword` / `annaPassword` (SMB) | **1Password** | Genuinely shared with Michael and Anna. |
+| The Macs' `~/.config/sops/age/keys.txt` | **1Password** (copy) | These are the surviving recipients everything else can be re-keyed from. Host identities are *not* backed up — see 2b.1. |
 
 ## 2b.3 Work items
 
-1. Add `programs._1password` / `_1password-gui` (both in nixpkgs) to the Macs.
-2. **1Password SSH agent** on the Macs, replacing the loose `~/.ssh/id_ed25519`
-   handling that currently feeds `ssh-to-age` (`README.md:32-41`). Note the age
-   identities themselves still derive from SSH keys — verify the agent's keys can
-   still be exported for `ssh-to-age`, or keep a dedicated non-agent key for sops.
-3. Create a 1Password vault for the homelab, and a **service account** scoped to
-   it. Store the token out-of-band.
-4. Move the Pulumi passphrase and token from `secrets/common.yaml` into
-   1Password. This is the single highest-value item — the passphrase unlocks
-   everything in `Pulumi.default.yaml`.
-5. Import every host's age identity and SSH host key into 1Password.
-6. Add `opnix` as a flake input and adopt it for one non-critical secret on one
-   host as a trial, before relying on it.
-7. **Fix ionos's age key source** while here: it uses `/home/max/.ssh/id_ed25519`
-   (`hosts/nixos/ionos/default.nix:131`) instead of a host key. Currently
-   scheduled for Phase 13; it belongs in this phase.
-8. Consider a 1Password service account for the GitHub ARC runners in place of
-   the long-lived `githubPat`.
+The load-bearing items have nothing to do with 1Password.
 
-## 2b.4 Exit criteria
+1. **Wire maxdata's sops config.** ⚠️ **Highest value in the phase.** maxdata is
+   a declared recipient of both `common.yaml` and `k3s.yaml` (`.sops.yaml:16,22`)
+   but has no `sops` block in any module and consumes nothing. Phase 6.1 depends
+   on this; see the note there. Verified 2026-08-05: maxdata's existing
+   `/home/max/.ssh/id_ed25519` derives `age1s44mfk…`, which *is* the `&maxdata`
+   recipient — so the key material is already correct and only the wiring is
+   missing. Prove it with an actual decrypt on the box, not on paper.
+2. **ionos age key: user key → host key.** `age.sshKeyPaths` points at
+   `/home/max/.ssh/id_ed25519` (`hosts/nixos/ionos/default.nix:131`). Additive
+   order, never a flag day: derive the host-key recipient → add it to
+   `.sops.yaml` *alongside* the existing one → `sops updatekeys` both files →
+   flip `age.sshKeyPaths` → `nixos-rebuild test` with a dead-man reboot armed →
+   verify `k3s_token` still decrypts and k3s stays up → `switch` → only then drop
+   the old recipient and `updatekeys` again. (Was Phase 13 item 2.)
+3. **ionos WireGuard keys → sops.** `privateKeyFile` and `presharedKeyFile`
+   (`hosts/nixos/ionos/default.nix:97,102`) are unmanaged files under
+   `/home/max/.wireguard/`, which is what makes ionos non-reproducible from the
+   flake. ⚠️ **Copy the existing key material verbatim — do not generate new
+   keys.** The FritzBox holds the matching peer config and that tunnel is
+   currently the only route into Winkel.
+4. **Resolve Pulumi.** `Pulumi.default.yaml` has `encryptionsalt` and 16
+   `secure:` entries, so `PULUMI_CONFIG_PASSPHRASE` is a real encryption key and
+   web login does **not** substitute for it. Preferred: `pulumi stack
+   change-secrets-provider service`, which re-encrypts all 16 under a
+   service-managed key — the passphrase then stops existing rather than being
+   relocated, and no new dependency is added since the state backend is already
+   `api.pulumi.com`. Then delete both `personal/pulumi-passphrase` and
+   `personal/pulumi-token` from `secrets/common.yaml`. Wants a clean tree and a
+   fresh `pulumi stack export` first. `personal/pulumi-token` is redundant either
+   way — `~/.pulumi/credentials.json` already holds a web login.
+5. **Resolve the dead recipiency.** `k3s-pi` is a recipient of `k3s.yaml`
+   (`.sops.yaml:27`) with no sops config since `adfcc70`; it regains one in
+   Phase 5. maxdata is covered by item 1.
+6. **1Password as personal tooling** — human and family credentials per 2b.2. No
+   service account, no opnix.
 
-- [ ] Homelab vault and service account created; token stored out-of-band
-- [ ] Pulumi passphrase and token in 1Password; verified `pulumi config
-      --show-secrets` still works from a shell sourcing them
-- [ ] All host age identities backed up to 1Password
-- [ ] 1Password SSH agent working on the Macs without breaking `ssh-to-age`
-- [ ] opnix trialled on one non-critical secret
+## 2b.4 Done — SSH client keys (2026-08-05)
+
+Client-side SSH moved to the 1Password agent. The private keys are no longer on
+disk on the Macs.
+
+| 1Password item | Grants |
+|---|---|
+| `id_max_admin` | user `max` on every NixOS host in the flake |
+| `id_github` / `id_kopf3_github` | GitHub personal / Kopf3 |
+| `id_hetzner` | Hetzner Storage Box |
+
+Points worth carrying forward:
+
+- **Keys are split by trust domain, not by destination host.** All keys share one
+  vault on one laptop behind one unlock, so per-host keys would fall together
+  anyway; the split that pays is personal-GitHub vs work-GitHub vs backup
+  provider vs own machines.
+- **A vault key belongs to a person, not a device.** The vault syncs everywhere,
+  so `maxs-macbook-pro.pub` was renamed to `modules/data/keys/max-admin.pub`.
+  Machine-to-machine keys (`maxdata.pub`) stay device-bound and keep their
+  hostname, because a headless host cannot talk to a vault agent. This is also
+  why host age identities can never come from 1Password.
+- **`~/.ssh/id_sops_age`** (was `id_ed25519`) is the sops age source, not an SSH
+  key. It authenticates to nothing and must stay a plain file.
+- **`IdentityAgent` must be quoted.** The socket path contains a space; unquoted,
+  ssh aborts the *entire* config file with `extra arguments at end of line`.
+- maxdata's import of `personal-ssh.nix` was dropped —
+  `programs.ssh.enable` was false there, so it rendered nothing. Verified as a
+  no-op: identical `nixos-system-maxdata` derivation before and after.
+
+## 2b.5 Exit criteria
+
+- [x] 1Password SSH agent live on the Macs; `ssh-to-age` unaffected because the
+      sops key was never in the agent
+- [ ] **maxdata decrypts `secrets/k3s.yaml` with its own key** — the Phase 6.1
+      precondition
+- [ ] ionos derives its age key from a host key, verified by a successful
+      `k3s.service` start after `switch`
+- [ ] ionos rebuildable from the flake alone — no unmanaged files under
+      `/home/max/.wireguard/`
+- [ ] Pulumi secrets provider resolved; sops no longer holds a Pulumi passphrase
+      that only exists in one place
 - [ ] Documented which secrets are offline-decryptable and which are not — the
       Phase 6 and 7 runbooks depend on knowing this
 
@@ -690,8 +762,8 @@ Sequence within Phase 5, to avoid a coverage gap:
 5. Withdraw maxdata's route advertisement.
 
 Everything on the pi except its *physical location* can be done at Brink
-beforehand: re-image, NixOS config, overlay enrolment, sops/1Password host
-enrolment, AdGuard, the k3s agent module. Only three things need it to be at
+beforehand: re-image, NixOS config, overlay enrolment, sops host-key enrolment,
+AdGuard, the k3s agent module. Only three things need it to be at
 Winkel — the static `192.168.178.3`, advertising the Winkel subnet, and serving
 DNS to Winkel clients. Configure those declaratively before the move and they
 take effect when it lands.
@@ -804,8 +876,9 @@ Bare-metal NixOS install, done by hand, at Brink.
 - Static `192.168.1.2` (verified free in Phase 0).
 - Overlay client + subnet router for `192.168.1.0/24`.
 - AdGuard.
-- Secret enrolment per Phase 2b: sops host key, `.sops.yaml`, `sops updatekeys`,
-  and the 1Password service-account token if opnix is adopted.
+- Secret enrolment per Phase 2b: sops **host** key at
+  `/etc/ssh/ssh_host_ed25519_key`, `.sops.yaml`, `sops updatekeys`. No 1Password
+  component — D11 keeps the vault out of the host secret path entirely.
 - k3s server module (not enabled until Phase 7).
 
 The install procedure in `docs/Migrate_Maxdata.md:136-207` is reusable for the
@@ -875,9 +948,18 @@ volume (`modules/system/k3s-node.nix:136`, volume at `:76-82`). maxdata is
 already a declared recipient of `secrets/k3s.yaml` (`.sops.yaml:22`) but has no
 `sops` block in any of its modules and consumes nothing.
 
-Add a sops config to maxdata using its own host key, verify it can decrypt
-`k3s.yaml`, and only then proceed. **Destroy the images first and the k3s token
-becomes undecryptable** — the single easiest way to brick this migration.
+Add a sops config to maxdata, verify it can decrypt `k3s.yaml`, and only then
+proceed. **Destroy the images first and the k3s token becomes undecryptable** —
+the single easiest way to brick this migration.
+
+**Partly de-risked by Phase 2b (2026-08-05).** maxdata's existing
+`/home/max/.ssh/id_ed25519` derives `age1s44mfk…`, which is exactly the
+`&maxdata` recipient at `.sops.yaml:4`. So the key material is already present
+and correct; what is missing is only the `sops` block wiring it up. That makes
+this a config change rather than a key ceremony. Two caveats: it is a *user* key,
+inheriting the same smell as ionos (both should end on
+`/etc/ssh/ssh_host_ed25519_key`), and matching on paper is not proof — require a
+successful decrypt executed on the box before anything is deleted.
 
 ## 6.2 Remove the microVM layer
 
