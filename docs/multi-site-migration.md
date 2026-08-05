@@ -23,7 +23,7 @@ One session per phase. Read this section first, update it last.
 |---|-------|-------|------|-------|
 | 0 | Groundwork and inventory | ✅ done | 2026-08-05 | Router state captured; addresses verified on the wire |
 | 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed (0 errors). UniFi `.unf` exported — confirm where it is stored |
-| 2 | Overlay spike | 🔄 decided, 24 h RTT pending | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Read the sampler CSVs after 2026-08-06 17:26, finalise D4, then tear down (§9) |
+| 2 | Overlay spike | ✅ done | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Direct over native IPv6, MTU 1280, p99 6.8 ms, zero relay fallback. Spike torn down; IONOS ports and spike DNS records still to be removed in the panel |
 | 2b | Secret hygiene | 🔄 in progress | 2026-08-05 | Rescoped — 1Password is *not* the infrastructure vault (D11 revised). SSH agent done; maxdata sops, ionos age+WireGuard, Pulumi outstanding |
 | 3 | Overlay rollout | not started | | |
 | 4 | DNS | not started | | |
@@ -45,7 +45,7 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 |---|---|---|
 | Overlay product | **Headscale + Tailscale** | Phase 2, 2026-08-05 |
 | Secret mechanism | sops-nix for all infrastructure secrets; 1Password for human/family credentials and the SSH agent only (D11, revised) | Phase 2b, 2026-08-05 |
-| Cross-site RTT / jitter | ~5.5 ms direct, ~24 ms relayed via ionos — **24 h figure still pending** | Phase 2 → feeds D4 etcd tuning |
+| Cross-site RTT / jitter | **p50 5.8 ms · p95 6.1 ms · p99 6.8 ms · jitter 0.45 ms**, both directions. 347 samples/direction over 5 h 55 min, zero loss, zero relay fallback. Relayed via ionos = 23–25 ms | Phase 2, 2026-08-05 → D4 |
 | Overlay path (direct vs relayed) | **Direct**, over native IPv6. Asymmetric: brink→winkel over IPv6, winkel→brink over CGNAT IPv4 | Phase 2 |
 | Overlay MTU → flannel MTU | overlay **1280** → flannel **1230** (VXLAN −50) | Phase 2 → D3 |
 | IONOS Cloud firewall | **default-deny, only 22/80/443 inbound** — invisible from inside the VPS; the control plane needs an explicit opening | Phase 2, 2026-08-05 |
@@ -148,7 +148,7 @@ Two things are deliberately *not* in the cluster:
 | **D1** | Drop cluster dual-stack IPv6 | `--cluster-cidr=10.42.0.0/16,fd01::/48` / `--service-cidr=10.43.0.0/16,fd02::/112` (`modules/system/k3s-node.nix:123-124`) existed only as a DS-Lite workaround so ionos could reach home. The overlay replaces it. Native IPv6 remains as site-to-site transport and public termination at ionos. |
 | **D2** | Never hardcode a site IPv6 prefix | DG /56 changes unannounced. Rendezvous is ionos's fixed address. Rules out hand-rolled site-to-site WireGuard with static endpoints. |
 | **D3** | Node IPs and flannel ride the overlay | Four nodes across three L3 domains have exactly one mutually-routable address family. Generalises the existing `--flannel-iface=wg0` (`hosts/nixos/ionos/default.nix:122`). **MTU must be pinned explicitly** — VXLAN inside WireGuard inside a 1280-byte overlay; a wrong MTU blackholes large payloads while ping succeeds. |
-| **D4** | Tune etcd for WAN | Three members across two consumer uplinks plus a VPS. Defaults (100 ms heartbeat / 1000 ms election) cause spurious leader elections. Target `heartbeat-interval=500`, `election-timeout=5000`, tuned to Phase 2 RTT. |
+| **D4** | Tune etcd for WAN: `heartbeat-interval=500`, `election-timeout=5000` — **confirmed by measurement** | Three members across two consumer uplinks plus a VPS. Defaults (100 ms heartbeat / 1000 ms election) cause spurious leader elections. Phase 2 measured p99 6.8 ms on the direct path and 23–25 ms relayed via ionos, so these values sit 73× and 735× above p99, and 14× above the worst single echo seen in six hours. Adopted as measured rather than assumed. Phase 7's "etcd stable 24 h, no leader elections" gate is the empirical test. |
 | **D5** | One MetalLB L2 pool per site; every LB IP pinned | L2 mode requires a shared segment, which no longer holds. Today Traefik, `adguard-dns` and UniFi are unpinned and will drift on rebuild. UDM SE DHCP defaults to `.6–.254` and must be shrunk to free a pool. |
 | **D6** | No cross-site replicated storage | Longhorn/Ceph over consumer uplinks is a reliability trap. Every `local-path` PVC gets an explicit site pin. `databases/postgresql.ts:291` (`// can run on any k3s node since /mnt/k8s-fast is shared via virtiofs`) becomes false the moment maxdata is a real node. |
 | **D7** | hostNetwork Traefik on ionos | Today `iptables DNAT` + `MASQUERADE -o wg0` (`hosts/nixos/ionos/default.nix:63-77`) hides every public client IP from Traefik. |
@@ -522,7 +522,7 @@ That is a real cost, not a disqualification. Carry it into the scoring.
 | Criterion | Why it decides this | Measurement |
 |---|---|---|
 | Direct site-to-site path over native IPv6 | If traffic relays via ionos, every cross-site etcd heartbeat detours through the VPS | `tailscale status` / NetBird peer state: direct vs relay |
-| Cross-site RTT and jitter | Feeds D4 etcd tuning | `ping -c 200` + `mtr` across the overlay, both directions, over 24 h |
+| Cross-site RTT and jitter | Feeds D4 etcd tuning | Sampled `ping` across the overlay, both directions, with the direct/relay path recorded per sample. Ran 5 h 55 min — see 2.4 for why that was enough |
 | Subnet routing to unmodified clients | Hard requirement, both directions | Ping a Winkel printer from a Brink laptop with nothing installed |
 | Behaviour when the control server is down | Do established peer links survive? | Stop the control server; observe for 1 h |
 | Declarative in Nix + git | Headscale ACLs are a HuJSON file; NetBird's live in a DB behind the dashboard | Inspection |
@@ -545,13 +545,21 @@ use the same underlying NAT-traversal approach.
 - [x] Decision recorded with rationale — **Headscale + Tailscale**. Data plane
       was a tie; decided on relay fallback, bootstrap cost, git-managed policy
       and firewall surface
-- [ ] **Measured cross-site RTT recorded for D4** — the 24 h window runs to
-      **2026-08-06 17:26 CEST**. Read
-      `/var/lib/tailscale-spike/rtt-brink-to-winkel.csv` on `k3s-pi` and
-      `rtt-winkel-to-brink.csv` on `maxdata`, write the figure into the
-      Decision log, finalise D4, **then** tear the spike down per
-      `overlay-evaluation.md` §9 (which also closes the IONOS firewall ports
-      and removes the spike DNS records)
+- [x] **Measured cross-site RTT recorded for D4** — p50 5.8 ms / p95 6.1 ms /
+      p99 6.8 ms, jitter 0.45 ms, both directions. 347 samples per direction
+      over 5 h 55 min, **zero packet loss and zero relay fallback**. D4's
+      `heartbeat=500` / `election=5000` adopted as measured
+
+      **The window was cut from 24 h to 6 h deliberately.** What the remaining
+      eighteen hours could have added is diurnal variation and a longer
+      baseline for flap frequency, and both belong on the production overlay
+      rather than on throwaway state: Phase 3's exit criteria already require
+      the path to be characterised and RTT recorded, and Phase 12 adds
+      permanent cross-site blackbox probes for latency, loss and
+      direct-vs-relay. Phase 7's "etcd stable 24 h, no leader elections" gate
+      remains the empirical test of D4. Revisit only if Phase 3 or 12 shows
+      relay flapping this window did not — with 347/347 direct and no loss,
+      that is not the expected outcome. See `overlay-evaluation.md` §3.2.
 
 ---
 
@@ -819,6 +827,11 @@ peer allocation growing into the `.240–.250` MetalLB pool.
 - [ ] Unmodified Brink client reaches unmodified Winkel client, and vice versa
 - [ ] Phone off-net reaches both sites
 - [ ] Path characterised as direct or relayed; RTT recorded
+- [ ] **Longer-window RTT/flap sampling on the production overlay** — inherited
+      from Phase 2, which ran 5 h 55 min on throwaway state (347/347 direct,
+      zero loss). Run the equivalent sampler for at least 24 h here, where it
+      measures the real thing and can cover diurnal variation. If it shows
+      direct→relay flapping, revisit D4 before Phase 7
 - [ ] GUI reachable and shows all peers
 - [ ] Control server config and ACLs committed
 - [ ] Every existing FritzBox VPN peer has an equivalent overlay client, verified

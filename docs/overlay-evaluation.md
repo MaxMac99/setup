@@ -165,11 +165,36 @@ cares.
 
 ### 3.2 Cross-site RTT and jitter — criterion 2 → feeds D4
 
-Sampling runs every ~60 s in both directions (20 ICMP echoes per sample, with
-the direct/relay path recorded alongside), started **2026-08-05 17:26 CEST**,
-ending 2026-08-06 17:26.
+Sampling ran every ~60 s in both directions — 20 ICMP echoes per sample, with the
+direct/relay path recorded alongside — from **2026-08-05 17:26 CEST**. Harvested
+at 23:21 CEST: **347 usable samples per direction over 5 h 55 min**, after
+discarding the contaminated window described below.
 
-Representative 20-packet samples, Brink→Winkel:
+| | Brink → Winkel | Winkel → Brink |
+|---|---|---|
+| min of min | 4.780 ms | 4.942 ms |
+| **p50 of avg** | **5.757 ms** | **5.851 ms** |
+| p95 of avg | 6.133 ms | 6.145 ms |
+| p99 of avg | 6.634 ms | 6.813 ms |
+| worst single echo | 35.596 ms | 30.430 ms |
+| **mean jitter** (ping mdev) | **0.443 ms** | **0.461 ms** |
+| packet loss | **0** across 347 samples | **0** |
+| relay fallback | **0 / 347 — direct throughout** | **0 / 347** |
+
+**The stability result is the important one.** Not one sample in either direction
+fell back to DERP over six hours, and there was no packet loss at all. Brink→
+Winkel held the same native-IPv6 endpoint for the entire run; Winkel→Brink
+started on CGNAT IPv4 (`94.31.94.151:61435`) and moved to IPv6, so it changed
+endpoint family once — but never left a direct path.
+
+**D4 is settled by this.** The planned `heartbeat-interval=500` /
+`election-timeout=5000` sit 73× and 735× above the measured p99. Even the worst
+single echo in six hours (35.6 ms) is 14× inside the heartbeat, and the
+*relayed* path measured in §3.1 (23–25 ms) is 20× inside it. There is no
+plausible reading of this data in which the planned values are too tight, so
+they are adopted as measured rather than assumed.
+
+Representative single 20-packet samples, Brink→Winkel, for the head-to-head:
 
 | Overlay | min | avg | max | mdev |
 |---|---|---|---|---|
@@ -180,13 +205,22 @@ Indistinguishable in the mean. The apparent jitter difference is within
 sample-to-sample noise at this sample size and should not be read as a
 difference between the products.
 
-> ⚠️ **The 24-hour figure is not yet in.** These are spot samples plus the first
-> ~20 minutes of the run. The full-window min/avg/max/jitter and any
-> direct→relay flaps must be read out of
-> `/var/lib/tailscale-spike/rtt-brink-to-winkel.csv` and
-> `rtt-winkel-to-brink.csv` after 2026-08-06 17:26 and written into the
-> Decision log. **D4's etcd values should be finalised from that, not from the
-> numbers above.**
+> **Why six hours and not twenty-four.** The window was cut deliberately, not
+> abandoned. What the remaining eighteen hours could have added is diurnal
+> variation and a longer baseline for flap frequency — and both have a better
+> home than a throwaway spike:
+>
+> - **Phase 3** rolls out the production overlay and its exit criteria already
+>   require the path to be characterised and RTT recorded. Measuring the real
+>   thing for longer is strictly more relevant than measuring throwaway state.
+> - **Phase 12** adds permanent cross-site blackbox probes — latency, loss and
+>   direct-vs-relay — so this becomes continuously monitored rather than
+>   sampled once.
+> - **Phase 7's own gate** is "etcd stable for 24 h with no leader elections",
+>   which is the empirical test of D4 that actually matters.
+>
+> Revisit D4 only if Phase 3 or 12 shows relay flapping that this window did not.
+> Given 347/347 direct with zero loss, that is not the expected outcome.
 
 **Discard samples between roughly 17:35 and 17:49 on 2026-08-05.** While both
 overlays ran simultaneously, NetBird's subnet route (table 7120, priority 110)
@@ -468,7 +502,7 @@ needed. Both candidates passed the direct-path and subnet-routing criteria.
 | Overlay product | **Headscale + Tailscale** | Decision log |
 | Overlay path | **Direct over native IPv6**, asymmetric (v6 one way, CGNAT v4 the other) | Decision log |
 | Overlay MTU | **1280** → flannel **1230** | Decision log, D3, Phase 7 |
-| Cross-site RTT | ~5.5 ms direct / ~24 ms relayed via ionos — **24 h figure pending** | Decision log, D4 |
+| Cross-site RTT | **p50 5.8 ms, p95 6.1 ms, p99 6.8 ms, jitter 0.45 ms**, both directions, 347 samples/direction over 5 h 55 min, zero loss, zero relay fallback. Relayed via ionos measures 23–25 ms | Decision log, D4 |
 | IONOS Cloud firewall | default-deny, only 22/80/443; must be opened for the control plane | **New Phase 3 prerequisite** |
 | Control-plane TLS | mandatory; plain HTTP on an alternate port wedges clients | Phase 3 |
 | `ip_forward` | `0` on pi and maxdata; must be set declaratively | Phase 3, Phase 5 |
@@ -570,7 +604,7 @@ sampling (see §3.2):
 | ionos | runtime rules for TCP 8444, TCP 5349, UDP 49152–49200 |
 | pi, maxdata | unit `netbird-spike`, `/var/lib/netbird-spike`; `wt0` gone, routing table 7120 / rule 110 gone |
 
-### Still running — do not remove until the 24 h window closes
+### Still running at time of writing — safe to remove, measurements are complete
 
 | Host | Item |
 |---|---|
@@ -579,10 +613,10 @@ sampling (see §3.2):
 | pi, maxdata | units `tailscaled-spike`, `ts-sampler`; `/var/lib/tailscale-spike`; `/run/tailscale-spike.sock` |
 | pi, maxdata | `net.ipv4.ip_forward` / `net.ipv6.conf.all.forwarding` left at `1` |
 
-### Final teardown, after reading the CSVs
+### Final teardown
 
-1. Read `/var/lib/tailscale-spike/rtt-*.csv` on both hosts and record the
-   figure in the Decision log. **This is the last Phase 2 exit criterion.**
+1. ~~Read the CSVs and record the figure.~~ **Done 2026-08-05 23:21** — see §3.2.
+   Copies of both CSVs are the evidence behind the table there.
 2. `systemctl stop ts-sampler tailscaled-spike` on pi and maxdata; remove
    `/var/lib/tailscale-spike`.
 3. `systemctl stop headscale-spike` on ionos; remove `/var/lib/headscale-spike`.
