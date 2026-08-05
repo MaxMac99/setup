@@ -21,12 +21,13 @@ One session per phase. Read this section first, update it last.
 
 | # | Phase | State | Date | Notes |
 |---|-------|-------|------|-------|
-| 0 | Groundwork and inventory | ✅ done | 2026-08-05 | Router state still outstanding — see `inventory-pre-multi-site.md` §5 |
-| 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed. UniFi `.unf` export outstanding |
+| 0 | Groundwork and inventory | ✅ done | 2026-08-05 | Router state captured; addresses verified on the wire |
+| 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed (0 errors). UniFi `.unf` exported — confirm where it is stored |
 | 2 | Overlay spike | not started | | |
+| 2b | Secret management (1Password) | not started | | new — see D11 |
 | 3 | Overlay rollout | not started | | |
 | 4 | DNS | not started | | |
-| 5 | Pi relocation + brink-server | not started | | |
+| 5 | brink-server + pi relocation | not started | | pi move deadline: before Phase 6 |
 | 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
 | 7 | Fresh cluster | not started | | |
 | 8 | Storage and site affinity | not started | | |
@@ -43,6 +44,7 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | Item | Value | Source |
 |---|---|---|
 | Overlay product | *pending* | Phase 2 |
+| Secret split (vault vs on-host) | 1Password = vault; sops-nix = boot-critical delivery (D11) | Phase 2b |
 | Cross-site RTT / jitter | *pending* | Phase 2 → feeds D4 etcd tuning |
 | Overlay path (direct vs relayed) | *pending* | Phase 2 |
 | Overlay MTU → flannel MTU | *pending* | Phase 2 → D3 |
@@ -148,6 +150,7 @@ Two things are deliberately *not* in the cluster:
 | **D8** | cert-manager DNS-01 via IONOS webhook | Domain stays at IONOS (`ns*.ui-dns.*`). Needs the community `cert-manager-webhook-ionos` rather than a built-in solver. Removes the inbound-port-80-per-hostname dependency and enables a wildcard, cutting issuance volume. Note `CLAUDE.md:51` already falsely claims DNS-01; the code is HTTP-01 (`infrastructure/cert-manager.ts:72-80`). |
 | **D9** | AdGuard native on brink-server + pi | Per above. Overlay DNS layered on top for node names. Split-horizon for `*.mvissing.de`. |
 | **D10** | Pi lives at Winkel | Brink already has an always-on x86 node. Winkel's only machine is the unattended one — with the pi there, a `nixos-rebuild` on maxdata does not simultaneously kill Winkel's DNS, subnet router and your only route in. Cost: Brink becomes single-node for site infra. |
+| **D11** | 1Password is the vault; sops-nix stays the on-host delivery for boot-critical secrets | 1Password becomes the source of truth for everything a human touches, and for disaster recovery. But secrets a host needs *at boot* — k3s token, overlay keys — must decrypt **offline**. opnix fetches over the network from 1password.com; a host with a broken network config cannot fetch them, which is exactly the situation Phase 6 creates. See Phase 2b. |
 
 ---
 
@@ -160,9 +163,10 @@ Two things are deliberately *not* in the cluster:
 | 0 | Groundwork and inventory | read-only | address plan written, both repos tagged |
 | 1 | Backups | additive | Postgres restore rehearsed |
 | 2 | Overlay spike: Headscale vs NetBird | throwaway | comparison doc + decision |
+| 2b | Secret management with 1Password | additive | vault + service account live, split documented |
 | 3 | Overlay rollout and site-to-site | additive | unmodified client ↔ unmodified client, both directions |
 | 4 | DNS | additive | both sites resolve via local AdGuard, failover verified |
-| 5 | Pi relocation + brink-server bring-up | additive | both hosts on overlay, sops decrypts |
+| 5 | brink-server bring-up + pi relocation | additive | Winkel reachable without maxdata |
 | 6 | **maxdata: microVMs out** | ⚠️ **irreversible** | maxdata reachable, ZFS intact, 18 GB reclaimed |
 | 7 | Fresh cluster | destructive | 4 nodes Ready, etcd stable 24 h, full-MTU cross-site |
 | 8 | Storage and site affinity | — | every PVC pinned, every LB IP pinned |
@@ -521,7 +525,7 @@ That is a real cost, not a disqualification. Carry it into the scoring.
 | k3s integration | Tailscale has `--vpn-auth`; NetBird needs manual `--node-ip`/`--flannel-iface`/MTU | Inspection |
 | GUI | "I want a GUI where I see the connection setup" | Headplane (third-party) vs NetBird dashboard (first-party) |
 | Re-enrolment / key rotation | Rebuild ergonomics | Destroy and rejoin a node |
-| **Runs on UniFi OS?** | Would let the UDM SE be its own subnet router, removing both the missing-static-route problem and brink-server as a cross-site SPOF (see 3.0) | Install the UniFi OS Tailscale app; check whether it accepts a self-hosted control server URL. NetBird has no UniFi OS integration |
+| **Runs on UniFi OS?** | Would let the UDM SE be its own subnet router, removing both the missing-static-route problem and brink-server as a cross-site SPOF (see 3.2) | Install the UniFi OS Tailscale app; check whether it accepts a self-hosted control server URL. NetBird has no UniFi OS integration |
 
 ## 2.3 Fallback
 
@@ -537,6 +541,87 @@ use the same underlying NAT-traversal approach.
 
 ---
 
+# Phase 2b — Secret management with 1Password
+
+Numbered `2b` rather than renumbering everything downstream. It sits here because
+Phase 3 is where the first *new* secrets get created (overlay auth keys), and the
+policy should be settled before that.
+
+## 2b.1 The constraint that shapes the design
+
+1Password is the right vault. It is not automatically the right *delivery*
+mechanism, and the difference matters here.
+
+`opnix` (`github:brizzbuzz/opnix` — NixOS, nix-darwin and home-manager modules)
+authenticates with a **1Password service account token** at `/etc/opnix-token`
+and fetches secrets over the network from 1password.com. sops-nix instead
+decrypts a file already in the repo, using a key already on disk — **offline, no
+network, no external service.**
+
+Two consequences:
+
+1. **The bootstrap secret does not go away, it moves.** The service-account token
+   sits unencrypted at `/etc/opnix-token`, exactly as the sops age key does
+   today. Neither is worse; both must be placed out-of-band on a new host.
+2. **Reachability becomes a dependency.** A host that cannot reach the internet
+   cannot fetch its secrets. Phase 6 deliberately rebuilds maxdata's networking
+   remotely, and Phase 7 brings up k3s across a fresh overlay — the two moments
+   most likely to leave a host without a working network. If the k3s token can
+   only arrive over that network, a mistake becomes unrecoverable-without-console
+   rather than merely inconvenient.
+
+That is the whole argument for D11's split. It is not a rejection of 1Password.
+
+## 2b.2 The split
+
+| Secret | Home | Why |
+|---|---|---|
+| Pulumi passphrase + access token | **1Password** | The passphrase is the master key for all 16 Pulumi config secrets. Human-operated, never needed at boot. |
+| GitHub PAT, admin passwords, WiFi, recovery keys | **1Password** | Human-facing. |
+| `maxPassword` / `michaelPassword` / `annaPassword` (SMB) | **1Password** | Shared with actual humans. |
+| The sops **age private keys** and host SSH keys | **1Password** (copies) | Disaster recovery. Today, if a host's disk dies its age identity dies with it. |
+| k3s token | **sops-nix** | Needed at every `k3s.service` start. |
+| Overlay pre-auth / node keys | **sops-nix** | Needed to bring up the network itself. |
+| WireGuard keys (until Phase 13) | **sops-nix** | Currently unmanaged files under `/home/max/.wireguard/` — fixing that is already on the list. |
+| Non-boot-critical host secrets | **opnix**, optional | Convenience, once the pattern is proven. |
+
+Rule of thumb: **if the host needs it before the network is up, it decrypts
+offline.** Everything else can come from 1Password.
+
+## 2b.3 Work items
+
+1. Add `programs._1password` / `_1password-gui` (both in nixpkgs) to the Macs.
+2. **1Password SSH agent** on the Macs, replacing the loose `~/.ssh/id_ed25519`
+   handling that currently feeds `ssh-to-age` (`README.md:32-41`). Note the age
+   identities themselves still derive from SSH keys — verify the agent's keys can
+   still be exported for `ssh-to-age`, or keep a dedicated non-agent key for sops.
+3. Create a 1Password vault for the homelab, and a **service account** scoped to
+   it. Store the token out-of-band.
+4. Move the Pulumi passphrase and token from `secrets/common.yaml` into
+   1Password. This is the single highest-value item — the passphrase unlocks
+   everything in `Pulumi.default.yaml`.
+5. Import every host's age identity and SSH host key into 1Password.
+6. Add `opnix` as a flake input and adopt it for one non-critical secret on one
+   host as a trial, before relying on it.
+7. **Fix ionos's age key source** while here: it uses `/home/max/.ssh/id_ed25519`
+   (`hosts/nixos/ionos/default.nix:131`) instead of a host key. Currently
+   scheduled for Phase 13; it belongs in this phase.
+8. Consider a 1Password service account for the GitHub ARC runners in place of
+   the long-lived `githubPat`.
+
+## 2b.4 Exit criteria
+
+- [ ] Homelab vault and service account created; token stored out-of-band
+- [ ] Pulumi passphrase and token in 1Password; verified `pulumi config
+      --show-secrets` still works from a shell sourcing them
+- [ ] All host age identities backed up to 1Password
+- [ ] 1Password SSH agent working on the Macs without breaking `ssh-to-age`
+- [ ] opnix trialled on one non-critical secret
+- [ ] Documented which secrets are offline-decryptable and which are not — the
+      Phase 6 and 7 runbooks depend on knowing this
+
+---
+
 # Phase 3 — Overlay rollout and site-to-site
 
 Runs **alongside** the existing FritzBox↔ionos WireGuard tunnel. Nothing is torn
@@ -544,19 +629,60 @@ down until Phase 13.
 
 1. Control server on ionos, behind its own TLS (its own hostname under
    `mvissing.de`).
-2. Clients on brink-server, maxdata, pi, laptop, phone. Pre-auth keys in sops.
-3. Subnet routers: **brink-server** advertises `192.168.1.0/24`, **pi** advertises
-   `192.168.178.0/24`. Approve routes on the control server.
+2. Clients on maxdata, pi, laptop, phone. brink-server joins in Phase 5, when it
+   exists. Auth keys per Phase 2b.
+3. **Interim** subnet routers — see 3.1 for why these are not the final ones:
+   - **pi**, currently at Brink on `192.168.1.90`, advertises `192.168.1.0/24`
+   - **maxdata** advertises `192.168.178.0/24`
+   Approve both routes on the control server.
 4. Static routes on both routers — this is what makes unmodified clients
    reachable:
-   - UDM SE: `192.168.178.0/24` → brink-server's LAN IP
-   - FritzBox: `192.168.1.0/24` → pi's LAN IP — table confirmed present and
-     empty (Phase 0)
+   - UDM SE: `192.168.178.0/24` → maxdata's LAN IP `192.168.178.2`
+   - FritzBox: `192.168.1.0/24` → pi's current LAN IP `192.168.1.90`
+   Both tables confirmed present and configurable (Phase 0).
 5. ACL policy committed to git.
 6. GUI deployed (as a pod, per the layering rule — it talks to the control
    server over its API).
 
-## 3.0 Static routes — both sides confirmed
+## 3.1 Subnet routers are staged, and the pi's move has a deadline
+
+The final assignment is brink-server at Brink and the pi at Winkel (D10). Neither
+holds yet: brink-server does not exist until Phase 5, and the pi is still
+physically at Brink. So the roles are filled in two steps.
+
+| | Brink `192.168.1.0/24` | Winkel `192.168.178.0/24` |
+|---|---|---|
+| **Phase 3 (interim)** | pi, at Brink on `.90` | maxdata |
+| **Phase 5 (final)** | brink-server `192.168.1.2` | pi, at Winkel on `192.168.178.3` |
+
+This works because the pi happens to be on the Brink segment right now, and
+maxdata is permanently on the Winkel one. Each static route is rewritten once, in
+Phase 5, and only after the replacement has been verified — so there is no window
+without a route.
+
+**The move is not urgent, but it is not optional either. Deadline: before
+Phase 6.** That is the phase that rebuilds maxdata's networking remotely, and
+D10's entire argument is that a second, independent way into Winkel must exist
+first. If maxdata is *also* the Winkel subnet router at that moment, a bad
+network generation takes out the box and your route to it simultaneously.
+
+Sequence within Phase 5, to avoid a coverage gap:
+
+1. Build brink-server at Brink, join the overlay, verify it as subnet router.
+2. Repoint the UDM SE static route at `192.168.1.2`.
+3. Only then move the pi. Brink is covered by brink-server; Winkel is still
+   covered by maxdata throughout.
+4. Bring the pi up at `192.168.178.3`, verify, repoint the FritzBox route.
+5. Withdraw maxdata's route advertisement.
+
+Everything on the pi except its *physical location* can be done at Brink
+beforehand: re-image, NixOS config, overlay enrolment, sops/1Password host
+enrolment, AdGuard, the k3s agent module. Only three things need it to be at
+Winkel — the static `192.168.178.3`, advertising the Winkel subnet, and serving
+DNS to Winkel clients. Configure those declaratively before the move and they
+take effect when it lands.
+
+## 3.2 Static routes — both sides confirmed
 
 Phase 0 verified both routers expose a configurable static-route table, so the
 "unmodified client reaches the other site" requirement has a mechanism at both
@@ -568,7 +694,7 @@ be the subnet router itself — which removes brink-server as a single point of
 failure for cross-site routing at Brink, and is strictly better than a static
 route pointing at one host. NetBird has no UniFi OS integration.
 
-## 3.1 Replacing the FritzBox VPN
+## 3.3 Replacing the FritzBox VPN
 
 The FritzBox is currently the **WireGuard server** for the whole estate. It
 allocates each peer a `/32` from the LAN subnet starting at `192.168.178.201` —
@@ -592,7 +718,7 @@ address at all.
 Retiring it in Phase 13 also frees `192.168.178.201+`, removing any chance of the
 peer allocation growing into the `.240–.250` MetalLB pool.
 
-## 3.2 Exit criteria
+## 3.4 Exit criteria
 
 - [ ] Unmodified Brink client reaches unmodified Winkel client, and vice versa
 - [ ] Phone off-net reaches both sites
@@ -636,59 +762,80 @@ The in-cluster AdGuard (`apps/adguard.ts`) is deleted in Phase 8.
 
 ---
 
-# Phase 5 — Pi relocation and brink-server bring-up
+# Phase 5 — brink-server bring-up and pi relocation
 
-## 5.1 Pi
+**Order matters.** brink-server is built first so it can take over the Brink
+subnet-router role before the pi leaves; the pi is only then moved. See 3.1 for
+why, and for the hard deadline (before Phase 6).
 
-Current state (Phase 0): the pi is at **Brink**, `192.168.1.90` via DHCP, up 27
-days, with `home-assistant` and `matter-server` both active.
+## 5.1 brink-server
 
-1. Back up `/var/lib/hass` (312 M) before re-imaging — even though the HA
-   instance is being discarded, it is cheap insurance and the only copy exists on
-   that disk.
-2. Physically move the pi to Winkel and give it the static `192.168.178.3`,
-   verified free.
-3. **Do not verify the move by mDNS.** maxdata's Avahi still serves a stale
-   `k3s-pi.local → 192.168.178.118` from when the pi last lived at Winkel, long
-   enough ago that even the ARP entry has expired. Confirm by SSH and MAC
-   (`dc:a6:32:22:a2:a1`), and flush the cache afterwards.
-4. Re-image. **Carry forward the USB-SATA quirk:**
-   `boot.kernelParams = ["usb-storage.quirks=174c:55aa:u"]`
-   (`hosts/nixos/k3s-pi/hardware-configuration.nix:10`, duplicated at
-   `flake.nix:128`). Omit it and the ASM1153 bridge corrupts the root filesystem
-   under sustained write load, e.g. a kernel rebuild.
-5. Rename the host. `k3s-pi` is a leftover from an era when it was a k3s node,
-   and its `hostId = "03030303"` collides in form with node3's derived ID.
-   Suggested: `pi-winkel` or `anchor-winkel`, matching the site naming above.
-6. Remove `services.home-assistant` and `services.matter-server`
-   (`hosts/nixos/k3s-pi/default.nix:65-101`) — HA moves to brink-server.
-7. Add: overlay client + subnet router, AdGuard, sops with a **host** key at
-   `/etc/ssh/ssh_host_ed25519_key`, k3s agent module.
-8. Enrol the new host key in `.sops.yaml`; `sops updatekeys` both secret files.
-
-## 5.2 brink-server
-
-Bare-metal NixOS install, done by hand.
+Bare-metal NixOS install, done by hand, at Brink.
 
 - Single 1 TB NVMe. ZFS single-vdev — no redundancy, but gains snapshots,
   compression and tooling parity with maxdata. Backed up to maxdata's `tank` in
   Phase 11, which is what makes the lack of redundancy acceptable.
 - `hosts/nixos/brink-server/` with `hardware-configuration.nix` from
   `nixos-generate-config`.
+- Static `192.168.1.2` (verified free in Phase 0).
 - Overlay client + subnet router for `192.168.1.0/24`.
 - AdGuard.
-- sops host-key enrolment; add to `.sops.yaml`; `sops updatekeys`.
+- Secret enrolment per Phase 2b: sops host key, `.sops.yaml`, `sops updatekeys`,
+  and the 1Password service-account token if opnix is adopted.
 - k3s server module (not enabled until Phase 7).
 
 The install procedure in `docs/Migrate_Maxdata.md:136-207` is reusable for the
 ZFS and `nixos-install` steps.
 
+Then: repoint the UDM SE static route for `192.168.178.0/24` from the pi's
+`192.168.1.90` to brink-server's `192.168.1.2`, and verify cross-site reachability
+still holds **before** touching the pi.
+
+## 5.2 Pi
+
+Current state (Phase 0): at **Brink**, `192.168.1.90` via DHCP, up 27 days, with
+`home-assistant` and `matter-server` both active, `/var/lib/hass` at 312 M.
+
+Steps 1–5 can all be done **at Brink, before the physical move**. Only the static
+`192.168.178.3`, the Winkel subnet advertisement and serving DNS to Winkel
+clients require it to be in place — declare them anyway and they take effect on
+arrival.
+
+1. Back up `/var/lib/hass` (312 M) before re-imaging — even though the HA
+   instance is being discarded, it is cheap insurance and the only copy exists on
+   that disk.
+2. Re-image. **Carry forward the USB-SATA quirk:**
+   `boot.kernelParams = ["usb-storage.quirks=174c:55aa:u"]`
+   (`hosts/nixos/k3s-pi/hardware-configuration.nix:10`, duplicated at
+   `flake.nix:128`). Omit it and the ASM1153 bridge corrupts the root filesystem
+   under sustained write load, e.g. a kernel rebuild.
+3. Rename the host. `k3s-pi` is a leftover from an era when it was a k3s node,
+   and its `hostId = "03030303"` collides in form with node3's derived ID.
+   Suggested: `pi-winkel` or `anchor-winkel`, matching the site naming above.
+4. Remove `services.home-assistant` and `services.matter-server`
+   (`hosts/nixos/k3s-pi/default.nix:65-101`) — HA moves to brink-server.
+5. Add: overlay client + subnet router, AdGuard, secret enrolment per Phase 2b
+   with a **host** key at `/etc/ssh/ssh_host_ed25519_key`, k3s agent module.
+   Enrol the new host key in `.sops.yaml`; `sops updatekeys` both secret files.
+6. **Physically move to Winkel**, static `192.168.178.3` (verified free).
+7. **Do not verify the move by mDNS.** maxdata's Avahi still serves a stale
+   `k3s-pi.local → 192.168.178.118` from when the pi last lived at Winkel, long
+   enough ago that even the ARP entry has expired. Confirm by SSH and MAC
+   (`dc:a6:32:22:a2:a1`), and flush the cache afterwards.
+8. Repoint the FritzBox static route for `192.168.1.0/24` at `192.168.178.3`,
+   then withdraw maxdata's route advertisement.
+
 ## 5.3 Exit criteria
 
-- [ ] Pi at Winkel, reachable over the overlay, advertising `192.168.178.0/24`
-- [ ] brink-server at Brink, reachable over the overlay, advertising `192.168.1.0/24`
-- [ ] sops decrypts on both hosts
+- [ ] brink-server at Brink on `192.168.1.2`, advertising `192.168.1.0/24`
+- [ ] UDM SE static route repointed at brink-server; cross-site still verified
+- [ ] Pi at Winkel on `192.168.178.3`, advertising `192.168.178.0/24`
+- [ ] FritzBox static route repointed at the pi; maxdata's advertisement withdrawn
+- [ ] Secrets decrypt on both hosts
 - [ ] AdGuard serving at both sites (Phase 4 exit criteria still met)
+- [ ] **Winkel is reachable without maxdata** — the precondition for Phase 6.
+      Verify by stopping maxdata's overlay client and confirming you can still
+      reach the Winkel LAN through the pi
 
 ---
 
@@ -1067,12 +1214,12 @@ Add:
    - The boot-ordering workaround at `:143-147`, which exists only because the
      peer endpoint is a MyFRITZ! DDNS name.
    - **All** FritzBox VPN connections under Internet → Freigaben → VPN
-     (WireGuard), once Phase 3.1 has confirmed an overlay equivalent for each.
+     (WireGuard), once Phase 3.3 has confirmed an overlay equivalent for each.
      This frees `192.168.178.201+`.
 
    Do this only after the overlay has run alongside it long enough to trust —
    it is the last remaining way into Winkel if the overlay fails.
-2. Standardise ionos's sops age key onto a **host** key
+2. (Moved to Phase 2b) Standardise ionos's sops age key onto a **host** key
    (`/etc/ssh/ssh_host_ed25519_key`) instead of `/home/max/.ssh/id_ed25519`
    (`:131`).
 3. Delete `docs/proxmox/` (describes a Proxmox-on-NixOS design that no longer
