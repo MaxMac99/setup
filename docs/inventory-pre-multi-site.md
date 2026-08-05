@@ -329,23 +329,120 @@ paperless       31 MB
 
 ---
 
-## 5. Still to capture — router state
+## 5. Router state
 
-Not obtainable from the shell; needs the two web UIs.
+Captured 2026-08-05 from the two web UIs. Both are reachable from Brink — the
+FritzBox and the UniFi controller answer over `wg0` via ionos, so nothing here
+required travelling to Winkel.
 
 **UDM SE (Brink, `192.168.1.1`)**
 
-- [ ] Current DHCP pool (default `192.168.1.6–192.168.1.254`) — must shrink to
-      free `192.168.1.240–250` for MetalLB
-- [ ] Existing static reservations
-- [ ] Whether static routes are configurable (needed: `192.168.178.0/24` → brink-server)
+| Item | Value |
+|---|---|
+| DHCP pool | was `192.168.1.6–.254` ("Auto") → **shrunk to `.6–.199`** ✅ |
+| Static routes | present and configurable ✅ |
+| Fixed IP reservations | none |
+| Laptop | `192.168.1.93`, gateway `192.168.1.1` |
+
+Start was deliberately left at `.6` so existing leases survive; only the top was
+shrunk. That frees `.200–.254` for the `.240–.250` MetalLB pool and leaves
+`.2–.5` static for brink-server.
+
+⚠️ **Seven clients hold leases above `.199`** — `.200`, `.212`, `.225`, `.231`,
+`.233`, `.244`, `.253`. None have fixed IPs, so they will move into `.6–.199` on
+renewal, but existing leases stay valid until they expire (UniFi default 24 h).
+`.244` sits inside the planned MetalLB pool.
+
+**Pre-check before Phase 8:** confirm `.240–.250` is empty before defining the
+Brink MetalLB pool. Either wait out the lease time or forget the leases in the
+UniFi UI.
 
 **FritzBox (Winkel, `192.168.178.1`)**
 
-- [ ] Current DHCP pool — must shrink to free `192.168.178.240–250`
-- [ ] Existing static reservations (note `.2` maxdata, `.5/.6/.7` microVMs,
-      `.10–.15` MetalLB in use today)
-- [ ] Static route support (needed: `192.168.1.0/24` → pi)
-- [ ] Current WAN IPv6 prefix — **record only, never depend on it** (D2)
+| Item | Value |
+|---|---|
+| DHCP pool | `192.168.178.20–192.168.178.200` — no change needed |
+| Static routes | table exists, currently **empty** — confirmed configurable |
+| WAN IPv6 prefix | `2a00:6020:b481:e300::/56` (recorded 2026-08-05) |
+| VPN peers | `192.168.178.201/32` (ionos), `.202`, … — see below |
+| Fixed IP reservations | not located in FRITZ!OS 8.x UI; see below |
 
-Laptop confirmed at Brink: `192.168.1.93`, gateway `192.168.1.1`.
+**No DHCP change needed.** The pool already stops at `.200`, so `.240–.250` is
+free, and `.2`/`.3`/`.5`/`.6`/`.7` plus ionos's `.201` all sit outside it.
+
+Confirms Deutsche Glasfaser delegates a **/56**. Per D2 nothing may depend on
+this prefix — it is recorded as a datapoint for the Phase 2 spike, where the
+question is whether the overlay can hold a direct site-to-site path across a
+prefix change.
+
+⚠️ **Latent conflict at Winkel today:** the live MetalLB pool is
+`192.168.178.10–20` and DHCP starts at `.20`. They overlap on exactly one
+address. Nothing has collided, but it is a further argument for D5.
+
+### The FritzBox is the estate's WireGuard server
+
+Not previously recorded anywhere. Under **Internet → Freigaben → VPN
+(WireGuard)** the FritzBox terminates inbound WireGuard and hands each peer a
+`/32` out of the LAN subnet, counting up from `192.168.178.201`:
+
+- `.201` — ionos (matches `hosts/nixos/ionos/default.nix:95`)
+- `.202`, `.203`, … — remote-access clients
+
+So the repo's picture was incomplete: ionos is not a special case, it is one peer
+of a general VPN service, and every other peer is a remote-access use case the
+overlay has to replace. Enumerating them is a Phase 3 task.
+
+Two consequences:
+
+1. **The direction is wrong for a DS-Lite estate.** Inbound reachability depends
+   on MyFRITZ! DDNS plus a prefix that is not guaranteed stable — the boot-order
+   hack at `hosts/nixos/ionos/default.nix:143-147` is the symptom. The overlay
+   inverts this: both sites dial out to ionos's fixed address.
+2. **Peer allocation grows toward the MetalLB pool.** `.201` upward vs
+   `.240–.250`. ~40 peers away, so not urgent, but retiring the FritzBox VPN in
+   Phase 13 removes the question.
+
+### Address availability — verified on the wire
+
+The FRITZ!OS 8.x reservation list could not be opened in the UI, so this was
+answered directly instead: ARP probes from maxdata at Winkel, ICMP from the
+laptop at Brink. More reliable than the UI anyway, since it reports what is
+actually live rather than what is configured.
+
+| Address | Site | State | For |
+|---|---|---|---|
+| `192.168.178.3` | winkel | **free** — no ARP reply, no ICMP | k3s-pi after relocation |
+| `192.168.178.240–250` | winkel | **free** — all ARP INCOMPLETE | MetalLB pool |
+| `192.168.1.2` | brink | **free** | brink-server |
+| `192.168.1.240–250` | brink | **free** — no ICMP reply | MetalLB pool |
+
+Live hosts on the Winkel LAN: `.1` FritzBox, `.5/.6/.7` microVMs, `.201`
+(WireGuard peer, answered by the FritzBox's own MAC), plus ~11 DHCP clients in
+`.45–.170`. `.11` (loki-external) does not answer — the cluster is degraded.
+
+### ⚠️ Stale mDNS and ARP residue at Winkel
+
+`k3s-pi.local` still resolves to `192.168.178.118` from maxdata's Avahi cache,
+and a stale ARP entry for the pi's MAC (`dc:a6:32:…`, Raspberry Pi Trading)
+lingers. **Both are wrong.** The pi is at Brink:
+
+```
+k3s-pi   192.168.1.90/24 on end0 (DHCP)   up 27 days
+         home-assistant: active   matter-server: active
+         /var/lib/hass: 312 M
+```
+
+This nearly produced a false conclusion — that the pi had never left Winkel and
+Phase 5's relocation was a no-op. It has left; the records are residue.
+
+Two consequences:
+
+1. **Phase 5.1's physical move is still required.** The pi is at Brink today and
+   has to go to Winkel per D10.
+2. **Do not trust mDNS for identity during Phase 5.** After the move, flush
+   Avahi caches or verify by SSH and MAC, not by `.local` name. maxdata held a
+   wrong record for a pi that had been gone long enough for the ARP entry to
+   expire.
+
+The Home Assistant state to back up before re-imaging is 312 M — cheap insurance
+even though the instance is being discarded.

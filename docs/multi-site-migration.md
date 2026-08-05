@@ -46,10 +46,16 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | Cross-site RTT / jitter | *pending* | Phase 2 → feeds D4 etcd tuning |
 | Overlay path (direct vs relayed) | *pending* | Phase 2 |
 | Overlay MTU → flannel MTU | *pending* | Phase 2 → D3 |
-| Brink DHCP range (post-shrink) | *pending* | UDM SE |
-| Winkel DHCP range (post-shrink) | *pending* | FritzBox |
+| Brink DHCP range | `192.168.1.6-.199` — shrink from auto `.6-.254` | UDM SE, 2026-08-05 |
+| Winkel DHCP range | `192.168.178.20-.200` — already clear, no change | FritzBox, 2026-08-05 |
 | Overlay IPs per host | *pending* | Phase 3 → `networkConfig.hosts.*.overlayIPv4` |
 | ionos → home RTT (existing wg0) | ~13 ms | Phase 0, `ping` from ionos |
+| Winkel WAN IPv6 prefix | `2a00:6020:b481:e300::/56` — record only, never depend on it (D2) | FritzBox, 2026-08-05 |
+| UDM SE static routes | present and configurable — Phase 3 unblocked | UDM SE, 2026-08-05 |
+| FritzBox static routes | table present, empty, configurable | FritzBox, 2026-08-05 |
+| Address availability | `192.168.178.3`, `.240-.250`, `192.168.1.2`, `192.168.1.240-.250` all free — verified on the wire | Phase 0, 2026-08-05 |
+| k3s-pi current location | Brink, `192.168.1.90` (DHCP) — must still move to Winkel | Phase 0, 2026-08-05 |
+| FritzBox VPN peers | `192.168.178.201/32`, `.202`, … — FritzBox is the WireGuard *server* today | FritzBox, 2026-08-05 |
 | Effective ionos↔home throughput | ~3 MB/s | Phase 0, scp over wg0 |
 | Winkel MetalLB pool | `192.168.178.240-250` | Phase 0 address plan |
 | Brink MetalLB pool | `192.168.1.240-250` | Phase 0 address plan |
@@ -62,7 +68,7 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 
 | Host           | Site       | Network              | Router | Role |
 |----------------|------------|----------------------|--------|------|
-| `brink-server` | **brink-server**  | `192.168.1.0/24`     | UDM SE | k3s **server** (etcd) · site DNS · subnet router · Home Assistant · user-facing workloads |
+| `brink-server` | **brink**  | `192.168.1.0/24`     | UDM SE | k3s **server** (etcd) · site DNS · subnet router · Home Assistant · user-facing workloads |
 | `maxdata`      | **winkel** | `192.168.178.0/24`   | FritzBox | k3s **server** (etcd) · ZFS · NFS/SMB · Paperless · UniFi · Time Machine |
 | `k3s-pi`       | **winkel** | `192.168.178.0/24`   | FritzBox | k3s **agent** · site DNS · subnet router · out-of-band anchor |
 | `ionos`        | public     | fixed IPv4 + IPv6    | —      | k3s **server** (etcd) · overlay control server · public edge |
@@ -246,12 +252,27 @@ options.networkConfig = {
 };
 ```
 
-Draft allocation (finalize against the DHCP ranges captured in 0.1):
+Final allocation, reconciled against the live router config on 2026-08-05:
 
-| Site | Subnet | Gateway | DHCP (shrink to) | MetalLB pool | AdGuard |
-|------|--------|---------|------------------|--------------|---------|
-| brink | `192.168.1.0/24` | `.1` | `.100–.199` | `.240–.250` | brink-server, `.2` |
-| winkel | `192.168.178.0/24` | `.1` | `.100–.199` | `.240–.250` | pi, `.3` |
+| Site | Subnet | Gateway | DHCP | MetalLB pool | AdGuard |
+|------|--------|---------|------|--------------|---------|
+| brink | `192.168.1.0/24` | `.1` | `.6–.199` — **shrink** from auto `.6–.254` | `.240–.250` | brink-server, `.2` |
+| winkel | `192.168.178.0/24` | `.1` | `.20–.200` — **no change needed** | `.240–.250` | pi, `.3` |
+
+Two notes from that reconciliation:
+
+- **The FritzBox needs no DHCP change.** Its pool already stops at `.200`, so
+  `.240–.250` is clear, `.2/.3/.5/.6/.7` are clear, and ionos's `wg0` address
+  `.201` sits just outside. Only the UDM SE has to move, because its "auto" range
+  claims everything up to `.254`.
+- **Latent one-address conflict at winkel today:** the current MetalLB pool is
+  `.10–.20` and the DHCP pool starts at `.20`. They overlap on exactly one
+  address. Nothing has collided yet, but it is another argument for D5's move to
+  `.240–.250`.
+
+Keeping the UDM SE's DHCP *start* at `.6` rather than moving it to `.100` is
+deliberate: existing leases in `.6–.99` survive (the laptop is at `.93`), and the
+static space `.2–.5` is still free for brink-server.
 
 Static host addresses:
 
@@ -500,6 +521,7 @@ That is a real cost, not a disqualification. Carry it into the scoring.
 | k3s integration | Tailscale has `--vpn-auth`; NetBird needs manual `--node-ip`/`--flannel-iface`/MTU | Inspection |
 | GUI | "I want a GUI where I see the connection setup" | Headplane (third-party) vs NetBird dashboard (first-party) |
 | Re-enrolment / key rotation | Rebuild ergonomics | Destroy and rejoin a node |
+| **Runs on UniFi OS?** | Would let the UDM SE be its own subnet router, removing both the missing-static-route problem and brink-server as a cross-site SPOF (see 3.0) | Install the UniFi OS Tailscale app; check whether it accepts a self-hosted control server URL. NetBird has no UniFi OS integration |
 
 ## 2.3 Fallback
 
@@ -528,18 +550,58 @@ down until Phase 13.
 4. Static routes on both routers — this is what makes unmodified clients
    reachable:
    - UDM SE: `192.168.178.0/24` → brink-server's LAN IP
-   - FritzBox: `192.168.1.0/24` → pi's LAN IP
+   - FritzBox: `192.168.1.0/24` → pi's LAN IP — table confirmed present and
+     empty (Phase 0)
 5. ACL policy committed to git.
 6. GUI deployed (as a pod, per the layering rule — it talks to the control
    server over its API).
 
-## 3.1 Exit criteria
+## 3.0 Static routes — both sides confirmed
+
+Phase 0 verified both routers expose a configurable static-route table, so the
+"unmodified client reaches the other site" requirement has a mechanism at both
+ends. No contingency needed.
+
+Still worth evaluating in Phase 2: **UniFi OS ships a first-party Tailscale app**
+for the UDM/UDR line. If it accepts a self-hosted Headscale URL, the UDM SE can
+be the subnet router itself — which removes brink-server as a single point of
+failure for cross-site routing at Brink, and is strictly better than a static
+route pointing at one host. NetBird has no UniFi OS integration.
+
+## 3.1 Replacing the FritzBox VPN
+
+The FritzBox is currently the **WireGuard server** for the whole estate. It
+allocates each peer a `/32` from the LAN subnet starting at `192.168.178.201` —
+`.201` is ionos (`hosts/nixos/ionos/default.nix:95`), with further peers at
+`.202`, `.203`, … for remote-access clients. Configured under
+**Internet → Freigaben → VPN (WireGuard)**.
+
+Every one of those peers is a remote-access use case the overlay must replace, so
+before rolling out:
+
+- [ ] Enumerate the existing FritzBox VPN connections. Each is a person or device
+      that needs an overlay client in step 2 above.
+
+This inversion is the main structural win of the phase. Today the tunnel depends
+on MyFRITZ! DDNS resolving and on the FritzBox holding a prefix that Phase 0
+confirmed is *not* guaranteed stable (`2a00:6020:b481:e300::/56`, D2) — hence the
+boot-ordering hack at `hosts/nixos/ionos/default.nix:143-147`. Afterwards both
+sites dial **out** to ionos's fixed address, and no site needs a stable inbound
+address at all.
+
+Retiring it in Phase 13 also frees `192.168.178.201+`, removing any chance of the
+peer allocation growing into the `.240–.250` MetalLB pool.
+
+## 3.2 Exit criteria
 
 - [ ] Unmodified Brink client reaches unmodified Winkel client, and vice versa
 - [ ] Phone off-net reaches both sites
 - [ ] Path characterised as direct or relayed; RTT recorded
 - [ ] GUI reachable and shows all peers
 - [ ] Control server config and ACLs committed
+- [ ] Every existing FritzBox VPN peer has an equivalent overlay client, verified
+      working — the FritzBox tunnel is not retired until Phase 13, so this is
+      reversible
 
 ---
 
@@ -578,22 +640,31 @@ The in-cluster AdGuard (`apps/adguard.ts`) is deleted in Phase 8.
 
 ## 5.1 Pi
 
-1. Back up `/var/lib/hass` before re-imaging — even though the HA instance is
-   being discarded, it is cheap insurance and the only copy exists on that disk.
-2. Physically move the pi to Winkel.
-3. Re-image. **Carry forward the USB-SATA quirk:**
+Current state (Phase 0): the pi is at **Brink**, `192.168.1.90` via DHCP, up 27
+days, with `home-assistant` and `matter-server` both active.
+
+1. Back up `/var/lib/hass` (312 M) before re-imaging — even though the HA
+   instance is being discarded, it is cheap insurance and the only copy exists on
+   that disk.
+2. Physically move the pi to Winkel and give it the static `192.168.178.3`,
+   verified free.
+3. **Do not verify the move by mDNS.** maxdata's Avahi still serves a stale
+   `k3s-pi.local → 192.168.178.118` from when the pi last lived at Winkel, long
+   enough ago that even the ARP entry has expired. Confirm by SSH and MAC
+   (`dc:a6:32:22:a2:a1`), and flush the cache afterwards.
+4. Re-image. **Carry forward the USB-SATA quirk:**
    `boot.kernelParams = ["usb-storage.quirks=174c:55aa:u"]`
    (`hosts/nixos/k3s-pi/hardware-configuration.nix:10`, duplicated at
    `flake.nix:128`). Omit it and the ASM1153 bridge corrupts the root filesystem
    under sustained write load, e.g. a kernel rebuild.
-4. Rename the host. `k3s-pi` is a leftover from an era when it was a k3s node,
+5. Rename the host. `k3s-pi` is a leftover from an era when it was a k3s node,
    and its `hostId = "03030303"` collides in form with node3's derived ID.
-   Suggested: `pi-b` or `anchor-b`.
-5. Remove `services.home-assistant` and `services.matter-server`
+   Suggested: `pi-winkel` or `anchor-winkel`, matching the site naming above.
+6. Remove `services.home-assistant` and `services.matter-server`
    (`hosts/nixos/k3s-pi/default.nix:65-101`) — HA moves to brink-server.
-6. Add: overlay client + subnet router, AdGuard, sops with a **host** key at
+7. Add: overlay client + subnet router, AdGuard, sops with a **host** key at
    `/etc/ssh/ssh_host_ed25519_key`, k3s agent module.
-7. Enrol the new host key in `.sops.yaml`; `sops updatekeys` both secret files.
+8. Enrol the new host key in `.sops.yaml`; `sops updatekeys` both secret files.
 
 ## 5.2 brink-server
 
@@ -769,6 +840,13 @@ Two `IPAddressPool`s with `L2Advertisement` node selectors:
 - Brink: `192.168.1.240-250`, advertised by brink-server (and pi if it were there)
 - Winkel: `192.168.178.240-250`, advertised by maxdata and pi
 
+**Pre-check:** confirm `192.168.1.240-250` is actually free before defining the
+Brink pool. Phase 0 found seven DHCP clients above `.199` (`.200`, `.212`, `.225`,
+`.231`, `.233`, `.244`, `.253`) — `.244` is inside the pool. The UDM SE range was
+shrunk to `.6–.199`, so they migrate out on lease renewal, but old leases stay
+valid until they expire. Either wait out the lease time or forget the leases in
+the UniFi UI.
+
 **Pin every LoadBalancer IP.** Current live assignments, captured in Phase 0:
 
 | Now | Service | Pinned? |
@@ -802,8 +880,8 @@ assumption at `databases/postgresql.ts:291`.
 | Paperless (media + data + consume) | winkel — maxdata | NFS 300 Gi + local-path |
 | UniFi (`unifi-data`, `unifi-mongo`) | winkel — maxdata | local-path; amd64 + privileged already |
 | Time Machine | winkel — maxdata | NFS 3 Ti; hostNetwork, amd64 |
-| Home Assistant | brink-server — brink-server | brink-server local NVMe |
-| Mosquitto | brink-server — brink-server | brink-server local NVMe |
+| Home Assistant | brink — brink-server | brink-server local NVMe |
+| Mosquitto | brink — brink-server | brink-server local NVMe |
 | Redis | winkel — maxdata | local-path (regenerable) |
 | Monitoring (Prometheus/Loki/Tempo) | winkel — maxdata | local-path, large PVCs |
 | Authentik | winkel — maxdata | local-path media 5 Gi |
@@ -981,11 +1059,19 @@ Add:
 
 # Phase 13 — Cleanup
 
-1. Retire the FritzBox↔ionos WireGuard tunnel
-   (`hosts/nixos/ionos/default.nix:93-109`) and the unmanaged key files at
-   `/home/max/.wireguard/private_key` and `preshared_key`, which currently make
-   ionos non-reproducible from the flake. Remove the boot-ordering workaround at
-   `:143-147`.
+1. Retire the FritzBox WireGuard server entirely — not just the ionos tunnel.
+   That means:
+   - ionos's `wg0` peer block (`hosts/nixos/ionos/default.nix:93-109`) and the
+     unmanaged key files at `/home/max/.wireguard/private_key` and
+     `preshared_key`, which currently make ionos non-reproducible from the flake.
+   - The boot-ordering workaround at `:143-147`, which exists only because the
+     peer endpoint is a MyFRITZ! DDNS name.
+   - **All** FritzBox VPN connections under Internet → Freigaben → VPN
+     (WireGuard), once Phase 3.1 has confirmed an overlay equivalent for each.
+     This frees `192.168.178.201+`.
+
+   Do this only after the overlay has run alongside it long enough to trust —
+   it is the last remaining way into Winkel if the overlay fails.
 2. Standardise ionos's sops age key onto a **host** key
    (`/etc/ssh/ssh_host_ed25519_key`) instead of `/home/max/.ssh/id_ed25519`
    (`:131`).

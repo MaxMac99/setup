@@ -119,7 +119,7 @@ in {
           dnsServers = ["192.168.1.1" "1.1.1.1"];
           metallbPool = "192.168.1.240-192.168.1.250";
           ingressVIP = "192.168.1.240";
-          dhcpRange = "192.168.1.100-192.168.1.199";
+          dhcpRange = "192.168.1.6-192.168.1.199"; # after shrinking from auto (.6-.254)
         };
         winkel = {
           description = "Nina-Winkel-Straße, Borken — parents' house";
@@ -129,7 +129,7 @@ in {
           dnsServers = ["192.168.178.1" "1.1.1.1"];
           metallbPool = "192.168.178.240-192.168.178.250";
           ingressVIP = "192.168.178.240";
-          dhcpRange = "192.168.178.100-192.168.178.199";
+          dhcpRange = "192.168.178.20-192.168.178.200"; # as-is, no change needed
         };
       };
     };
