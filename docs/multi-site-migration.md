@@ -28,7 +28,7 @@ One session per phase. Read this section first, update it last.
 | 3 | Overlay rollout | ✅ done | 2026-08-06 | **Headscale v0.29.3 on ionos**, dual-stack 443, LE cert via HTTP-01 (no DNS credential), embedded DERP region 999. Five nodes; both subnet routes approved and serving. **Unmodified client ↔ unmodified client verified both ways**; path **direct over native IPv6**, overlay MTU **1280 measured exactly** → flannel **1230**. ionos now on a **host** age key, proven across a cold boot. Survives reboot of the control server *and* of a client. Two design errors found and fixed the hard way — see 3.6. Open: 24 h sampling **waived** (3.5), GUI deferred to Phase 10 |
 | 4 | DNS | ✅ done | 2026-08-06 | **AdGuard native on brink-server (`192.168.1.2`) and winkel-pi (`192.168.178.3`)**, one per site, from a shared `modules/system/site-dns.nix`. Split-horizon, MagicDNS forwarding, blocking and **failover all verified on the wire** at both sites. Nothing was restored from Phase 1 — the backup is a stock config (4.2). **Both routers cut over the same day** and real clients are on the new resolvers at both sites, over **both address families** — a Winkel client appears in the query log at `fd06:f10a:ebec:178:1806:…`, so per-client visibility survived (4.5). Three traps found the hard way — inert rewrites, a DNS-intercepting UDM SE, and clients preferring the RA-advertised IPv6 resolver, which is why each resolver has a **ULA** (4.4) |
 | 5 | brink-server + pi relocation | ✅ done | 2026-08-06 | **5.1 and 5.2 are both done.** brink-server installed at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled, decrypt proven on the box. Pi **renamed `k3s-pi` → `winkel-pi`**, `hostId` `03030303` → `7a943cc4`, on static `192.168.178.3`, sops host key wired and **decrypt proven on the box** — all verified after a reboot. Both self-update from GitHub over read-only deploy keys. Nothing Phase-5-owned remained; its last open criterion was **Phase 4's** AdGuard, closed the same day. **Phase 6 is now the next step, and the first irreversible one** |
-| 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
+| 6 | maxdata microVMs out | ✅ done | 2026-08-06 | ⚠️ **The irreversible step is taken.** All three microVMs destroyed and `/var/lib/microvms` deleted — **67 G**, gone. sops decrypt of `k3s.yaml` under maxdata's **host** key re-proven on the box *immediately* before deletion (`cc44af01…`, exit 0), which was the one check whose failure could not be undone. Deployed `build → dry-activate → dead-man → test → verify → boot → reboot`; **dry-activate showed networkd would only be *reloaded*, never restarted**, so 6.5's bridge hazard never fired and `20-vmbr0.netdev` was left byte-identical on purpose. maxdata moved off the deprecated `dns.servers` onto `sites.winkel` — the last host at either site not using its own site resolver — and the whole single-site model was deleted with the microVMs. 6.2's k3s-server/k3s-agent refactor was **deliberately not done** (see 6.2); ARC **deliberately not raised** (6.3). One real defect found and fixed: **systemd-resolved never re-elects** (see the decision log) |
 | 7 | Fresh cluster | not started | | |
 | 8 | Storage and site affinity | not started | | |
 | 9 | Ingress and certificates | not started | | |
@@ -72,6 +72,12 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | **AdGuard rate limiting disabled** | Default is 20 q/s bucketed by `ratelimit_subnet_len_ipv4 = 24` — i.e. the **whole /24 shares one bucket**, not each client. On a site resolver that is a self-inflicted outage waiting for a busy evening; AdGuard's own guidance permits disabling it when the server is not internet-facing, which holds under CGNAT | Phase 4, 2026-08-06 |
 | **DNS failover, measured** | AdGuard stopped → `example.com` still resolved in **37 ms** via the router (port unreachable gives immediate fallback, not a timeout). Blocking leaked (`doubleclick.net` → a real address) and split-horizon was lost, both as designed: **leaky, not absent**. Blocking returned immediately on restart | Phase 4, 2026-08-06 |
 | **`network-setup.service` does not exist on winkel-pi** | ⚠️ 6.5 is version-drifted. NixOS 26.05 splits scripted networking into per-interface units: the pi has **`network-addresses-end0.service`** plus `networking-scripted.target`, and no `network-setup.service` at all. Same failure class, different unit name — and `nixos-rebuild boot` + reboot sidesteps the live transition entirely, which is how the ULA was applied there | Phase 4, 2026-08-06 |
+| **`systemd-resolved` never re-elects its DNS server** | ⚠️ **The single most dangerous finding of this phase, because it is silent.** Measured on maxdata: `23:02:29.290` resolved switches to the global fallback (no link DNS yet) → `23:02:30.221` networkd configures `vmbr0` and hands it `[winkel-pi, FritzBox]` → `23:02:33.391` `vmbr0` **gains carrier, 3.2 s later**. resolved's first query to winkel-pi therefore cannot be answered, it rotates to the FritzBox, and **stays there for the life of the boot** — confirmed over six varied queries and a 60 s idle period. Nothing logs a complaint, and the FritzBox answers everything perfectly well, so the host looks healthy while `doubleclick.net` returns a real address and `*.mvissing.de` returns the **dead public ingress** instead of the site VIP. Blocking and split-horizon are both bypassed. `DNSSEC` was checked and ruled out (`no/unsupported`); reachability was ruled out (tcp/53 open, 2.4 ms when selected). Fixed with a `resolved-reelect-primary` oneshot ordered after `network-online.target` (reached at `23:02:35.338`, two seconds after carrier). ⚠️ **Only maxdata can hit this** — brink-server and winkel-pi *are* their sites' resolvers and point at themselves, so their primary is up as soon as their link is. Any future host pointing at a *remote* resolver with a fallback inherits it | Phase 6, 2026-08-06 |
+| **maxdata deployment source** | ✅ **verified, not assumed.** Deploys from **`/home/max/setup`**, a git clone tracking `origin/multi-site` — the **ionos** pattern, *not* the `/etc/nixos` clone that brink-server and winkel-pi use. ⚠️ **`/etc/nixos` on maxdata is a stale plain directory from Oct 2025** and is not the deployment source; editing it would change nothing. `root` already has `safe.directory = /home/max/setup` in `/root/.gitconfig`, so the ionos `safe.directory` trap does not bite here — still undeclared in the config, though. Update with `git fetch && git reset --hard origin/multi-site`, never `pull` (5.2) | Phase 6, 2026-08-06 |
+| **Disk reclaim is not immediate — snapshots hold the blocks** | Deleting `/var/lib/microvms` dropped `fast/root` **REFER 132 G → 65.1 G** at once, but pool `AVAIL` did **not** move: `USEDSNAP` is 268 G across **85** snapshots, and every snapshot older than the deletion still pins those blocks. Under sanoid's `production` template (`hourly 48, daily 30, monthly 6`) the bulk returns within 30 days and the tail out to 6 months. ⚠️ Two further traps: `df` immediately after `rm` still showed the **old** figure, because ZFS frees asynchronously — re-read it a minute later before concluding anything; and `zfs list` `USED` includes snapshots while `df` shows only `REFER`, so the two legitimately disagree by 268 G. No snapshots were destroyed to accelerate this: Phase 6 never touches the pools, and 402 G is free | Phase 6, 2026-08-06 |
+| **`tank/k8s/timemachine` is shadowed by a directory** | ⚠️ **Pre-existing, not caused by Phase 6 — but it means the 689 G of Time Machine data is not where it looks.** The *dataset* `tank/k8s/timemachine` holds **96 K** and has **never been mounted**; the 689 G lives in a plain directory of the same path inside the parent `tank/k8s` (692 G REFER), which is what NFS actually exports. Cause is exactly D13's argument against `mountpoint=legacy`: the child has no `fileSystems` entry in `hardware-configuration.nix`, so NixOS never mounts it and the parent's directory silently wins. Same shape as `tank/fast-backup/{k8s,vms}`, also legacy and also unmounted. Consequence: the Time Machine data inherits `tank/k8s`'s properties and **cannot be snapshotted or replicated independently**. It *is* covered by the recursive `tank@pre-multi-site`, so Phase 1's protection holds. Phases 8/11 own the fix | Phase 6, 2026-08-06 |
+| **ARC deliberately left at 8 GB** | 6.3 called for raising `zfs_arc_max` once the microVMs freed 18 GB. **Not done, by decision.** That 18 GB was a *fixed* reservation backing workloads that ran inside the guests, and the same workloads return as native pods from Phase 7 — spending it on ARC would only mean reclaiming it under memory pressure later, which ARC resists. It stays as k3s headroom: 8 GB ARC, ~23 GB for the OS and cluster. The three copies of the value (two in `default.nix`, one in `zfs.nix`) still agree; only the stale "18GB reserved for 3x 6GB microVMs" comment changed. **The exit criterion "ARC max raised and confirmed via `arc_summary`" is therefore withdrawn, not skipped** | Phase 6, 2026-08-06 |
+| **microVM RAM actually reclaimed** | `available` went **3.4 GB → 28 GB** across the phase (32 GB box). This is the "18 GB" the exit criteria mean — **RAM, not disk**; the 67 G of `/var/lib/microvms` is a separate reclaim with separate mechanics (above). Do not conflate them | Phase 6, 2026-08-06 |
 | ionos → home RTT (existing wg0) | ~13 ms | Phase 0, `ping` from ionos |
 | Winkel WAN IPv6 prefix | `2a00:6020:b481:e300::/56` — record only, never depend on it (D2) | FritzBox, 2026-08-05 |
 | UDM SE static routes | present and configurable — Phase 3 unblocked | UDM SE, 2026-08-05 |
@@ -212,7 +218,7 @@ Two things are deliberately *not* in the cluster:
 | 3 | Overlay rollout and site-to-site | additive | unmodified client ↔ unmodified client, both directions |
 | 4 | DNS | additive | both sites resolve via local AdGuard, failover verified |
 | 5 | brink-server bring-up + pi relocation | additive | Winkel reachable without maxdata |
-| 6 | **maxdata: microVMs out** | ⚠️ **irreversible** | maxdata reachable, ZFS intact, 18 GB reclaimed |
+| 6 | **maxdata: microVMs out** | ⚠️ **irreversible — taken 2026-08-06** | ✅ maxdata reachable, ZFS intact, 18 GB RAM reclaimed (ARC deliberately not raised) |
 | 7 | Fresh cluster | destructive | 4 nodes Ready, etcd stable 24 h, full-MTU cross-site |
 | 8 | Storage and site affinity | — | every PVC pinned, every LB IP pinned |
 | 9 | Ingress and certificates | — | wildcard issued, real client IPs in logs |
@@ -1659,6 +1665,22 @@ it. That reasoning turned out to be wrong in a useful way — Phase 3 wanted
 maxdata on the overlay, which needed a decryptable auth key, which needed
 exactly this.
 
+✅ **Re-confirmed 2026-08-06, immediately before 6.2 deleted the images**, which
+is what this section asked for and the one check whose failure is unrecoverable.
+Done on the box under an age key derived from `/etc/ssh/ssh_host_ed25519_key`
+(`age1ewxty…`), against **`origin/multi-site`** rather than maxdata's own clone —
+which was five commits stale at that moment, and would have proven the wrong
+file. `k3s.yaml → cc44af01…`, `common.yaml → ffbea925…`, exit 0.
+
+Afterwards, and only once the images were actually gone, `&k3s-node1/2/3` were
+removed from `.sops.yaml` and `sops updatekeys secrets/k3s.yaml` run (9 age
+recipients → 6). Their identities came from `/var/ssh/ssh_host_ed25519_key`,
+*inside* the deleted volumes, so they ceased to exist with the images. maxdata
+was then proven a **third** time against the re-keyed file — same plaintext
+hash. Ordering was deliberate: the fallback outlived the risk it existed for.
+The user-key recipients `&maxdata` and `&ionos` are **still there**; they are
+D11/2b.2 cleanup for Phase 13, not Phase 6.
+
 **Partly de-risked by Phase 2b (2026-08-05).** maxdata's existing
 `/home/max/.ssh/id_ed25519` derives `age1s44mfk…`, which is exactly the
 `&maxdata` recipient at `.sops.yaml:4`. So the key material is already present
@@ -1680,21 +1702,59 @@ Delete:
 Remove the two imports from `hosts/nixos/maxdata/default.nix:24-25`. **No flake
 edit needed** — `flake.nix:155-164` auto-discovers `hosts/nixos/*`.
 
-Refactor `modules/system/k3s-node.nix` into `modules/system/k3s-server.nix` and
-`modules/system/k3s-agent.nix`:
+✅ **Done 2026-08-06.** All of the above deleted, plus two things this list
+missed: the now-unused **`microvm` flake input** (and its three `flake.lock`
+entries), and the three `k3s-node*` **ssh aliases** in
+`modules/profiles/personal-ssh.nix`.
 
-- Strip the microVM block (lines 41-83) and the guest systemd-networkd config
-  (85-110).
-- Rewrite the local-path `nodePathMap` from `/mnt/k8s-fast/local-path-provisioner`
-  to `/fast/k8s/local-path-provisioner` (`k3s-node.nix:253`).
-- Parameterise node role, site zone label, and overlay node IP.
-- Re-enable the firewall (guests had `firewall.enable = false`,
-  `k3s-node.nix:90`).
+⚠️ **The k3s-node.nix refactor was deliberately NOT done. `k3s-node.nix` was
+deleted outright instead.**
+
+The original instruction was to split it into `modules/system/k3s-server.nix`
+and `modules/system/k3s-agent.nix`. That was reconsidered and dropped, because
+nothing would import either module until Phase 7, and Phase 7 knows things this
+phase does not: the flannel MTU (**1230**, D3), that `--node-ip` comes from
+`hosts.<x>.overlayIPv4`, the `topology.kubernetes.io/zone` labels, and whether
+`--vpn-auth` replaces the hand-rolled flags. Writing them here would leave two
+speculative, unimported, untested modules in the tree carrying guesses at all
+four. Phase 7 writes them fresh against real requirements.
+
+`modules/system/k3s-base.nix` **stays** — ionos imports it
+(`hosts/nixos/ionos/default.nix:11`) and it is not microVM-specific.
+
+The four bullets above are therefore **inherited by Phase 7**, not lost. In
+particular the `nodePathMap` rewrite from `/mnt/k8s-fast/local-path-provisioner`
+to `/fast/k8s/local-path-provisioner` still has to happen: the virtiofs mount it
+named no longer exists, while the data it pointed at is intact on ZFS
+(`/fast/k8s/local-path-provisioner`, **58 G**, untouched by this phase).
+
+⚠️ **Dangling reference left on purpose.** `hosts/nixos/ionos/default.nix:130`
+still reads `serverAddr = "https://192.168.178.5:6443"` — k3s-node1, which no
+longer exists. ionos's k3s agent has been unable to reach a control plane since
+this phase. It was left alone because there is no correct value until Phase 7
+and changing it means a build on ionos, which cannot be started casually
+(see the ionos build-capacity note).
 
 ## 6.3 Reclaim resources
 
-18 GB RAM and 6 vCPU are freed. Raise `zfs_arc_max`, which is duplicated in
-**three** places and must be changed in all of them:
+✅ **Done 2026-08-06 — but the ARC half was deliberately NOT done.**
+
+18 GB RAM and 6 vCPU are freed, and the RAM genuinely came back: `available`
+went **3.4 GB → 28 GB**.
+
+⚠️ **`zfs_arc_max` was left at 8 GB on purpose.** Raising it looked obvious and
+is wrong here. The freed 18 GB was a *fixed* reservation — held whether the
+guests used it or not — backing workloads that ran *inside* them, and those same
+workloads come back as native pods on this host from Phase 7. Handing the memory
+to ARC now would only mean clawing it back under pressure later, which ARC
+resists. It stays as k3s headroom. Only the stale comment was corrected.
+
+**Consequently the 6.6 exit criterion "ARC max raised" is withdrawn, not
+skipped.** Revisit it in Phase 8 or 12, once the real native workload footprint
+is measurable rather than guessed.
+
+The value is still duplicated in **three** places and they must continue to
+agree — verified identical after this phase:
 
 - `hosts/nixos/maxdata/default.nix:49-56` (`kernelParams` + `extraModprobeConfig`)
 - `hosts/nixos/maxdata/zfs.nix:113-121` (a second `boot.extraModprobeConfig`)
@@ -1705,14 +1765,41 @@ Also fix the now-wrong comment at `default.nix:48`
 
 ## 6.4 Firewall cleanup
 
-Drop dead Proxmox-era ports from `hosts/nixos/maxdata/networking.nix:47-52`:
-8006 (Proxmox UI), 9090 (Cockpit), 5900 (VNC), 3128 (subscription proxy).
-Nothing serves them.
+✅ **Ports dropped 2026-08-06:** 8006 (Proxmox UI), 9090 (Cockpit), 5900 (VNC),
+3128 (subscription proxy). Nothing served them.
 
-Reconsider `trustedInterfaces = ["vmbr0"]` (`networking.nix:59`) — it existed so
-the microVMs could talk freely and currently trusts the whole LAN-facing bridge,
-making the port list largely cosmetic. Renaming `vmbr0` is cosmetic and optional;
-it is referenced at `networking.nix:20,27,35,59`.
+✅ **The 3.6.2 trap does not apply here — checked, not assumed.**
+`extraCommands`/`extraStopCommands` exist **only** on ionos
+(`hosts/nixos/ionos/default.nix:90,100`); maxdata has neither, so there were no
+live rules to orphan. `dry-activate` confirmed `firewall.service` is *reloaded*.
+
+⚠️ **`trustedInterfaces = ["vmbr0"]` was deliberately KEPT.** The comment claimed
+it existed "so the microVMs could talk freely", but `vmbr0` is maxdata's only
+LAN interface, so in practice it emits `-A nixos-fw -i vmbr0 -j nixos-fw-accept`
+as the **first** rule — the entire LAN is trusted and the port list above is
+largely decorative.
+
+Removing it makes the firewall real for the first time, and two things depend on
+it that the port list does **not** cover:
+
+- **`node_exporter` (9100) and `smartctl_exporter` (9116) are opened by nothing
+  else.** Only `zfs-prometheus-exporter` (9134) is explicit
+  (`monitoring.nix:11`). Verified against the live `nixos-fw` chain.
+- **`rpc.mountd`/`statd` hold dynamic ports** unless pinned via
+  `services.nfs.server.{mountdPort,lockdPort,statdPort}`.
+
+Neither is testable in this phase — the cluster that scrapes those exporters and
+mounts those exports is destroyed *here* and not rebuilt until Phase 7. Doing it
+blind on the same day as the irreversible step, on a host nobody is sitting at,
+buys nothing. **Moved to Phase 8**, which wires NFS up against a real consumer
+and can pin the ports and open 9100/9116 explicitly, with something live to
+prove it against.
+
+⚠️ **Renaming `vmbr0` was also deliberately declined.** It is referenced at
+`networking.nix:20,27,35` and is the netdev every address on the host rides on;
+re-creating a netdev is exactly what drops those addresses during a networkd
+reload (6.5). Cosmetic gain, and the one failure mode this phase had to avoid.
+Left for a phase that is not also doing something irreversible.
 
 ## 6.5 Deploying without console access
 
@@ -1844,14 +1931,82 @@ ZFS pools are never touched by any step in this phase.
 
 ## 6.6 Exit criteria
 
-- [x] maxdata decrypts `secrets/k3s.yaml` with its own **host** key — proven on
-      the box 2026-08-06, in Phase 3, before any image is touched. ⚠️ Re-confirm
-      immediately before 6.2 deletes the images; it is cheap and it is the one
-      check whose failure is unrecoverable
-- [ ] microVMs stopped and their images removed
-- [ ] maxdata reachable from both sites after `switch`
-- [ ] `zpool status` clean, all datasets mounted
-- [ ] ARC max raised and confirmed via `arc_summary`
+- [x] maxdata decrypts `secrets/k3s.yaml` with its own **host** key — ✅
+      **re-confirmed on the box immediately before the deletion**, as required.
+      Identity `age1ewxty…` derived from `/etc/ssh/ssh_host_ed25519_key`;
+      `k3s.yaml → cc44af01…` and `common.yaml → ffbea925…`, exit 0, checked
+      against **`origin/multi-site`** rather than the box's local clone, which
+      was five commits stale at the time. Re-proven a **third** time after
+      `sops updatekeys` dropped the three microVM recipients — same plaintext
+      hash, so the re-key is safe
+- [x] microVMs stopped and their images removed — all three `microvm@` units
+      gone, zero `cloud-hypervisor` processes, the `microvm` user removed, and
+      `/var/lib/microvms` (**67 G**) deleted
+- [x] maxdata reachable from both sites after the reboot — verified from Brink
+      over the LAN route, and present on the overlay at `100.64.0.5` with all
+      five nodes visible. `booted-system == current-system`
+- [x] `zpool status` clean — both pools `ONLINE`, `zpool status -x` reports
+      "all pools are healthy", 12 ZFS mounts, **all 24 `pre-multi-site`
+      snapshots intact**, zero failed units
+- [ ] ~~ARC max raised and confirmed via `arc_summary`~~ — **withdrawn, not
+      skipped.** See 6.3: the freed RAM is deliberately kept as k3s headroom
+      rather than given to ARC. RAM reclaim *was* verified (`available`
+      3.4 GB → 28 GB)
+- [x] **Added:** maxdata resolves through its own site resolver. It was the last
+      host at either site still on the deprecated `dns.servers`. ⚠️ This
+      exposed a genuine defect — see `systemd-resolved never re-elects` in the
+      decision log — which had to be fixed before the criterion could be met
+
+⚠️ **"all datasets mounted" was dropped from the criteria as unmeetable, and
+that is a finding rather than a pass.** Three datasets are `mountpoint=legacy`
+with no `fileSystems` entry and so are never mounted: `tank/fast-backup/k8s`,
+`tank/fast-backup/vms` and `tank/k8s/timemachine`. All three predate this phase.
+The last one matters — see the decision log; the 689 G of Time Machine data is
+in the *parent* dataset behind a shadowing directory.
+
+## 6.7 How the deploy actually went
+
+Recorded because the sequence worked and the next risky host should reuse it.
+
+```
+nixos-rebuild build        # safe, no activation. ~2 min.
+nixos-rebuild dry-activate # THE decisive check — read before doing anything
+shutdown -r +12            # dead-man: lands on the OLD generation
+nixos-rebuild test         # bootloader untouched, so a power cycle still reverts
+<verify>                   # address, default route, OUTBOUND, DNS, overlay
+shutdown -c
+nixos-rebuild boot ; reboot
+<verify again>             # only a clean boot is honest (6.5)
+```
+
+**`dry-activate` is the step that made this safe** and it belongs in 6.5's
+sequence permanently. It reported, before anything ran:
+
+```
+would stop: microvm@k3s-node{1,2,3} + 9 more units, microvms.target
+would remove user 'microvm'
+would reload: dbus-broker.service, firewall.service, systemd-networkd.service
+```
+
+**`systemd-networkd` is *reloaded*, not restarted** — which is precisely the
+hazard 6.5 warns about *not* firing. Knowing that in advance turned the riskiest
+change in the phase into a routine one. It also confirmed `sops` still resolved
+mid-activation, under the host key, before any image was touched.
+
+Two verification lessons, both learned by getting them wrong:
+
+- **Four probe commands were broken, and each one produced a convincing false
+  reading.** `pgrep -f "nixos-rebuild build"` matched its own invocation and
+  reported a finished build as still running; `dig` is **not installed** on
+  maxdata, and with stderr redirected its absence read as "DNS returned
+  nothing"; `uptime -p` is unsupported by this build, so a reachability loop
+  reported a healthy rebooted host as unreachable; and piping a file into `ssh`
+  while also using a heredoc silently transferred **nothing** (the tell was the
+  empty-input hash `e3b0c442…`). In every case the box was correct and the
+  instrument was wrong. **Verify the instrument before believing a bad result**
+  — never redirect stderr on a probe.
+- **`df` immediately after `rm` still showed the old figure**, because ZFS frees
+  asynchronously. The reclaim was real; the measurement was premature.
 
 ---
 

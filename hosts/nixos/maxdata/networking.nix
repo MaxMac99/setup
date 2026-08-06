@@ -54,6 +54,45 @@ in {
     };
   };
 
+  # ⚠️ systemd-resolved picks a DNS server once and never re-elects.
+  #
+  # Measured on this host, 2026-08-06 (Phase 6):
+  #
+  #   23:02:29.290  resolved: switching to fallback DNS server 1.1.1.1
+  #   23:02:30.221  networkd: Configuring vmbr0 (the DNS list above lands here)
+  #   23:02:33.391  networkd: vmbr0 gained carrier      <- 3.2 s later
+  #
+  # resolved is handed the server list 3.2 s before the link can carry a
+  # packet. Its first query to winkel-pi cannot be answered, so it rotates to
+  # the second entry — the FritzBox — and stays there for the life of the boot.
+  # A 60 s idle period and six varied queries confirmed it never rotates back.
+  #
+  # The failure is silent and total in effect: the FritzBox answers everything
+  # perfectly well, so the host looks healthy while `doubleclick.net` resolves
+  # to a real address and `*.mvissing.de` resolves to the dead public ingress
+  # instead of the site VIP. Both blocking and split-horizon are bypassed, and
+  # nothing logs a complaint.
+  #
+  # Restarting resolved once the link is genuinely up re-elects the head of the
+  # list, and it then stays on winkel-pi indefinitely. network-online.target is
+  # the right trigger: it was reached at 23:02:35.338, two seconds after
+  # carrier, on the same boot.
+  #
+  # maxdata is the only host this can affect — brink-server and winkel-pi *are*
+  # their sites' resolvers and point at themselves, so their primary is up as
+  # soon as their link is.
+  systemd.services.resolved-reelect-primary = {
+    description = "Re-elect the primary DNS server once the link is really up";
+    wantedBy = ["multi-user.target"];
+    after = ["network-online.target" "systemd-resolved.service"];
+    wants = ["network-online.target"];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = "${pkgs.systemd}/bin/systemctl try-restart systemd-resolved.service";
+    };
+  };
+
   networking.firewall = {
     enable = true;
     # Phase 6 dropped four Proxmox-era ports that nothing has served since this

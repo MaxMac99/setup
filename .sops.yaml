@@ -23,9 +23,12 @@ keys:
   # the flip is a config change with a working fallback rather than a flag day.
   # &ionos and this comment pair go away once the flip is verified.
   - &ionos-host age19ylfvg7p6zw67t7dkutrj4d0dg5wllnf8ltwjzdlttuu33wt69ssv0mxlm
-  - &k3s-node1 age10jf99q3ygydry992384x0sc6qh4l7auvyun92arvsm2mm5lttvwqf2z3t3
-  - &k3s-node2 age135dpxcvascd3clh3dczmx827z9nn26f0gtcsa9e0nrjpj8eht55slnh2zj
-  - &k3s-node3 age1jcxzku7rqksy8juwtj6jvmvfyt63ywa386r3dj59cu2u35cgzqts4jxk0c
+  # &k3s-node1/2/3 lived here until Phase 6. Their identities were derived from
+  # /var/ssh/ssh_host_ed25519_key — a path *inside* the var-state.img volumes
+  # that phase deleted — so the keys ceased to exist the moment the images did.
+  # Removed only after maxdata's own host key was proven to decrypt k3s.yaml,
+  # and only after the images were actually gone, so the fallback outlived the
+  # risk it existed for.
   # Was &k3s-pi. Already derived from /etc/ssh/ssh_host_ed25519_key — verified
   # 2026-08-06 by re-deriving from the live host key, which reproduced this
   # exact recipient. So the key material was never stale and needs no ceremony;
@@ -54,7 +57,4 @@ creation_rules:
           - *maxdata-host
           - *ionos
           - *ionos-host
-          - *k3s-node1
-          - *k3s-node2
-          - *k3s-node3
           - *winkel-pi
