@@ -121,7 +121,12 @@ in {
         # here (Phase 3) and a subnet router cannot sit on a lease. `.2` is
         # below the UDM SE's DHCP floor of `.6` and was verified free in
         # Phase 0.
-        Address = "${self.lanIPv4}/${prefix}";
+        #
+        # The second address is this site's resolver ULA (Phase 4). It is
+        # static rather than SLAAC-derived precisely so it cannot move: the
+        # UDM SE advertises it over RDNSS, and an address that changed with
+        # the Deutsche Glasfaser prefix would take every client's DNS with it.
+        Address = ["${self.lanIPv4}/${prefix}"] ++ lib.optional (site.adguardIPv6 != null) "${site.adguardIPv6}/64";
         Gateway = site.gateway;
         DNS = site.dnsServers;
         # networkd does its own RA handling, so unlike the pi this needs no

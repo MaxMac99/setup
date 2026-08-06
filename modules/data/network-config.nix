@@ -53,6 +53,44 @@
           Phase 4 deploys it.
         '';
       };
+      ulaPrefix = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Stable ULA /64 for this site (RFC 4193), advertised by the router
+          alongside the delegated global prefix.
+
+          It exists for exactly one reason: to give the site's resolver an
+          IPv6 address that does not move. D2 forbids depending on the
+          Deutsche Glasfaser prefix — it changes unannounced — so a resolver
+          addressed inside it would silently stop being reachable at the
+          address the router advertises. A ULA is generated once and is ours
+          forever.
+
+          All from one estate /48, `fd06:f10a:ebec::/48`, chosen randomly per
+          RFC 4193 §3.2.2. Deliberately clear of two ranges already in use:
+          Tailscale's `fd7a:115c:a1e0::/48` and the legacy
+          `fda8:a1db:5685::/48` that ionos's wg0 still carries until Phase 13.
+        '';
+      };
+      adguardIPv6 = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          This site's AdGuard on its ULA, and the address the router hands out
+          over RDNSS/DHCPv6.
+
+          ⚠️ Needed because clients *prefer* an RA-advertised IPv6 resolver
+          over the DHCPv4 one. Setting only the DHCPv4 DNS server leaves
+          `nameserver[0]` pointing at the router, so ad-blocking and
+          split-horizon both appear not to work — measured on the Brink Mac,
+          2026-08-06, where nameserver[0] was the UDM SE's own GUA.
+
+          The host part mirrors the IPv4 last octet, so `…:1::2` is
+          brink-server at `192.168.1.2` and `…:178::3` is winkel-pi at
+          `192.168.178.3`.
+        '';
+      };
       metallbPool = lib.mkOption {
         type = lib.types.str;
         description = ''
@@ -153,6 +191,8 @@ in {
           # asserts this equals hosts.brink-server.lanIPv4, so the UDM SE's
           # DHCP setting and the address AdGuard binds cannot drift apart.
           adguard = "192.168.1.2";
+          ulaPrefix = "fd06:f10a:ebec:1::/64";
+          adguardIPv6 = "fd06:f10a:ebec:1::2";
           metallbPool = "192.168.1.240-192.168.1.250";
           ingressVIP = "192.168.1.240";
           dhcpRange = "192.168.1.6-192.168.1.199"; # after shrinking from auto (.6-.254)
@@ -172,6 +212,8 @@ in {
           # one keeps running until Phase 8 deletes it — Phase 4 stands a
           # second resolver up beside it rather than replacing it in place.
           adguard = "192.168.178.3";
+          ulaPrefix = "fd06:f10a:ebec:178::/64";
+          adguardIPv6 = "fd06:f10a:ebec:178::3";
           metallbPool = "192.168.178.240-192.168.178.250";
           ingressVIP = "192.168.178.240";
           dhcpRange = "192.168.178.20-192.168.178.200"; # as-is, no change needed

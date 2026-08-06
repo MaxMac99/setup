@@ -146,7 +146,15 @@ in {
           # tailscale0 has one, and binding an address that does not exist yet
           # means crash-looping until it does. Overlay peers reach this
           # resolver through the subnet router at its LAN address anyway.
-          bind_hosts = [self.lanIPv4 "127.0.0.1"];
+          #
+          # The site ULA is bound too, and it is not cosmetic: clients prefer
+          # an RA-advertised IPv6 resolver over the DHCPv4 one, so without an
+          # IPv6 listener the routers have nothing to advertise and Phase 4
+          # never reaches a single client. Static address, so it is up before
+          # this service starts.
+          bind_hosts =
+            [self.lanIPv4 "127.0.0.1"]
+            ++ lib.optional (site.adguardIPv6 != null) site.adguardIPv6;
           port = 53;
 
           # Cloudflare DoH, matching what the in-cluster instance used

@@ -92,6 +92,13 @@ in {
           inherit prefixLength;
         }
       ];
+      # This site's resolver ULA (Phase 4). Static, so the address the
+      # FritzBox advertises over RDNSS cannot move with the DG prefix (D2).
+      # Additive to SLAAC — the global address still arrives by RA.
+      ipv6.addresses = lib.optional (site.adguardIPv6 != null) {
+        address = site.adguardIPv6;
+        prefixLength = 64;
+      };
     };
     defaultGateway = site.gateway;
     nameservers = site.dnsServers;
