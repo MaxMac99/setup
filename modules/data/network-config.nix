@@ -134,6 +134,10 @@ in {
           subnet = "192.168.1.0/24";
           gateway = "192.168.1.1";
           dnsServers = ["192.168.1.1" "1.1.1.1"];
+          # brink-server's own LAN address. modules/system/site-dns.nix
+          # asserts this equals hosts.brink-server.lanIPv4, so the UDM SE's
+          # DHCP setting and the address AdGuard binds cannot drift apart.
+          adguard = "192.168.1.2";
           metallbPool = "192.168.1.240-192.168.1.250";
           ingressVIP = "192.168.1.240";
           dhcpRange = "192.168.1.6-192.168.1.199"; # after shrinking from auto (.6-.254)
@@ -144,6 +148,13 @@ in {
           subnet = "192.168.178.0/24";
           gateway = "192.168.178.1";
           dnsServers = ["192.168.178.1" "1.1.1.1"];
+          # winkel-pi's own LAN address; see the note on brink above.
+          #
+          # ⚠️ Not to be confused with 192.168.178.14, the *in-cluster*
+          # AdGuard on a MetalLB address that Winkel clients use today. That
+          # one keeps running until Phase 8 deletes it — Phase 4 stands a
+          # second resolver up beside it rather than replacing it in place.
+          adguard = "192.168.178.3";
           metallbPool = "192.168.178.240-192.168.178.250";
           ingressVIP = "192.168.178.240";
           dhcpRange = "192.168.178.20-192.168.178.200"; # as-is, no change needed

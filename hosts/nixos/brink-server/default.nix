@@ -16,6 +16,7 @@ in {
       "modules/system/openssh.nix"
       "modules/system/minimal-zsh.nix"
       "modules/system/overlay-client.nix"
+      "modules/system/site-dns.nix"
     ])
     ++ [./hardware-configuration.nix];
 
@@ -34,6 +35,14 @@ in {
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # Brink's DNS resolver (networkConfig.sites.brink.adguard = this host's own
+  # .2). ⚠️ brink-server is Brink's only always-on machine, so this is a single
+  # point of failure for the site's ad-blocking — accepted in Phase 4, not
+  # designed around. The UDM SE is handed out as secondary resolver, and
+  # clients pick between the two nondeterministically, so an outage here makes
+  # blocking leaky rather than cleanly absent.
+  siteDns.enable = true;
 
   boot = {
     loader = {
@@ -90,7 +99,9 @@ in {
 
     firewall = {
       enable = true;
-      # Phase 3 adds the overlay, Phase 4 adds DNS (53), Phase 7 adds k3s.
+      # Phase 3 added the overlay; Phase 4 adds 53 and the AdGuard UI from
+      # modules/system/site-dns.nix, which merges into these lists rather than
+      # replacing them. Phase 7 adds k3s.
       allowedTCPPorts = [22];
     };
   };

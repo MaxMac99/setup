@@ -16,6 +16,7 @@ in {
       "modules/system/openssh.nix"
       "modules/system/minimal-zsh.nix"
       "modules/system/overlay-client.nix"
+      "modules/system/site-dns.nix"
     ])
     # Board specifics only. `nixos-raspberrypi.lib.nixosSystem` (see flake.nix)
     # already supplies inject-overlays, nixpkgs-rpi and trusted-nix-caches —
@@ -48,6 +49,16 @@ in {
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # Winkel's DNS resolver (networkConfig.sites.winkel.adguard = this host's own
+  # .3), and the second half of D10's argument for putting the pi here: DNS,
+  # subnet routing and the out-of-band way in all live on the machine that is
+  # *not* the one anyone rebuilds.
+  #
+  # This does not replace the in-cluster AdGuard on 192.168.178.14 that Winkel
+  # clients use today — the two run side by side until the FritzBox's DHCP is
+  # repointed, and Phase 8 deletes the old one.
+  siteDns.enable = true;
 
   hostSpec = {
     username = "max";
