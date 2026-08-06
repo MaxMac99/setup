@@ -4,7 +4,13 @@
   pkgs,
   inputs,
   ...
-}: {
+}: let
+  # Address plan lives in modules/data/network-config.nix, not inline here, so
+  # the router's static route and this host cannot drift apart.
+  site = config.networkConfig.sites.winkel;
+  self = config.networkConfig.hosts.k3s-pi;
+  prefixLength = lib.toInt (lib.last (lib.splitString "/" site.subnet));
+in {
   imports =
     (map lib.custom.relativeToRoot [
       "modules/system/openssh.nix"
@@ -42,7 +48,28 @@
   networking = {
     hostName = "k3s-pi";
     hostId = "03030303";
-    useDHCP = true;
+
+    # Static, because the FritzBox static route for 192.168.1.0/24 points here
+    # (Phase 3) and a subnet router cannot sit on a lease. `.3` is outside the
+    # FritzBox DHCP pool (.20–.200) and was verified free from the Winkel LAN
+    # itself — no ping response, no ARP entry — on 2026-08-06.
+    #
+    # IPv4 only: `useDHCP = false` stops the DHCPv4 client, while IPv6 keeps
+    # arriving by RA/SLAAC as before. Nothing here depends on the site's IPv6
+    # prefix, which D2 forbids relying on.
+    useDHCP = false;
+    interfaces.end0 = {
+      useDHCP = false;
+      ipv4.addresses = [
+        {
+          address = self.lanIPv4;
+          inherit prefixLength;
+        }
+      ];
+    };
+    defaultGateway = site.gateway;
+    nameservers = site.dnsServers;
+
     firewall = {
       enable = true;
       allowedTCPPorts = [
