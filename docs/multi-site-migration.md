@@ -25,9 +25,9 @@ One session per phase. Read this section first, update it last.
 | 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed (0 errors). UniFi `.unf` exported — confirm where it is stored |
 | 2 | Overlay spike | ✅ done | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Direct over native IPv6, MTU 1280, p99 6.8 ms, zero relay fallback. Spike torn down; IONOS ports closed and spike DNS records deleted |
 | 2b | Secret hygiene | ✅ done | 2026-08-06 | Rescoped then closed. 1Password is *not* the infrastructure vault (D11 revised); overlay keys go in sops-nix, which is all Phase 3 needed. SSH agent live. Remaining items moved to the phases that touch those hosts, one dropped — see 2b.3 |
-| 3 | Overlay rollout | not started | | **brink-server now exists (5.1 done)**, so the 3.1 blocker is cleared. Prerequisites left in 3.0: reopen IONOS ports, TLS renewal, ionos age key. Headscale should take 443 (ingress already dead) |
+| 3 | Overlay rollout | not started | | **Fully unblocked on the host side: both subnet routers now exist and both can receive a sops secret** — brink-server (5.1) and winkel-pi (5.2). Prerequisites left in 3.0: reopen IONOS ports, TLS renewal, ionos age key. Headscale should take 443 (ingress already dead). Needs from Max: IONOS ports, a DNS record, static routes on both routers, the FritzBox VPN peer list |
 | 4 | DNS | not started | | |
-| 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **brink-server installed and running** at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled and **decrypt proven on the box**. **Pi at Winkel on static `192.168.178.3`**, self-updating from GitHub; HA/matter removed. `/etc/nixos` is a real clone; `nixos-rebuild build` from it produced a store path **bit-identical** to the running system, and `switch` has been exercised. Read-only deploy key registered. **5.1 is done.** Remaining in Phase 5: pi rename, pi sops host key — plus AdGuard (Phase 4) and k3s (Phase 7) |
+| 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **5.1 and 5.2 are both done.** brink-server installed at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled, decrypt proven on the box. Pi **renamed `k3s-pi` → `winkel-pi`**, `hostId` `03030303` → `7a943cc4`, on static `192.168.178.3`, sops host key wired and **decrypt proven on the box** — all verified after a reboot. Both self-update from GitHub over read-only deploy keys. Nothing Phase-5-owned remains; the open exit criteria belong to **Phase 3** (overlay, and "Winkel reachable without maxdata") and **Phase 4** (AdGuard) |
 | 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
 | 7 | Fresh cluster | not started | | |
 | 8 | Storage and site affinity | not started | | |
@@ -61,9 +61,12 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | UDM SE static routes | present and configurable — Phase 3 unblocked | UDM SE, 2026-08-05 |
 | FritzBox static routes | table present, empty, configurable | FritzBox, 2026-08-05 |
 | Address availability | `192.168.178.3`, `.240-.250`, `192.168.1.2`, `192.168.1.240-.250` all free — verified on the wire | Phase 0, 2026-08-05 |
-| k3s-pi current location | **Winkel**, static `192.168.178.3` since 2026-08-06 (was `.118` by DHCP). MAC `dc:a6:32:22:a2:a1`; verified across a clean reboot | Phase 5, 2026-08-06 |
-| k3s-pi nixpkgs | **NixOS 26.05** via `nixos-raspberrypi`'s own nixpkgs, not the fleet's 26.11 (D12). `nix flake update nixpkgs` does not move it | Phase 5, 2026-08-06 |
-| k3s-pi self-management | `/etc/nixos` is a git clone on `multi-site`, pulled over SSH with a read-only deploy key; `git pull && nixos-rebuild switch` runs on the pi | Phase 5, 2026-08-06 |
+| **winkel-pi name and hostId** | **renamed from `k3s-pi` 2026-08-06**; `hostId` `03030303` → **`7a943cc4`**, ending the collision in form with the microVMs' number-derived IDs. Site-first, matching `brink-server`. Renamed with it: host dir, `rpiHosts` + flake attribute, `networkConfig.hosts` key, `.sops.yaml` anchor, ssh alias, deploy key (`id_winkel_pi`), and `k3s-pi-installer` → `rpi-installer` | Phase 5.2, 2026-08-06 |
+| **winkel-pi age recipient** | `age1acjwunaejf345typ42284yxlreqqp39ndcfjqvcf8frsawwntf6sq3u23k`, from `/etc/ssh/ssh_host_ed25519_key` — **already a host key, and unchanged by the rename.** Re-deriving from the live key reproduced the existing `&k3s-pi` recipient exactly, so the "dead recipiency" was only missing wiring. 6th recipient of `common.yaml`; `k3s.yaml` needed no `updatekeys`. Decrypt proven on the box (`a342c743…`, matching the Mac) | Phase 5.2, 2026-08-06 |
+| winkel-pi location | **Winkel**, static `192.168.178.3` since 2026-08-06 (was `.118` by DHCP). MAC `dc:a6:32:22:a2:a1`; verified across a clean reboot | Phase 5, 2026-08-06 |
+| winkel-pi nixpkgs | **NixOS 26.05** via `nixos-raspberrypi`'s own nixpkgs, not the fleet's 26.11 (D12). `nix flake update nixpkgs` does not move it | Phase 5, 2026-08-06 |
+| winkel-pi self-management | `/etc/nixos` is a git clone on `multi-site`, pulled over SSH with a read-only deploy key; `git pull && nixos-rebuild switch` runs on the pi. First rebuild after the rename needs the attribute spelled out (`#winkel-pi`), since the old one no longer exists | Phase 5, 2026-08-06 |
+| **Self-updating clones vs rewritten history** | ⚠️ `multi-site` was rebased and force-pushed after the pi cloned it, leaving `/etc/nixos` on an **orphaned** commit no ref contained — invisible locally, and `git pull` would have *merged* the two histories rather than failing. Repair on a pull-only clone is `git fetch && git reset --hard origin/multi-site`, never `pull`. **brink-server is unchecked** | Phase 5.2, 2026-08-06 |
 | brink-server hardware | **installed and self-managing** — `git pull && nixos-rebuild switch` proven on the box; build from a clean clone is bit-identical to the running system | Phase 5.1, 2026-08-06 |
 | brink-server config | **written and evaluating**, install in progress. `hostId = b21961a5`; ZFS pool **`main`**, single vdev, zstd, **native mountpoints + `zfsutil`** (D13); systemd-networkd; sops host key declared with zero secrets | Phase 5.1, 2026-08-06 |
 | brink-server age recipient | `age1pqhavyh47c882zd3h20a8q0mng5kdm5qsz7d4f2vayrjfndcsyxq4m7d3a`, derived from `/etc/ssh/ssh_host_ed25519_key` — a **host** key (D11/2b.2). 5th recipient of `common.yaml`; decrypt proven on the box, plaintext hash unchanged. Deliberately *not* added to `k3s.yaml`: that token belongs to the cluster Phase 7 destroys | Phase 5.1, 2026-08-06 |
@@ -71,15 +74,15 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | Repo layout | **bare repo + worktrees** (`setup/.bare`, worktrees `main`/`multi-site`/`opencode`). `.git` is a 76-byte pointer file, so rsyncing a worktree to another machine breaks every git-based flake fetch — copy without `.git`, or clone properly | 2026-08-06 |
 | brink-server NVMe | Samsung MZVLB1T0HBLR-000H1, 953.9 GiB, serial `S4GRNX0R315239`. Arrived with a Windows layout (499 M ESP / 128 M MSR / 943.7 G / 9.5 G recovery), zapped | Phase 5.1, 2026-08-06 |
 | brink-server installer media | NixOS **26.05** minimal x86_64, on the Mac, SHA-256 matches published `7f5df09b…f870` | 2026-08-06 |
-| Winkel reachable from off-site | **yes, verified** — `ssh -J max@212.132.82.102 max@192.168.178.{2,3}` returns `maxdata` / `k3s-pi`; ionos `wg0` up at `.201`, 0% loss, ~14 ms | 2026-08-06 |
-| maxdata networking stack | **systemd-networkd**, not scripted — `networking.nix:8-13`, address observed on the `vmbr0` netdev. Contradicts what 6.5 asserted; ⚠️ live `systemctl` check still outstanding | 2026-08-06 |
+| Winkel reachable from off-site | **yes, verified** — `ssh -J max@212.132.82.102 max@192.168.178.{2,3}` returns `maxdata` / `winkel-pi` (`k3s-pi` before the rename); ionos `wg0` up at `.201`, 0% loss, ~14 ms. This jump is the only route into Winkel until Phase 3; neither ssh alias carries a `ProxyJump` | 2026-08-06 |
+| maxdata networking stack | **systemd-networkd — confirmed live, question closed.** `systemd-networkd` active+enabled; `network-setup.service` and `dhcpcd.service` **do not exist as units at all**; `vmbr0` built from `20-vmbr0.netdev` + 3 `.network` files, `networkctl` routable/online. 6.5's scripted-networking claim was wrong, so its failure mode cannot occur on maxdata — Phase 6 must guard a networkd/bridge restart instead | Live check on the box, 2026-08-06 |
 | ionos public ingress | 80/443 still DNAT'd to `192.168.178.10`, which is **dead** — ingress already broken, so 443 is free for the control server (3.0) | 2026-08-06 |
 | FritzBox VPN peers | `192.168.178.201/32`, `.202`, … — FritzBox is the WireGuard *server* today | FritzBox, 2026-08-05 |
 | Effective ionos↔home throughput | ~3 MB/s | Phase 0, scp over wg0 |
 | Winkel MetalLB pool | `192.168.178.240-250` | Phase 0 address plan |
 | Brink MetalLB pool | `192.168.1.240-250` | Phase 0 address plan |
 | brink-server LAN IP | `192.168.1.2` | Phase 0 address plan |
-| k3s-pi LAN IP (at Winkel) | `192.168.178.3` | Phase 0 address plan |
+| winkel-pi LAN IP (at Winkel) | `192.168.178.3` | Phase 0 address plan |
 
 ---
 
@@ -89,7 +92,7 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 |----------------|------------|----------------------|--------|------|
 | `brink-server` | **brink**  | `192.168.1.0/24`     | UDM SE | k3s **server** (etcd) · site DNS · subnet router · Home Assistant · user-facing workloads |
 | `maxdata`      | **winkel** | `192.168.178.0/24`   | FritzBox | k3s **server** (etcd) · ZFS · NFS/SMB · Paperless · UniFi · Time Machine |
-| `k3s-pi`       | **winkel** | `192.168.178.0/24`   | FritzBox | k3s **agent** · site DNS · subnet router · out-of-band anchor |
+| `winkel-pi`    | **winkel** | `192.168.178.0/24`   | FritzBox | k3s **agent** · site DNS · subnet router · out-of-band anchor |
 | `ionos`        | public     | fixed IPv4 + IPv6    | —      | k3s **server** (etcd) · overlay control server · public edge |
 
 Decommissioned: `k3s-node1`, `k3s-node2`, `k3s-node3` (microVMs on maxdata).
@@ -111,7 +114,7 @@ host at it) are different things — prose always spells out the host in full.
 
 - `brink-server` — Lenovo ThinkCentre M70q, i5-10500T, 32 GB DDR4, 1 TB NVMe (single disk, no redundancy)
 - `maxdata` — AMD, 32 GB, ZFS `tank` (4× 4 TB RAIDZ1 + mirrored special/SLOG + L2ARC) and `fast` (NVMe)
-- `k3s-pi` — Raspberry Pi 4, PoE+ HAT, USB-SATA boot disk
+- `winkel-pi` — Raspberry Pi 4, PoE+ HAT, USB-SATA boot disk (was `k3s-pi`)
 - `ionos` — VPS, `212.132.82.102` / `2a02:2479:5c:a00::1`
 
 **Facts that shape everything below**
@@ -304,7 +307,7 @@ Static host addresses:
 |------|----------|
 | brink-server | `192.168.1.2` |
 | maxdata | `192.168.178.2` (unchanged) |
-| k3s-pi | `192.168.178.3` |
+| winkel-pi | `192.168.178.3` |
 
 Overlay addresses are assigned by the control server in Phase 3 and recorded
 back into `networkConfig.hosts.*.overlayIP`.
@@ -344,6 +347,10 @@ Also note for later phases:
 
 - `k3s-pi` is still a recipient of `secrets/k3s.yaml` (`.sops.yaml:27`) despite
   having no sops config since commit `adfcc70`. It regains one in Phase 5.
+  ⚠️ **Resolved 2026-08-06, and this framing was wrong.** Calling it "dead"
+  implied stale key material. Re-deriving from the live host key reproduced the
+  recipient exactly: the key was always right and only the host-side `sops`
+  block was missing. Fixed by the rename to `winkel-pi` — see 5.2 item 8.
 - `ionos` derives its age key from a **user** SSH key,
   `/home/max/.ssh/id_ed25519` (`hosts/nixos/ionos/default.nix:131`), while the
   microVMs correctly use a host key. Standardise on host keys in Phase 7.
@@ -662,7 +669,7 @@ ionos and maxdata twice. One was dropped outright.
 | 2 | ionos age key: user → host key | **→ Phase 3**, which rebuilds ionos anyway |
 | 3 | ionos WireGuard keys → sops | **dropped** — see below |
 | 4 | Resolve Pulumi | **→ Open items** — not boot-critical, not a migration blocker |
-| 5 | Dead recipiency (`k3s-pi`) | **→ Phase 5**, where it regains a sops config |
+| 5 | Dead recipiency (`k3s-pi`) | ✅ **done in Phase 5.2** (2026-08-06) — and it was never dead, only unwired; see 5.2 item 8 |
 | 6 | 1Password as personal tooling | **→ Open items** — an ongoing human task, not a gate |
 | — | SSH client keys → 1Password agent | **done**, see 2b.4 |
 
@@ -1030,7 +1037,11 @@ where maxdata uses lz4 (D13); and the host runs
 The install procedure in `docs/Migrate_Maxdata.md:136-207` was the starting
 point for the ZFS and `nixos-install` steps.
 
-## 5.2 Pi
+## 5.2 Pi — `winkel-pi` ✅
+
+✅ **Done 2026-08-06.** Everything Phase 5 owned for this host is complete: the
+rename, the `hostId`, the static address, the move, and the sops host key. The
+three items still listed under *Remaining* belong to Phases 3, 4 and 7.
 
 **Physically at Winkel since 2026-08-05**, on the static `192.168.178.3` since
 2026-08-06 (it first took `.118`, a DHCP lease the FritzBox reissued from its
@@ -1045,6 +1056,30 @@ previous stay). Identity confirmed by MAC `dc:a6:32:22:a2:a1`, not by name.
    and re-imaging a known-flaky USB-SATA disk risks a working boot setup for no
    gain. Rebuilt in place instead. The quirk is carried and verified active on
    the new kernel (`/proc/cmdline`: `usb-storage.quirks=174c:55aa:u`).
+3. ✅ **Renamed `k3s-pi` → `winkel-pi`** (2026-08-06), `hostId` `03030303` →
+   `7a943cc4`. Site-first, matching `brink-server`; the old name was a role it
+   never took up and is not getting back, since Phase 7 rejoins it as an
+   *agent*. The rename was done in one commit because it is one surface:
+   `hosts/nixos/`, `rpiHosts` and the flake attribute, `networkConfig.hosts`,
+   the `.sops.yaml` anchor, the ssh alias, and the deploy key filename
+   (`id_k3s_pi` → `id_winkel_pi`, copied on the box *before* the rebuild so
+   both names existed during the transition). `k3s-pi-installer` became
+   `rpi-installer` — it contains no host config and was never this host's to be
+   named after.
+
+   Verified **after a reboot**, per 6.5: `hostname` and `hostnamectl` both
+   `winkel-pi`, `/etc/hostid` `c43c947a` (little-endian `7a943cc4`),
+   `192.168.178.3/24`, default route via `.1`, outbound HTTPS 200 with working
+   DNS, 5 IPv6 addresses, `accept_ra=2`, USB quirk still on the cmdline, zero
+   failed units, deploy key authenticating as `Hi MaxMac99/setup!`.
+
+   **The rebuild was de-risked by diffing before activating.** `nixos-rebuild
+   build` produced a store path identical to the one evaluated on the Mac, and
+   the `etc` diff against the running system was exactly `hostid`, `hostname`,
+   `hosts`, `ssh/ssh_config`, `avahi-daemon.service` and `zshrc` — **no
+   networking units at all**. That is what made the 6.5 failure mode
+   inapplicable to this particular change, and it is a cheaper check than
+   recovering from it.
 4. ✅ `services.home-assistant` and `services.matter-server` removed
    (`c5343de`). Pulled forward because paho-mqtt's flaky test suite blocked the
    build — but the real justification is that since the pi moved to Winkel it
@@ -1060,34 +1095,82 @@ previous stay). Identity confirmed by MAC `dc:a6:32:22:a2:a1`, not by name.
    that exact lease — so it lulled rather than alerted. Since the pi took the
    static `.3` on 2026-08-06 it is wrong once more. Keep confirming by MAC, and
    flush maxdata's cache when convenient.
+
+   ✅ **The rename defuses this permanently.** The pi now publishes
+   `winkel-pi.local`, so `k3s-pi.local` is not merely stale but *orphaned* — no
+   host answers to it, and it can never again be accidentally right the way it
+   was in August. The trap this item warns about was only possible while a live
+   host and a stale record shared a name.
 8. ⏭️ Repointing is **not needed** — Phase 3 configures both static routes once,
    at their final next hops, and maxdata never advertises a subnet.
 
 Also done, not in the original plan: the pi now **maintains itself from GitHub**
 (`4b1757c`). `/etc/nixos` is a git clone on `multi-site`, pulled over SSH with a
-device key at `/home/max/.ssh/id_k3s_pi` whose public half is a **read-only**
+device key at `/home/max/.ssh/id_winkel_pi` whose public half is a **read-only**
 deploy key scoped to this repo. Its update cycle is `git pull &&
 nixos-rebuild switch`, run on the pi, with no Mac involved.
+
+⚠️ **A rewritten branch strands a self-updating host, silently — found
+2026-08-06.** The pi's clone sat on `8aa8e67`, a commit no ref on origin
+contained: `multi-site` had been rebased and force-pushed at some point after
+the pi cloned it, and the pi kept a stale remote-tracking ref, so nothing looked
+wrong locally. `git pull` would not have failed cleanly — it would have *merged*
+two divergent histories carrying the same changes under different hashes,
+leaving the pi permanently ahead of origin and every later pull worse than the
+last. The fetch is what exposes it (`+ 8aa8e67...d92d9b9 (forced update)`).
+
+The repair, for any host whose `/etc/nixos` is a pull-only clone that never
+authors commits:
+
+```sh
+cd /etc/nixos
+git status --porcelain   # must be empty
+git stash list           # must be empty
+git fetch origin && git reset --hard origin/multi-site
+```
+
+`reset --hard` rather than `pull`, precisely *because* the host authors nothing:
+there is no local work to preserve, and a merge would manufacture history that
+only exists on that host. **brink-server has the same arrangement and was cloned
+before this was known** — check it the same way before Phase 3 depends on its
+self-update path.
 
 ⚠️ **The pi tracks a different nixpkgs from the rest of the fleet.** It is built
 with `nixos-raspberrypi.lib.nixosSystem` and therefore that flake's nixpkgs
 (NixOS 26.05), not the root one (26.11) — see D12. `nix flake update nixpkgs`
 does not move the pi; only updating the `nixos-raspberrypi` input does.
 
+8. ✅ **Secret enrolment** (2026-08-06). sops wired to the **host** key at
+   `/etc/ssh/ssh_host_ed25519_key`, and `winkel-pi` enrolled as the 6th
+   recipient of `common.yaml` — where Phase 3's overlay pre-auth key lands.
+   **Decrypt proven on the box**, not on paper: `sops -d secrets/common.yaml`
+   run on the pi under an age key derived from its own host key hashed to
+   `a342c743…`, identical to the Mac's. `updatekeys` left the plaintext
+   unchanged.
+
+   ⚠️ **The "dead recipiency" was a misdiagnosis, and the correction is
+   load-bearing.** 0.5 and 2b.3 item 5 both recorded `k3s-pi` as a stale
+   recipient of `k3s.yaml` left over from before `adfcc70`. Re-deriving from
+   the *live* host key on 2026-08-06 reproduced `age1acjwuna…` **exactly**, so
+   the key material was correct the whole time and only the host-side `sops`
+   block was missing. Consequences: no key ceremony was needed, `k3s.yaml`
+   needed no `updatekeys` at all (renaming a YAML anchor does not change a
+   recipient list), and the pi turns out to have been on a **host** key since
+   the beginning — so the D11/2b.2 offenders are only ionos and maxdata.
+
+   Zero secrets are declared, matching brink-server. That is provable rather
+   than merely claimed: with an empty secret set sops-nix emits no
+   `system.activationScripts.setupSecrets`, and the system derivation is
+   **bit-identical** to the one without the block. The pi cannot fail a boot on
+   this.
+
 ### Remaining
 
-3. **Rename the host.** `k3s-pi` is a leftover from when it was a k3s node, and
-   its `hostId = "03030303"` collides in form with node3's derived ID.
-   Suggested: `pi-winkel` or `anchor-winkel`. Note this also renames the
-   directory under `hosts/nixos/`, the `rpiHosts` entry in `flake.nix`, and the
-   `k3s-pi` key in `networkConfig.hosts`.
+All three are owned by later phases; nothing is left that belongs to Phase 5.
+
 6. **Overlay client + subnet router** for `192.168.178.0/24`, with
    `net.ipv4.ip_forward` declared — Phase 3.
 7. **AdGuard** — Phase 4.
-8. **Secret enrolment**: sops with a **host** key at
-   `/etc/ssh/ssh_host_ed25519_key`; enrol it in `.sops.yaml` and
-   `sops updatekeys` both files. This also resolves the dead `k3s-pi` recipiency
-   inherited from Phase 2b (`.sops.yaml:27`).
 9. **k3s agent module** — not enabled until Phase 7.
 
 ## 5.3 Exit criteria
@@ -1100,10 +1183,14 @@ does not move the pi; only updating the `nixos-raspberrypi` input does.
       Phase 3
 - [x] Pi physically at Winkel, identified by MAC
 - [x] Pi on the static `192.168.178.3` (2026-08-06) — advertising the subnet still pending, Phase 3
-- [ ] Pi renamed; `hostId` no longer collides with node3's
-- [ ] Secrets decrypt on both hosts, from **host** keys — ✅ brink-server
-      (proven on the box, not just on paper: plaintext hash matched the Mac's);
-      ⬜ pi still has no sops config
+- [x] **Pi renamed to `winkel-pi`; `hostId` no longer collides** with node3's
+      derived form — `03030303` → `7a943cc4`, verified after a reboot
+      (2026-08-06)
+- [x] **Secrets decrypt on both hosts, from host keys** — ✅ brink-server and
+      ✅ winkel-pi, both proven on the box rather than on paper: each decrypted
+      `common.yaml` to a plaintext hash matching the Mac's. The pi needed no key
+      ceremony; its recipient was already derived from its host key and only the
+      `sops` block was missing
 - [ ] AdGuard serving at both sites (Phase 4 exit criteria still met)
 - [ ] **Winkel is reachable without maxdata** — the precondition for Phase 6.
       Verify by stopping maxdata's overlay client and confirming you can still
@@ -1216,21 +1303,37 @@ interface is left with nothing. On the pi this presented twice, differently:
   silently used a stale commit.
 
 ⚠️ **Correction, 2026-08-06 — this passage previously asserted "maxdata uses
-scripted networking (no systemd-networkd)". That looks wrong.**
+scripted networking (no systemd-networkd)". That was wrong.**
 `hosts/nixos/maxdata/networking.nix:8-13` sets `useNetworkd = true` and
 `systemd.network.enable = true`, and builds `vmbr0` as a
 `systemd.network.netdevs` entry; maxdata's address was observed live on exactly
 that bridge, which scripted networking would not have created. So the specific
-`dhcpcd`-versus-`network-setup.service` failure above most likely **does not
-apply to maxdata at all** — it is a property of the pi, which is genuinely
-scripted.
+`dhcpcd`-versus-`network-setup.service` failure above **does not apply to
+maxdata at all** — it is a property of the pi, which is genuinely scripted.
 
-Live confirmation on the box (`systemctl is-active systemd-networkd`) was
-attempted and **not completed** — the 1Password SSH agent stopped responding
-before it ran. Treat this correction as source-based and verify on maxdata
-before relying on either reading. It matters: if maxdata really is on networkd,
-the reason to fear step 2 is different from the one written here, and a plan
-built on the wrong failure mode will guard the wrong thing.
+✅ **Confirmed live on the box, 2026-08-06.** The check that was outstanding has
+now run, and it settles the question harder than the source reading did:
+
+```
+systemd-networkd            active, enabled
+network-setup.service       NOT PRESENT — unit does not exist
+dhcpcd.service              NOT PRESENT — unit does not exist
+/etc/systemd/network/       20-vmbr0-bind.network, 20-vmbr0.netdev,
+                            25-microvm-tap.network, 30-vmbr0.network
+networkctl                  routable / online, 192.168.178.2 on vmbr0
+```
+
+The two units the failure mode is *made of* are not merely inactive on maxdata,
+they are absent — so `dhcpcd`-stopped-without-`network-setup` **cannot happen
+there**. It is a property of the pi alone.
+
+**This changes what Phase 6 must guard against.** The risk on maxdata is not a
+bare interface after activation; it is a `systemd-networkd` restart that
+reconfigures `vmbr0` — a bridge carrying the microVM taps — from edited unit
+files. Watch the `.network`/`.netdev` set above, and treat a change to
+`20-vmbr0.netdev` as the dangerous one, since renaming or re-creating a netdev
+is what drops the addresses riding on it. Note also that 6.2 deletes
+`25-microvm-tap.network`'s reason to exist, so that file goes with the microVMs.
 
 Consequences for this phase, none of which change:
 
