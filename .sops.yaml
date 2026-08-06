@@ -2,7 +2,18 @@ keys:
   - &maxs-macbook-pro age1crme8auc0sjgeu0r85w5lt04ey59me7jx4945zje4lnj3ctf2pzs8tc288
   - &kopf3-NB-26 age13242rt3uhlc6k7p6un8lxy86m3wysjclwntwr8v5pl9fshdf8suqxvqps2
   - &maxdata age1s44mfk6jem5nz0nnt0kp0l59tdhzns0s6dtt97gwxf7xyxh2240sj5mw4m
+  # ⚠️ A *user* key, /home/max/.ssh/id_ed25519 (ionos/default.nix:131) — the
+  # last D11/2b.2 offender together with maxdata. Never rename that file: it is
+  # ionos's age source, and k3s_token stops decrypting at boot without it.
   - &ionos age100thyt62mn4gyw90thmz5rzqtzd5d9jga4gtljvylcnuu3cawscqcqtmah
+  # Transitional, added 2026-08-06 (Phase 3.0). Derived from ionos's
+  # /etc/ssh/ssh_host_ed25519_key, and deliberately enrolled *alongside*
+  # &ionos rather than replacing it: adding a recipient is additive and cannot
+  # break a running host, whereas flipping age.sshKeyPaths is what actually
+  # risks k3s_token at boot. Both files can now be decrypted by either key, so
+  # the flip is a config change with a working fallback rather than a flag day.
+  # &ionos and this comment pair go away once the flip is verified.
+  - &ionos-host age19ylfvg7p6zw67t7dkutrj4d0dg5wllnf8ltwjzdlttuu33wt69ssv0mxlm
   - &k3s-node1 age10jf99q3ygydry992384x0sc6qh4l7auvyun92arvsm2mm5lttvwqf2z3t3
   - &k3s-node2 age135dpxcvascd3clh3dczmx827z9nn26f0gtcsa9e0nrjpj8eht55slnh2zj
   - &k3s-node3 age1jcxzku7rqksy8juwtj6jvmvfyt63ywa386r3dj59cu2u35cgzqts4jxk0c
@@ -22,6 +33,7 @@ creation_rules:
         - *kopf3-NB-26
         - *maxdata
         - *ionos
+        - *ionos-host
         - *brink-server
         - *winkel-pi
   - path_regex: secrets/k3s.yaml
@@ -30,6 +42,7 @@ creation_rules:
           - *maxs-macbook-pro
           - *maxdata
           - *ionos
+          - *ionos-host
           - *k3s-node1
           - *k3s-node2
           - *k3s-node3
