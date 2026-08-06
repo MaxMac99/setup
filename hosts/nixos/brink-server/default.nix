@@ -87,11 +87,13 @@ in {
   systemd.network = {
     enable = true;
     networks."10-lan" = {
-      # The onboard NIC's name is not known until the box boots. The M70q has
-      # exactly one, so match the class rather than pin a guess — but narrow
-      # this to the real name once `networkctl list` has been read on the
-      # hardware, because `en*` would also claim a USB NIC.
-      matchConfig.Name = "en*";
+      # The M70q's single onboard NIC, read off the hardware 2026-08-06:
+      # eno1, MAC 84:a9:38:4c:9a:71, altnames enp0s31f6 / enx84a9384c9a71.
+      # Pinned by name rather than left as `en*`, which would also claim a USB
+      # NIC — not something to leave loose on the host that becomes Brink's
+      # subnet router. Name rather than MAC, so a board swap does not silently
+      # leave the box with no address.
+      matchConfig.Name = "eno1";
       networkConfig = {
         # Static, because the UDM SE's static route for 192.168.178.0/24 points
         # here (Phase 3) and a subnet router cannot sit on a lease. `.2` is
