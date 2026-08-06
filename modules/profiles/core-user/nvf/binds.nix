@@ -168,6 +168,16 @@
     "<leader>a" = {
       group = "[A]i";
     };
+
+    "<leader>m" = {
+      group = "[M]arkdown";
+    };
+    "<leader>mp" = {
+      desc = "[P]review (floating)";
+    };
+    "<leader>mb" = {
+      desc = "[B]rowser preview";
+    };
   };
 in {
   programs.nvf.settings.vim = {
@@ -180,6 +190,8 @@ in {
           "<leader>fm" = null;
           "<leader>fv" = null;
           "<leader>fvc" = null;
+          # glow's module registers this label regardless of the mapping we set.
+          "<leader>pm" = null;
           "<leader>ca" = "[A]ction";
         };
         setupOpts.icons = {

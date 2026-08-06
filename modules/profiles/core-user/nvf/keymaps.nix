@@ -239,5 +239,12 @@
       action = "<cmd>XcodebuildCodeActions<CR>";
       desc = "Xcode Code [A]ction";
     }
+    # <leader>mp (glow) is bound by nvf itself, see utility.nix.
+    {
+      mode = "n";
+      key = "<leader>mb";
+      action = "<cmd>MarkdownPreviewToggle<CR>";
+      desc = "Markdown [B]rowser preview";
+    }
   ];
 }
