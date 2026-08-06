@@ -47,7 +47,6 @@
       enable = true;
       allowedTCPPorts = [
         22
-        8123 # Home Assistant
       ];
     };
   };
@@ -85,43 +84,15 @@
     };
   };
 
-  services.home-assistant = {
-    enable = true;
-    # Integrations whose Python deps must be bundled.
-    # Add only ones with devices you actually have on the network — each
-    # rebuild of HA recompiles with these baked in.
-    #
-    # NOTE: with `config = null` (imperative/UI config), the module can no
-    # longer scan configuration.yaml to discover which integrations to bundle,
-    # so every integration you configure via the UI must be listed here.
-    # `default_config` pulls in the standard set (frontend, history, the
-    # automation/scene/script editors, mobile_app, zeroconf discovery, ...).
-    extraComponents = [
-      "default_config"
-      "apple_tv"
-      "google_translate"
-      "homekit_controller"
-      "hue"
-      "matter"
-      "met"
-      "roborock"
-      "sonos"
-      "wled"
-      "shelly"
-      "unifi"
-      "unifi_discovery"
-    ];
-    # null => Home Assistant owns configuration.yaml; everything is configured
-    # from the UI. Setting `config` to an attrset would make NixOS write a
-    # read-only configuration.yaml symlinked from the Nix store, which blocks
-    # UI configuration. Core settings (name, time zone, country, units) are
-    # set during UI onboarding / Settings → System → General.
-    config = null;
-  };
-
-  services.matter-server = {
-    enable = true;
-  };
+  # Home Assistant and matter-server were removed here (migration Phase 5.2
+  # item 4): they move to brink-server, which sits on the Brink segment where
+  # every smart-home device actually lives. Once the pi moved to Winkel they
+  # could not reach a single device anyway — there is no cross-site mDNS — so
+  # this only stops building a large Python stack on a Pi 4 for nothing.
+  #
+  # /var/lib/hass (313 M) was backed up first, to
+  # ~/backup/pre-multi-site/pi-hass-2026-08-05.tar.gz. The state directory is
+  # left on disk; NixOS does not delete it when the service is removed.
 
   system.stateVersion = "25.11";
 }
