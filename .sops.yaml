@@ -7,6 +7,9 @@ keys:
   - &k3s-node2 age135dpxcvascd3clh3dczmx827z9nn26f0gtcsa9e0nrjpj8eht55slnh2zj
   - &k3s-node3 age1jcxzku7rqksy8juwtj6jvmvfyt63ywa386r3dj59cu2u35cgzqts4jxk0c
   - &k3s-pi age1acjwunaejf345typ42284yxlreqqp39ndcfjqvcf8frsawwntf6sq3u23k
+  # Derived from /etc/ssh/ssh_host_ed25519_key — a *host* key, per D11/2b.2,
+  # unlike maxdata and ionos which still derive from a user key.
+  - &brink-server age1pqhavyh47c882zd3h20a8q0mng5kdm5qsz7d4f2vayrjfndcsyxq4m7d3a
 creation_rules:
   - path_regex: secrets/common.yaml
     key_groups:
@@ -15,6 +18,7 @@ creation_rules:
         - *kopf3-NB-26
         - *maxdata
         - *ionos
+        - *brink-server
   - path_regex: secrets/k3s.yaml
     key_groups:
       - age:

@@ -25,9 +25,9 @@ One session per phase. Read this section first, update it last.
 | 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed (0 errors). UniFi `.unf` exported — confirm where it is stored |
 | 2 | Overlay spike | ✅ done | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Direct over native IPv6, MTU 1280, p99 6.8 ms, zero relay fallback. Spike torn down; IONOS ports closed and spike DNS records deleted |
 | 2b | Secret hygiene | ✅ done | 2026-08-06 | Rescoped then closed. 1Password is *not* the infrastructure vault (D11 revised); overlay keys go in sops-nix, which is all Phase 3 needed. SSH agent live. Remaining items moved to the phases that touch those hosts, one dropped — see 2b.3 |
-| 3 | Overlay rollout | not started | | ⚠️ **Depends on brink-server** — moving the pi left Brink with no overlay host (3.1); its config now exists but the box is not installed. Prerequisites in 3.0: reopen IONOS ports, TLS renewal, ionos age key. Headscale should take 443 (ingress already dead) |
+| 3 | Overlay rollout | not started | | **brink-server now exists (5.1 done)**, so the 3.1 blocker is cleared. Prerequisites left in 3.0: reopen IONOS ports, TLS renewal, ionos age key. Headscale should take 443 (ingress already dead) |
 | 4 | DNS | not started | | |
-| 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **Pi at Winkel on static `192.168.178.3`**, self-updating from GitHub; HA/matter removed; re-image skipped. **brink-server config written and evaluating; install pending** — runbook at [`brink-server-install.md`](./brink-server-install.md), ISO ready and checksum-verified. Remaining: run the install, pi rename, sops host keys, AdGuard, k3s |
+| 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **brink-server installed and running** at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled and **decrypt proven on the box**. **Pi at Winkel on static `192.168.178.3`**, self-updating from GitHub; HA/matter removed. Remaining: register brink-server's deploy key and re-clone `/etc/nixos`; pi rename; pi sops host key; AdGuard (Phase 4); k3s (Phase 7) |
 | 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
 | 7 | Fresh cluster | not started | | |
 | 8 | Storage and site affinity | not started | | |
@@ -66,6 +66,8 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | k3s-pi self-management | `/etc/nixos` is a git clone on `multi-site`, pulled over SSH with a read-only deploy key; `git pull && nixos-rebuild switch` runs on the pi | Phase 5, 2026-08-06 |
 | brink-server hardware | **in hand** — Phase 3 now depends on it, since moving the pi left Brink with no overlay host (3.1) | 2026-08-06 |
 | brink-server config | **written and evaluating**, install in progress. `hostId = b21961a5`; ZFS pool **`main`**, single vdev, zstd, **native mountpoints + `zfsutil`** (D13); systemd-networkd; sops host key declared with zero secrets | Phase 5.1, 2026-08-06 |
+| brink-server age recipient | `age1pqhavyh47c882zd3h20a8q0mng5kdm5qsz7d4f2vayrjfndcsyxq4m7d3a`, derived from `/etc/ssh/ssh_host_ed25519_key` — a **host** key (D11/2b.2). 5th recipient of `common.yaml`; decrypt proven on the box, plaintext hash unchanged. Deliberately *not* added to `k3s.yaml`: that token belongs to the cluster Phase 7 destroys | Phase 5.1, 2026-08-06 |
+| brink-server NIC | `eno1`, MAC `84:a9:38:4c:9a:71` (altnames `enp0s31f6`, `enx84a9384c9a71`) | Phase 5.1, 2026-08-06 |
 | Repo layout | **bare repo + worktrees** (`setup/.bare`, worktrees `main`/`multi-site`/`opencode`). `.git` is a 76-byte pointer file, so rsyncing a worktree to another machine breaks every git-based flake fetch — copy without `.git`, or clone properly | 2026-08-06 |
 | brink-server NVMe | Samsung MZVLB1T0HBLR-000H1, 953.9 GiB, serial `S4GRNX0R315239`. Arrived with a Windows layout (499 M ESP / 128 M MSR / 943.7 G / 9.5 G recovery), zapped | Phase 5.1, 2026-08-06 |
 | brink-server installer media | NixOS **26.05** minimal x86_64, on the Mac, SHA-256 matches published `7f5df09b…f870` | 2026-08-06 |
@@ -1090,14 +1092,18 @@ does not move the pi; only updating the `nixos-raspberrypi` input does.
 
 ## 5.3 Exit criteria
 
-- [ ] brink-server at Brink on `192.168.1.2`, advertising `192.168.1.0/24`
-      — config written and evaluating (2026-08-06); **install not yet run**, see
-      [`brink-server-install.md`](./brink-server-install.md). Advertising the
-      subnet is Phase 3
+- [x] brink-server at Brink on `192.168.1.2` — **installed 2026-08-06**, see
+      [`brink-server-install.md`](./brink-server-install.md). Verified after a
+      reboot: `eno1 192.168.1.2/24`, default route via `.1`, outbound HTTPS,
+      UEFI, `zpool` healthy, no failed units, ZFS mountpoints resolving without
+      the install-time `/mnt` altroot prefix. Advertising `192.168.1.0/24` is
+      Phase 3
 - [x] Pi physically at Winkel, identified by MAC
 - [x] Pi on the static `192.168.178.3` (2026-08-06) — advertising the subnet still pending, Phase 3
 - [ ] Pi renamed; `hostId` no longer collides with node3's
-- [ ] Secrets decrypt on both hosts, from **host** keys
+- [ ] Secrets decrypt on both hosts, from **host** keys — ✅ brink-server
+      (proven on the box, not just on paper: plaintext hash matched the Mac's);
+      ⬜ pi still has no sops config
 - [ ] AdGuard serving at both sites (Phase 4 exit criteria still met)
 - [ ] **Winkel is reachable without maxdata** — the precondition for Phase 6.
       Verify by stopping maxdata's overlay client and confirming you can still
