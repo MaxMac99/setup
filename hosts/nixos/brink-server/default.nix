@@ -30,7 +30,10 @@ in {
   # to Winkel. Brink has no second always-on host, so this is a single point of
   # failure for cross-site routing here — accepted in 3.2 because the UDM SE
   # cannot fill the role itself.
-  overlayClient.enable = true;
+  overlayClient = {
+    enable = true;
+    authKeySecret = "overlay_authkey";
+  };
 
   boot = {
     loader = {

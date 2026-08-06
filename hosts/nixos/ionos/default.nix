@@ -25,7 +25,10 @@
 
   # ionos runs the control server *and* joins as a peer. It advertises no
   # subnet — it has no LAN to offer.
-  overlayClient.enable = true;
+  overlayClient = {
+    enable = true;
+    authKeySecret = "overlay_authkey";
+  };
 
   # Disable swap completely to avoid kswapd0 CPU issues
   zramSwap.enable = false;

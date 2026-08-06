@@ -44,7 +44,10 @@ in {
   # the reason D10 put the pi here: it advertises 192.168.178.0/24 and is the
   # FritzBox's next hop to Brink, so a nixos-rebuild on maxdata cannot take
   # Winkel's routing, DNS and the only way in down with it.
-  overlayClient.enable = true;
+  overlayClient = {
+    enable = true;
+    authKeySecret = "overlay_authkey";
+  };
 
   hostSpec = {
     username = "max";
