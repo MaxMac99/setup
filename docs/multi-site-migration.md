@@ -26,8 +26,8 @@ One session per phase. Read this section first, update it last.
 | 2 | Overlay spike | ✅ done | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Direct over native IPv6, MTU 1280, p99 6.8 ms, zero relay fallback. Spike torn down; IONOS ports closed and spike DNS records deleted |
 | 2b | Secret hygiene | ✅ done | 2026-08-06 | Rescoped then closed. 1Password is *not* the infrastructure vault (D11 revised); overlay keys go in sops-nix, which is all Phase 3 needed. SSH agent live. Remaining items moved to the phases that touch those hosts, one dropped — see 2b.3 |
 | 3 | Overlay rollout | ✅ done | 2026-08-06 | **Headscale v0.29.3 on ionos**, dual-stack 443, LE cert via HTTP-01 (no DNS credential), embedded DERP region 999. Five nodes; both subnet routes approved and serving. **Unmodified client ↔ unmodified client verified both ways**; path **direct over native IPv6**, overlay MTU **1280 measured exactly** → flannel **1230**. ionos now on a **host** age key, proven across a cold boot. Survives reboot of the control server *and* of a client. Two design errors found and fixed the hard way — see 3.6. Open: 24 h sampling **waived** (3.5), GUI deferred to Phase 10 |
-| 4 | DNS | 🔄 **hosts done, routers pending** | 2026-08-06 | **AdGuard native on brink-server (`192.168.1.2`) and winkel-pi (`192.168.178.3`)**, one per site, from a shared `modules/system/site-dns.nix`. Split-horizon, MagicDNS forwarding, blocking and **failover all verified on the wire** at both sites. Nothing was restored from Phase 1 — the backup is a stock config (4.2). ⚠️ **Not yet reaching clients:** the two routers still hand out themselves, and that step is 4.5, which needs the UIs. Three traps found the hard way — inert rewrites, a DNS-intercepting UDM SE, and clients preferring the RA-advertised IPv6 resolver, which is why each resolver now has a **ULA** (4.4) |
-| 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **5.1 and 5.2 are both done.** brink-server installed at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled, decrypt proven on the box. Pi **renamed `k3s-pi` → `winkel-pi`**, `hostId` `03030303` → `7a943cc4`, on static `192.168.178.3`, sops host key wired and **decrypt proven on the box** — all verified after a reboot. Both self-update from GitHub over read-only deploy keys. Nothing Phase-5-owned remains; the open exit criteria belong to **Phase 3** (overlay, and "Winkel reachable without maxdata") and **Phase 4** (AdGuard) |
+| 4 | DNS | ✅ done | 2026-08-06 | **AdGuard native on brink-server (`192.168.1.2`) and winkel-pi (`192.168.178.3`)**, one per site, from a shared `modules/system/site-dns.nix`. Split-horizon, MagicDNS forwarding, blocking and **failover all verified on the wire** at both sites. Nothing was restored from Phase 1 — the backup is a stock config (4.2). **Both routers cut over the same day** and real clients are on the new resolvers at both sites, over **both address families** — a Winkel client appears in the query log at `fd06:f10a:ebec:178:1806:…`, so per-client visibility survived (4.5). Three traps found the hard way — inert rewrites, a DNS-intercepting UDM SE, and clients preferring the RA-advertised IPv6 resolver, which is why each resolver has a **ULA** (4.4) |
+| 5 | brink-server + pi relocation | ✅ done | 2026-08-06 | **5.1 and 5.2 are both done.** brink-server installed at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled, decrypt proven on the box. Pi **renamed `k3s-pi` → `winkel-pi`**, `hostId` `03030303` → `7a943cc4`, on static `192.168.178.3`, sops host key wired and **decrypt proven on the box** — all verified after a reboot. Both self-update from GitHub over read-only deploy keys. Nothing Phase-5-owned remained; its last open criterion was **Phase 4's** AdGuard, closed the same day. **Phase 6 is now the next step, and the first irreversible one** |
 | 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
 | 7 | Fresh cluster | not started | | |
 | 8 | Storage and site affinity | not started | | |
@@ -1331,23 +1331,38 @@ on advertising an address that no longer exists. So each resolver gets a
 **stable ULA** — see the decision log for the prefix and why it avoids
 Tailscale's range and the legacy one.
 
-## 4.5 What is left, and it needs the router UIs
+## 4.5 Router configuration — done, and what each UI actually offers
 
-Both hosts are done and verified. Neither router has been touched, so **no
-client is using the new resolvers yet.**
+Both routers were cut over on 2026-08-06 and verified on the wire.
 
 | Router | DHCPv4 DNS | IPv6 |
 |---|---|---|
-| **UDM SE** (brink) | `192.168.1.2`, then `192.168.1.1` | advertise `fd06:f10a:ebec:1::/64`, and RDNSS/DHCPv6 DNS → `fd06:f10a:ebec:1::2` |
-| **FritzBox** (winkel) | `192.168.178.3`, then `192.168.178.1` | advertise `fd06:f10a:ebec:178::/64`, and DNSv6 → `fd06:f10a:ebec:178::3` |
+| **UDM SE** (brink) | `192.168.1.2`, then `192.168.1.1` | ULA `fd06:f10a:ebec:1::1/64` added as an **additional IP on the VLAN** — that is what makes the UDM advertise the prefix; RDNSS → `fd06:f10a:ebec:1::2` |
+| **FritzBox** (winkel) | `192.168.178.3` | *ULA-Präfix manuell festlegen* → `fd06:f10a:ebec:178::/64`; **„DNSv6-Server auch über Router Advertisement bekanntgeben (RFC 5006)"** ticked; *Lokaler DNSv6-Server* → `fd06:f10a:ebec:178::3` |
 
-⚠️ **Feasibility is not verified on the UDM SE.** UniFi generally allows one
-IPv6 interface type per network, so a *static ULA prefix alongside* Deutsche
-Glasfaser prefix delegation may not be configurable. If it is not, the fallback
-at Brink is to stop the UDM SE advertising itself as a DNS server so clients
-fall through to the DHCPv4 setting — DNS becomes IPv4-only there, which costs
-nothing but the per-family symmetry. The FritzBox is known to manage it: it
-already advertises the legacy ULA today.
+Two notes that cost time:
+
+- **The UDM SE has no separate "advertise this prefix" control.** Adding the
+  ULA under *additional IPs* on the VLAN is what does it. Before that address
+  existed the RA carried the RDNSS option but **no prefix-info for the ULA**,
+  so clients were told to use a resolver they had no route to. Confirmed by
+  capturing the RA (`tcpdump 'icmp6 && ip6[40] == 134'`), which is the only
+  way to see this — the UI shows nothing wrong.
+- **On the FritzBox, „DNSv6-Server auch über Router Advertisement bekanntgeben"
+  is not the same as „Auch IPv6-Präfixe zulassen, die andere IPv6-Router im
+  Heimnetz bekanntgeben".** The first advertises a resolver outbound; the
+  second accepts prefixes inbound. Only the first matters here.
+
+The FritzBox retires the old `fda8:a1db:5685::/64` gracefully — it still
+advertises it with **valid and preferred lifetime 0** rather than dropping it,
+which is why hosts lost those addresses without disruption. **ionos's `wg0` was
+unaffected**, verified by handshake and ping: its `fda8:` addresses are
+statically configured on both ends and never depended on the LAN
+advertisement.
+
+⚠️ **maxdata still resolves via the FritzBox**, not via winkel-pi. It reads the
+deprecated `networkConfig.dns.servers`, which Phase 6 replaces — the only host
+at either site not yet on its site resolver.
 
 ## 4.6 Exit criteria
 
@@ -1365,8 +1380,11 @@ already advertises the legacy ULA today.
       split-horizon, exclusion, blocking and AAAA
 - [x] **winkel-pi verified across a reboot** — address, default route and an
       outbound connection checked separately, no failed units
-- [ ] **Both sites resolve via their local AdGuard** — blocked on 4.5; the
-      routers still hand out themselves
+- [x] **Both sites resolve via their local AdGuard** — real clients in both
+      query logs, on both address families. Winkel shows a client at
+      `fd06:f10a:ebec:178:1806:…`, i.e. reaching AdGuard over the
+      RDNSS-advertised ULA, so **per-client visibility survived** — which was
+      the whole reason for choosing the ULA over having the routers forward
 - [ ] Split-horizon behaviour off-net re-checked once Phase 9 gives the VIPs
       something to serve. Today they are aspirational: nothing listens on
       either `.240`, and every app hostname already fails at ionos, so this
@@ -1592,7 +1610,10 @@ All three are owned by later phases; nothing is left that belongs to Phase 5.
       `common.yaml` to a plaintext hash matching the Mac's. The pi needed no key
       ceremony; its recipient was already derived from its host key and only the
       `sops` block was missing
-- [ ] AdGuard serving at both sites (Phase 4 exit criteria still met)
+- [x] **AdGuard serving at both sites** — done in Phase 4 on 2026-08-06:
+      brink-server on `192.168.1.2` and winkel-pi on `192.168.178.3`, both
+      routers cut over, real clients on each. This was the last item Phase 5
+      was waiting on, and it belonged to Phase 4 throughout
 - [x] **Winkel is reachable without maxdata** — the precondition for Phase 6,
       and proven the hard way rather than by the planned drill. On 2026-08-06
       maxdata lost its LAN address entirely (3.6.1) while winkel-pi kept
