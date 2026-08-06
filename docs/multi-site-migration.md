@@ -26,7 +26,7 @@ One session per phase. Read this section first, update it last.
 | 2 | Overlay spike | ✅ done | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Direct over native IPv6, MTU 1280, p99 6.8 ms, zero relay fallback. Spike torn down; IONOS ports closed and spike DNS records deleted |
 | 2b | Secret hygiene | ✅ done | 2026-08-06 | Rescoped then closed. 1Password is *not* the infrastructure vault (D11 revised); overlay keys go in sops-nix, which is all Phase 3 needed. SSH agent live. Remaining items moved to the phases that touch those hosts, one dropped — see 2b.3 |
 | 3 | Overlay rollout | ✅ done | 2026-08-06 | **Headscale v0.29.3 on ionos**, dual-stack 443, LE cert via HTTP-01 (no DNS credential), embedded DERP region 999. Five nodes; both subnet routes approved and serving. **Unmodified client ↔ unmodified client verified both ways**; path **direct over native IPv6**, overlay MTU **1280 measured exactly** → flannel **1230**. ionos now on a **host** age key, proven across a cold boot. Survives reboot of the control server *and* of a client. Two design errors found and fixed the hard way — see 3.6. Open: 24 h sampling **waived** (3.5), GUI deferred to Phase 10 |
-| 4 | DNS | not started | | |
+| 4 | DNS | 🔄 **hosts done, routers pending** | 2026-08-06 | **AdGuard native on brink-server (`192.168.1.2`) and winkel-pi (`192.168.178.3`)**, one per site, from a shared `modules/system/site-dns.nix`. Split-horizon, MagicDNS forwarding, blocking and **failover all verified on the wire** at both sites. Nothing was restored from Phase 1 — the backup is a stock config (4.2). ⚠️ **Not yet reaching clients:** the two routers still hand out themselves, and that step is 4.5, which needs the UIs. Three traps found the hard way — inert rewrites, a DNS-intercepting UDM SE, and clients preferring the RA-advertised IPv6 resolver, which is why each resolver now has a **ULA** (4.4) |
 | 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **5.1 and 5.2 are both done.** brink-server installed at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled, decrypt proven on the box. Pi **renamed `k3s-pi` → `winkel-pi`**, `hostId` `03030303` → `7a943cc4`, on static `192.168.178.3`, sops host key wired and **decrypt proven on the box** — all verified after a reboot. Both self-update from GitHub over read-only deploy keys. Nothing Phase-5-owned remains; the open exit criteria belong to **Phase 3** (overlay, and "Winkel reachable without maxdata") and **Phase 4** (AdGuard) |
 | 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
 | 7 | Fresh cluster | not started | | |
@@ -60,6 +60,18 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | **Headscale deployment** | **v0.29.3** on ionos, dual-stack `:443` (binds `[::]` despite logging `0.0.0.0`), gRPC on `:50443` (host-firewalled), embedded **DERP region 999** + STUN `udp/3478`, public DERP map disabled. TLS by Headscale's own ACME **HTTP-01** — no DNS credential, unlike Phase 2's manual DNS-01. Policy is a HuJSON file deployed from the store | Phase 3, 2026-08-06 |
 | **Overlay route acceptance** | ⚠️ **A host accepts routes iff it advertises one.** Accepted routes land in table 52 at `ip rule` priority 5270, *ahead* of main at 32766, so an accepted route covering the host's own subnet silently beats its LAN route. Broke maxdata, silently displaced ionos's `wg0` path to Winkel — see 3.6.1 | Phase 3, 2026-08-06 |
 | **IONOS Cloud firewall openings** | Only **UDP 3478** had to be added: 22/80/443 were already permitted, so Headscale on 443 with ACME on 80 needed no panel change. A firewalled port **times out** (~8 s); a rejected one fails in ~170 ms — useful for telling the cloud firewall apart from a local one | Phase 3, 2026-08-06 |
+| **Site resolvers** | **brink-server `192.168.1.2` · winkel-pi `192.168.178.3`**, recorded in `networkConfig.sites.*.adguard`. `modules/system/site-dns.nix` **asserts** this equals the host's own `lanIPv4` — the routers' DHCP is configured from the former while AdGuard binds the latter, and nothing else would catch them drifting. AdGuard **0.107.78**, identical module in both nixpkgs despite 26.05 vs 26.11 (D12) | Phase 4, 2026-08-06 |
+| **AdGuard rewrites need `enabled: true`** | ⚠️ **A rewrite that omits `enabled` is migrated to `enabled: false`.** The rules land in `AdGuardHome.yaml`, read as completely correct, and do nothing — every `*.mvissing.de` name still resolved publicly. Not documented in the NixOS module. Caught only because the resolver was queried directly before anything was pointed at it | Phase 4, 2026-08-06 |
+| **`site-dns.nix` cannot be tested imperatively** | ⚠️ The module's `preStart` runs `yaml-merge <state> <store-config>` on **every** service start, so a hand-edit to `AdGuardHome.yaml` is reverted before AdGuard reads it. Two "tests" silently re-ran the original config before this was spotted. Valid technique: run a second AdGuard on its own ports and work directory. **Note `yaml-merge` is a recursive dict merge with lists replaced wholesale** — so undeclared keys like `users` persist, while `filters`/`rewrites`/`upstream_dns` are authoritative from Nix | Phase 4, 2026-08-06 |
+| **MagicDNS answers despite `--accept-dns=false`** | ✅ `100.100.100.100` resolves node names even though no client accepts Tailscale DNS — the flag only stops tailscaled rewriting `/etc/resolv.conf`. So AdGuard forwards `mesh.mvissing.de` there with a dnsmasq-style domain upstream, and **overlay addresses are never duplicated into DNS config**; new nodes resolve with no config change. Verified `winkel-pi.mesh.mvissing.de → 100.64.0.3` | Phase 4, 2026-08-06 |
+| **Split-horizon exclusions** | `*.mvissing.de` → the site's own `ingressVIP`, with **pass-through** rewrites (`answer: A` / `AAAA` = "keep the upstream's records") for `headscale.mvissing.de` and the MagicDNS zone. Two entries per name, since `A` preserves only A and `AAAA` only AAAA. ⚠️ **The Headscale exclusion is load-bearing**: the public zone has a wildcard onto ionos, so swallowing it would cost both sites the overlay — including the hosts serving DNS. The apex is *not* rewritten, because AdGuard's `*.x` wildcard excludes `x` itself | Phase 4, 2026-08-06 |
+| **UDM SE intercepts DNS on routed traffic** | ⚠️ Queries **crossing** the UDM SE to port 53 are answered by it regardless of destination: `dig @192.168.178.99` and `@192.168.178.250` — addresses with no host at all — returned valid, ad-blocked answers, while same-subnet Brink addresses with no server timed out correctly. **Cross-site DNS testing from Brink is therefore meaningless**; it produced a false "winkel-pi is broken" reading when the pi was correct. Test from inside the site, or on the box | Phase 4, 2026-08-06 |
+| **Clients prefer the RA-advertised IPv6 resolver** | ⚠️ **The DHCPv4 DNS setting alone does not redirect clients.** On the Brink Mac `nameserver[0]` was `2a00:6020:b444:bb00::1` — the UDM SE via RDNSS — with the DHCPv4 server only second, so `paperless.mvissing.de` still resolved to the dead public ingress. Both routers must advertise the resolver over IPv6 as well, which is what forced the ULA below | Phase 4, 2026-08-06 |
+| **Resolver ULA** | **`fd06:f10a:ebec::/48`** — brink `…:1::/64`, resolver `…:1::2`; winkel `…:178::/64`, resolver `…:178::3`. Host part mirrors the IPv4 last octet. Random per RFC 4193 §3.2.2, and deliberately clear of **Tailscale's `fd7a:115c:a1e0::/48`** and of **`fda8:a1db:5685::/48`**, which ionos's `wg0` still carries. A ULA rather than an address in the delegated prefix because D2 forbids depending on the DG prefix — it changes unannounced, and the router would go on advertising the old address. ⚠️ **The FritzBox already advertises `fda8:a1db:5685::/64`** at Winkel (winkel-pi holds SLAAC addresses in it) — proof ULA advertisement works there, and a Phase 13 cleanup item | Phase 4, 2026-08-06 |
+| **brink-server must ignore RA RDNSS** | `networkd` appended the UDM SE's own address to the link's DNS list, giving a third resolver present nowhere in this repo, which resolved may fail over to — bypassing blocking *and* split-horizon, intermittently. Fixed with `ipv6AcceptRAConfig.UseDNS = false`. winkel-pi is unaffected: `dhcpcd` is off and nothing writes RDNSS into `resolv.conf` | Phase 4, 2026-08-06 |
+| **AdGuard rate limiting disabled** | Default is 20 q/s bucketed by `ratelimit_subnet_len_ipv4 = 24` — i.e. the **whole /24 shares one bucket**, not each client. On a site resolver that is a self-inflicted outage waiting for a busy evening; AdGuard's own guidance permits disabling it when the server is not internet-facing, which holds under CGNAT | Phase 4, 2026-08-06 |
+| **DNS failover, measured** | AdGuard stopped → `example.com` still resolved in **37 ms** via the router (port unreachable gives immediate fallback, not a timeout). Blocking leaked (`doubleclick.net` → a real address) and split-horizon was lost, both as designed: **leaky, not absent**. Blocking returned immediately on restart | Phase 4, 2026-08-06 |
+| **`network-setup.service` does not exist on winkel-pi** | ⚠️ 6.5 is version-drifted. NixOS 26.05 splits scripted networking into per-interface units: the pi has **`network-addresses-end0.service`** plus `networking-scripted.target`, and no `network-setup.service` at all. Same failure class, different unit name — and `nixos-rebuild boot` + reboot sidesteps the live transition entirely, which is how the ULA was applied there | Phase 4, 2026-08-06 |
 | ionos → home RTT (existing wg0) | ~13 ms | Phase 0, `ping` from ionos |
 | Winkel WAN IPv6 prefix | `2a00:6020:b481:e300::/56` — record only, never depend on it (D2) | FritzBox, 2026-08-05 |
 | UDM SE static routes | present and configurable — Phase 3 unblocked | UDM SE, 2026-08-05 |
@@ -1240,12 +1252,125 @@ cleanly absent. Accepted.
 
 The in-cluster AdGuard (`apps/adguard.ts`) is deleted in Phase 8.
 
-## 4.1 Exit criteria
+Implemented 2026-08-06 as `modules/system/site-dns.nix`, one module for both
+hosts — the `services.adguardhome` module is byte-identical in the fleet's
+nixpkgs and the pi's, so D12's version split does not bite here.
 
-- [ ] Both sites resolve via their local AdGuard
-- [ ] Blocking verified at both sites
-- [ ] Failover to the router resolver verified by stopping AdGuard
-- [ ] Split-horizon `*.mvissing.de` resolves correctly at both sites and off-net
+Everything is derived from `networkConfig`; no address is written twice. The
+module **asserts** `sites.<site>.adguard == hosts.<host>.lanIPv4`, because the
+routers' DHCP is configured from the first and AdGuard binds the second, and
+those two facts live in different systems where nothing else would notice them
+diverging. Forcing a mismatch produces:
+
+```
+siteDns: networkConfig.sites.brink.adguard is 192.168.1.99 but brink-server
+binds 192.168.1.2. The routers' DHCP is configured from the former and
+AdGuard listens on the latter — they must not drift.
+```
+
+## 4.1 What was deliberately staged
+
+The deploy was split from the cutover: **AdGuard was stood up with nothing
+pointed at it**, verified by querying each instance directly, and only then did
+`sites.*.dnsServers` change. That ordering is not ceremony — it is what caught
+the split-horizon rewrites being completely inert (4.3) at a moment when the
+cost was zero. The in-cluster AdGuard on `192.168.178.14` kept serving Winkel
+throughout and is still running; Phase 8 deletes it.
+
+## 4.2 The Phase 1 backup was not restored, and there was nothing to restore
+
+`localpath-adguard-data.tar.gz` was extracted and read before deciding. It is a
+stock configuration:
+
+| Key | Value in the backup |
+|---|---|
+| `users` | `[]` — **no admin hash exists at all** |
+| `user_rules` | `[]` |
+| `filtering.rewrites` | `[]` |
+| `clients.persistent` | `[]` |
+| `filters` | the two stock lists |
+| `upstream_dns` | Cloudflare DoH |
+
+So the "don't silently regenerate an admin hash nobody has" concern was void:
+the in-cluster instance ran unauthenticated behind Authentik forward-auth. The
+only content worth carrying — the two filter lists and the Cloudflare
+upstreams — is now declared in Nix.
+
+**Consequence:** natively there is no Authentik in front, and `users` is left
+undeclared on purpose. `mutableSettings` merges declared keys *over* the state
+file, so a password set once in the web UI persists across every later rebuild
+without a bcrypt hash entering the world-readable nix store. Until that is
+done the UI is open to anyone on the LAN or the overlay.
+
+## 4.3 Three traps, all of which looked like success
+
+1. **The rewrites were inert.** Every entry landed with `enabled: false` —
+   a schema migration default for an omitted field, not something written by
+   hand. `AdGuardHome.yaml` read as entirely correct while every
+   `*.mvissing.de` name still resolved to ionos.
+
+2. **The module cannot be tested imperatively.** `preStart` re-merges the
+   store config on *every* start, so two hand-edited "tests" silently re-ran
+   the original configuration. The fix was only proven by running a second
+   AdGuard on separate ports and a separate work directory.
+
+3. **The UDM SE answers DNS for addresses that do not exist.** Testing
+   winkel-pi's resolver from Brink reported it broken; it was correct all
+   along, and the replies were the UDM SE's. See the decision log.
+
+## 4.4 IPv6, and why the resolvers have a ULA
+
+The router step as originally written — set the DHCP DNS server — **would not
+have worked**. Clients prefer an RA-advertised IPv6 resolver over the DHCPv4
+one, so `nameserver[0]` on the Brink Mac was the UDM SE's own address and
+would have stayed that way.
+
+Giving AdGuard an IPv6 address inside the site's delegated prefix is ruled out
+by D2: the Deutsche Glasfaser /56 changes unannounced, and the router would go
+on advertising an address that no longer exists. So each resolver gets a
+**stable ULA** — see the decision log for the prefix and why it avoids
+Tailscale's range and the legacy one.
+
+## 4.5 What is left, and it needs the router UIs
+
+Both hosts are done and verified. Neither router has been touched, so **no
+client is using the new resolvers yet.**
+
+| Router | DHCPv4 DNS | IPv6 |
+|---|---|---|
+| **UDM SE** (brink) | `192.168.1.2`, then `192.168.1.1` | advertise `fd06:f10a:ebec:1::/64`, and RDNSS/DHCPv6 DNS → `fd06:f10a:ebec:1::2` |
+| **FritzBox** (winkel) | `192.168.178.3`, then `192.168.178.1` | advertise `fd06:f10a:ebec:178::/64`, and DNSv6 → `fd06:f10a:ebec:178::3` |
+
+⚠️ **Feasibility is not verified on the UDM SE.** UniFi generally allows one
+IPv6 interface type per network, so a *static ULA prefix alongside* Deutsche
+Glasfaser prefix delegation may not be configurable. If it is not, the fallback
+at Brink is to stop the UDM SE advertising itself as a DNS server so clients
+fall through to the DHCPv4 setting — DNS becomes IPv4-only there, which costs
+nothing but the per-family symmetry. The FritzBox is known to manage it: it
+already advertises the legacy ULA today.
+
+## 4.6 Exit criteria
+
+- [x] **Split-horizon `*.mvissing.de` resolves to the site-local VIP** —
+      `192.168.1.240` at Brink, `192.168.178.240` at Winkel, each from its own
+      resolver, with the apex left alone
+- [x] **`headscale.mvissing.de` still resolves to ionos from both sites**, A
+      and AAAA — the exclusion the overlay depends on
+- [x] **MagicDNS names resolve** through both resolvers
+      (`winkel-pi.mesh.mvissing.de → 100.64.0.3`)
+- [x] **Blocking verified at both sites** (`doubleclick.net → 0.0.0.0`)
+- [x] **Failover verified by stopping AdGuard** — 37 ms, via the router,
+      blocking leaky rather than the site offline
+- [x] **Both resolvers answer over IPv6** on their ULA, verified for
+      split-horizon, exclusion, blocking and AAAA
+- [x] **winkel-pi verified across a reboot** — address, default route and an
+      outbound connection checked separately, no failed units
+- [ ] **Both sites resolve via their local AdGuard** — blocked on 4.5; the
+      routers still hand out themselves
+- [ ] Split-horizon behaviour off-net re-checked once Phase 9 gives the VIPs
+      something to serve. Today they are aspirational: nothing listens on
+      either `.240`, and every app hostname already fails at ionos, so this
+      is not a regression — but it is not yet a working internal name either
 
 ---
 
@@ -1611,6 +1736,22 @@ fleet splits two ways, and ionos is on the scripted side:
 | Scripted (`dhcpcd` + `network-setup.service`) | systemd-networkd |
 |---|---|
 | `winkel-pi`, **`ionos`** | `maxdata`, `brink-server` (D14) |
+
+⚠️ **Unit names corrected 2026-08-06 (Phase 4).** `network-setup.service` does
+**not exist on winkel-pi** — `systemctl is-enabled` returns `not-found`. NixOS
+26.05 splits scripted networking into per-interface units, so the pi has
+**`network-addresses-end0.service`** (the unit that actually owns the static
+address) plus `network-local-commands.service` and `networking-scripted.target`.
+The failure mode is unchanged; only the name to watch is. Note the trap in
+checking this: `systemctl is-active` reports a non-existent unit as `inactive`,
+which reads like "present but stopped" — use `is-enabled`, which says
+`not-found`.
+
+There is also a way to avoid the hazard rather than survive it: **`nixos-rebuild
+boot` followed by a reboot never performs the live transition at all.** Phase 4
+used exactly that on winkel-pi for the one change that did alter
+`network-addresses-end0.service`, and the address came up clean on boot. Prefer
+it on the pi whenever a change touches networking.
 
 ionos's upgrade on 2026-08-06 reproduced the exact signature — `network-setup.
 service` appeared under *stopping* and never under *starting*, while
