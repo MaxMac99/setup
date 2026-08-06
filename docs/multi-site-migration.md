@@ -77,7 +77,7 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | Winkel reachable from off-site | **yes, verified** — `ssh -J max@212.132.82.102 max@192.168.178.{2,3}` returns `maxdata` / `winkel-pi` (`k3s-pi` before the rename); ionos `wg0` up at `.201`, 0% loss, ~14 ms. This jump is the only route into Winkel until Phase 3; neither ssh alias carries a `ProxyJump` | 2026-08-06 |
 | maxdata networking stack | **systemd-networkd — confirmed live, question closed.** `systemd-networkd` active+enabled; `network-setup.service` and `dhcpcd.service` **do not exist as units at all**; `vmbr0` built from `20-vmbr0.netdev` + 3 `.network` files, `networkctl` routable/online. 6.5's scripted-networking claim was wrong, so its failure mode cannot occur on maxdata — Phase 6 must guard a networkd/bridge restart instead | Live check on the box, 2026-08-06 |
 | **ionos deployment source** | ✅ **reconciled 2026-08-06.** `/home/max/setup` now tracks **`multi-site`**; upgraded `26.05.20260427` → **`26.11.20260802.6438090`** (gen 50, gen 49 kept as rollback), **verified across a reboot**. `/etc/nixos` is still a plain directory, unlike the pi/brink-server clone pattern. ⚠️ Requires `safe.directory` for root — set imperatively in `/root/.gitconfig`, **not yet declared in the config**, and invisible to `systemd-run` unless `HOME=/root` is passed | Phase 3.0.4, 2026-08-06 |
-| **ionos build capacity** | ⚠️ **no remote builders; builds locally on a small VPS and cannot cope.** A full `nixos-rebuild build` starved sshd for 20+ min — ping and the TCP handshake still succeeded while no login could complete — and needed a panel power-cycle. Use `--max-jobs 1 --cores 1` under `tmux`, check `free -m`/`df -h` first. Phase 3 builds Headscale here: add a **remote builder** (brink-server, x86_64-linux, 32 GB, idle) or expect a repeat | Phase 3.0.5, 2026-08-06 |
+| **ionos build capacity** | ⚠️ **no remote builders; builds locally on a small VPS and cannot cope.** A full `nixos-rebuild build` starved sshd for 20+ min — ping and the TCP handshake still succeeded while no login could complete — and needed a panel power-cycle. Use `--max-jobs 1 --cores 1` under `tmux`, check `free -m`/`df -h` first. ⚠️ A `nix.buildMachines` remote builder **cannot** fix this: it needs ionos to dial out to the builder, and brink-server is behind CGNAT. Invert it — build on brink-server and push with `nixos-rebuild --flake …#ionos --target-host max@212.132.82.102 --use-remote-sudo` | Phase 3.0.5, 2026-08-06 |
 | **`sops-install-secrets` is never cached** | It ships from the sops-nix flake, not nixpkgs, so `cache.nixos.org` has no build: every host compiles it and runs its test suite whenever the input moves — 20 min on ionos. Fix fleet-wide with the `nix-community.cachix.org` substituter, or per-run via `--option extra-substituters` | Phase 3.0.5, 2026-08-06 |
 | **ionos host age recipient** | `age19ylfvg7p6zw67t7dkutrj4d0dg5wllnf8ltwjzdlttuu33wt69ssv0mxlm`, from `/etc/ssh/ssh_host_ed25519_key`. Enrolled **alongside** the user-key `&ionos` on `multi-site`; decrypt of both `common.yaml` and `k3s.yaml` proven on the box. The user key `/home/max/.ssh/id_ed25519` derives `age100thyt…` and is still the live source — **do not rename that file** | Phase 3.0, 2026-08-06 |
 | ionos public ingress | 80/443 still DNAT'd to `192.168.178.10`, which is **dead** — ingress already broken, so 443 is free for the control server (3.0) | 2026-08-06 |
@@ -964,9 +964,46 @@ Until then it can be passed per-invocation with `--option extra-substituters` /
 completed.
 
 **Consequence for this phase:** step 1 is "control server on ionos", i.e.
-another build on the box that just fell over. Either add the substituter first,
-or give ionos a **remote builder** — brink-server is x86_64-linux with 32 GB and
-is idle, so it is the obvious candidate and would serve Phases 7–13 as well.
+another build on the box that just fell over.
+
+⚠️ **"Give ionos a remote builder" — as first written here — cannot work, and
+the reason is structural.** `nix.buildMachines` requires ionos to *dial out* to
+the builder, and brink-server sits behind the UDM SE on DS-Lite CGNAT. ionos
+cannot reach it. That path is exactly what Phase 3 is being built to create, so
+depending on it to build Phase 3 is circular.
+
+**Reverse the direction instead.** brink-server → ionos works today, because
+ionos has a fixed public address. So build ionos's closure *on* brink-server —
+native x86_64-linux, 32 GB, idle — and push it:
+
+```sh
+# on brink-server, from its own clone
+nixos-rebuild switch --flake /etc/nixos#ionos \
+  --target-host max@212.132.82.102 --use-remote-sudo
+```
+
+This needs no `nix.buildMachines`, no new config on either host, and no overlay.
+Verified on the wire 2026-08-06: brink-server is `x86_64`, `tcp/22` to ionos is
+**reachable**, and the *only* gap is authentication — `Permission denied
+(publickey)`, since its sole key `id_brink_server` is the GitHub deploy key.
+
+⚠️ **Prefer agent forwarding (`ssh -A`) over adding a key, and the reason is not
+convenience.** `base.nix:25` authorises `max` from
+`pubKeys = listFilesRecursive modules/data/keys`, so *every* `.pub` dropped in
+that directory grants access to **every host in the fleet**, not just the one
+you meant. Adding `brink-server.pub` would let brink-server log into ionos,
+maxdata, winkel-pi and both Macs — a far broader grant than "let it push a
+closure to ionos". (`maxdata.pub` already sits there and already does exactly
+that, which is worth revisiting on its own merits.)
+
+Forwarding the agent uses the `max-admin` key already in 1Password, leaves no
+private material on brink-server, and scopes the access to the moment a human
+initiates the deploy — which is the right shape for something this deliberate.
+The deploy is not meant to be unattended.
+
+It also generalises: the same inversion is how any x86_64 host in this estate
+gets built without trusting a VPS to compile, and it stops being necessary once
+the overlay makes the CGNAT direction routable.
 
 📌 **A build counter is a diagnostic.** Mid-run this looked like a cache-coverage
 problem, and a Renovate-bumped `flake.lock` pointing at a non-channel nixpkgs
