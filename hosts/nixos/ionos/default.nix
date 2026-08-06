@@ -142,7 +142,22 @@
   # Configure sops secret for K3s token
   sops = {
     defaultSopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
-    age.sshKeyPaths = ["/home/max/.ssh/id_ed25519"]; # Use user SSH key for age
+    # A **host** key at last (D11/2b.2), completing the correction inherited
+    # from Phase 2b item 2. Was /home/max/.ssh/id_ed25519 — a *user* key, and
+    # the file the migration notes repeatedly warn must never be renamed while
+    # it is the age source, because k3s_token stops decrypting at boot.
+    #
+    # Safe to flip because it was staged additively: the host-key recipient
+    # age19ylfvg7p… has been enrolled in .sops.yaml alongside the user key
+    # since 49fa463, both files were re-keyed with their plaintexts unchanged,
+    # and ionos was proven to decrypt common.yaml *and* k3s.yaml with this
+    # exact key on the box. So this line changes which of two working keys is
+    # used, not whether one works — and reverting is one line, not a re-key.
+    #
+    # ⚠️ Verify after a **reboot**, not after activation. sops-install-secrets
+    # runs on both, but only a boot proves the k3s token survives a cold start,
+    # which is the failure this ordering exists to prevent.
+    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
     secrets.k3s_token = {
       restartUnits = ["k3s.service"];
     };
