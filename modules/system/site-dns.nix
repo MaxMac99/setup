@@ -192,11 +192,19 @@ in {
           # and, per AdGuard's docs, are unaffected by `protection_enabled` —
           # so turning blocking off to debug something does not also collapse
           # internal name resolution.
+          # ⚠️ `enabled = true` on every entry is not optional and not a
+          # default. AdGuard's rewrite schema gained an `enabled` field, and
+          # an entry that omits it is migrated to `enabled: false` — so the
+          # rules land in AdGuardHome.yaml, look exactly right, and do
+          # nothing. Caught on 2026-08-06 only because the resolver was
+          # verified before anything was pointed at it: every name still
+          # resolved publicly while the config appeared correct.
           rewrites = lib.optionals (cfg.splitHorizonDomain != null) (
             [
               {
                 domain = "*.${cfg.splitHorizonDomain}";
                 answer = site.ingressVIP;
+                enabled = true;
               }
             ]
             # Pass-through exceptions. Two entries per name because the
@@ -207,10 +215,12 @@ in {
               {
                 domain = name;
                 answer = "A";
+                enabled = true;
               }
               {
                 domain = name;
                 answer = "AAAA";
+                enabled = true;
               }
             ])
             cfg.passthroughNames
