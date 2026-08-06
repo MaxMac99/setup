@@ -78,10 +78,37 @@
         ];
       };
 
-    mkNixosHost = host:
-      nixpkgs.lib.nixosSystem {
+    # Hosts whose kernel comes from nixos-raspberrypi. They must be built with
+    # *that* flake's nixpkgs, not ours: its kernel overlay and nixpkgs' own
+    # hardware/device-tree.nix are version-coupled, and mixing the two fails to
+    # evaluate with `attribute 'buildDTBs' missing`. Its `lib.nixosSystem` is a
+    # documented drop-in for `nixpkgs.lib.nixosSystem` that defaults to the
+    # matching nixpkgs; see its README, "Using the flake to create NixOS
+    # configuration". Consequence: the pi tracks nixos-raspberrypi's nixpkgs
+    # independently of the rest of the fleet.
+    rpiHosts = ["k3s-pi"];
+
+    mkNixosHost = host: let
+      isRPi = builtins.elem host rpiHosts;
+      # `lib` travels through specialArgs, where it overrides the module
+      # system's own. It must therefore come from the same nixpkgs that builds
+      # the host, or evaluation recurses through `_module.args`.
+      hostNixpkgs =
+        if isRPi
+        then inputs.nixos-raspberrypi.inputs.nixpkgs
+        else nixpkgs;
+      hostLib = hostNixpkgs.lib.extend (self: super: {
+        custom = import ./lib {inherit (hostNixpkgs) lib;};
+      });
+      mkSystem =
+        if isRPi
+        then inputs.nixos-raspberrypi.lib.nixosSystem
+        else nixpkgs.lib.nixosSystem;
+    in
+      mkSystem {
         specialArgs = {
-          inherit self inputs outputs lib;
+          inherit self inputs outputs;
+          lib = hostLib;
           inherit (inputs) nixos-raspberrypi;
         };
         modules = [

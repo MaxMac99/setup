@@ -10,10 +10,12 @@
       "modules/system/openssh.nix"
       "modules/system/minimal-zsh.nix"
     ])
+    # Board specifics only. `nixos-raspberrypi.lib.nixosSystem` (see flake.nix)
+    # already supplies inject-overlays, nixpkgs-rpi and trusted-nix-caches —
+    # importing inject-overlays a second time applies the kernel/firmware
+    # overlay twice and evaluation recurses inside `raspberrypiWirelessFirmware`.
     ++ (with inputs.nixos-raspberrypi.nixosModules; [
       raspberry-pi-4.base
-      trusted-nix-caches
-      inputs.nixos-raspberrypi.lib.inject-overlays
     ])
     ++ [./hardware-configuration.nix];
 
