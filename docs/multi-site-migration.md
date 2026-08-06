@@ -25,9 +25,9 @@ One session per phase. Read this section first, update it last.
 | 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed (0 errors). UniFi `.unf` exported — confirm where it is stored |
 | 2 | Overlay spike | ✅ done | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Direct over native IPv6, MTU 1280, p99 6.8 ms, zero relay fallback. Spike torn down; IONOS ports closed and spike DNS records deleted |
 | 2b | Secret hygiene | ✅ done | 2026-08-06 | Rescoped then closed. 1Password is *not* the infrastructure vault (D11 revised); overlay keys go in sops-nix, which is all Phase 3 needed. SSH agent live. Remaining items moved to the phases that touch those hosts, one dropped — see 2b.3 |
-| 3 | Overlay rollout | not started | | ⚠️ **Depends on brink-server** — moving the pi left Brink with no overlay host (3.1). Prerequisites in 3.0: reopen IONOS ports, TLS renewal, ionos age key. Headscale should take 443 (ingress already dead) |
+| 3 | Overlay rollout | not started | | ⚠️ **Depends on brink-server** — moving the pi left Brink with no overlay host (3.1); its config now exists but the box is not installed. Prerequisites in 3.0: reopen IONOS ports, TLS renewal, ionos age key. Headscale should take 443 (ingress already dead) |
 | 4 | DNS | not started | | |
-| 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **Pi at Winkel on static `192.168.178.3`**, self-updating from GitHub; HA/matter removed; re-image skipped. Remaining: rename, sops host key, AdGuard, k3s agent — plus brink-server, which Phase 3 now needs first |
+| 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **Pi at Winkel on static `192.168.178.3`**, self-updating from GitHub; HA/matter removed; re-image skipped. **brink-server config written and evaluating; install pending** — runbook at [`brink-server-install.md`](./brink-server-install.md), ISO ready and checksum-verified. Remaining: run the install, pi rename, sops host keys, AdGuard, k3s |
 | 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
 | 7 | Fresh cluster | not started | | |
 | 8 | Storage and site affinity | not started | | |
@@ -65,6 +65,10 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | k3s-pi nixpkgs | **NixOS 26.05** via `nixos-raspberrypi`'s own nixpkgs, not the fleet's 26.11 (D12). `nix flake update nixpkgs` does not move it | Phase 5, 2026-08-06 |
 | k3s-pi self-management | `/etc/nixos` is a git clone on `multi-site`, pulled over SSH with a read-only deploy key; `git pull && nixos-rebuild switch` runs on the pi | Phase 5, 2026-08-06 |
 | brink-server hardware | **in hand** — Phase 3 now depends on it, since moving the pi left Brink with no overlay host (3.1) | 2026-08-06 |
+| brink-server config | **written and evaluating**, install pending. `hostId = b21961a5`; ZFS pool `fast` (zstd, single vdev); systemd-networkd; sops host key declared with zero secrets | Phase 5.1, 2026-08-06 |
+| brink-server installer media | NixOS **26.05** minimal x86_64, on the Mac, SHA-256 matches published `7f5df09b…f870` | 2026-08-06 |
+| Winkel reachable from off-site | **yes, verified** — `ssh -J max@212.132.82.102 max@192.168.178.{2,3}` returns `maxdata` / `k3s-pi`; ionos `wg0` up at `.201`, 0% loss, ~14 ms | 2026-08-06 |
+| maxdata networking stack | **systemd-networkd**, not scripted — `networking.nix:8-13`, address observed on the `vmbr0` netdev. Contradicts what 6.5 asserted; ⚠️ live `systemctl` check still outstanding | 2026-08-06 |
 | ionos public ingress | 80/443 still DNAT'd to `192.168.178.10`, which is **dead** — ingress already broken, so 443 is free for the control server (3.0) | 2026-08-06 |
 | FritzBox VPN peers | `192.168.178.201/32`, `.202`, … — FritzBox is the WireGuard *server* today | FritzBox, 2026-08-05 |
 | Effective ionos↔home throughput | ~3 MB/s | Phase 0, scp over wg0 |
@@ -161,6 +165,8 @@ Two things are deliberately *not* in the cluster:
 | **D10** | Pi lives at Winkel | Brink already has an always-on x86 node. Winkel's only machine is the unattended one — with the pi there, a `nixos-rebuild` on maxdata does not simultaneously kill Winkel's DNS, subnet router and your only route in. Cost: Brink becomes single-node for site infra. |
 | **D11** | sops-nix is the single mechanism for infrastructure secrets. 1Password holds human and family credentials, and is the SSH agent — it is deliberately *outside* the secret path | **Revised 2026-08-05.** Originally "1Password is the vault; sops-nix stays the on-host delivery." The offline rule that motivated the split — *if a host needs a secret before the network is up, it must decrypt offline* — turned out to exclude every boot-critical secret from 1Password anyway, leaving one laptop token as the sole candidate for opnix. That does not justify a flake input, a service account and a token file per host. sops-nix already does this offline, in git, with per-host scoping. See Phase 2b.1 for the full reasoning, including why host age identities can never live in the vault. |
 | **D12** | The pi is built with `nixos-raspberrypi.lib.nixosSystem`, and so tracks *that* flake's nixpkgs rather than the fleet's | **Added 2026-08-06.** The pi's configuration did not evaluate at all: nixos-raspberrypi's kernel overlay and nixpkgs' own `hardware/device-tree.nix` are version-coupled, and building the host from our nixpkgs while injecting their overlays fails with `attribute 'buildDTBs' missing`. Updating the input does not help — latest `main` fails identically. Their `lib.nixosSystem` is the documented drop-in that defaults to the matching nixpkgs. Consequence: the pi runs NixOS 26.05 while the fleet runs 26.11, and `nix flake update nixpkgs` does not move it — only the `nixos-raspberrypi` input does. `lib` must travel with it, because it passes through `specialArgs` where it overrides the module system's own and a foreign `lib` recurses through `_module.args`. See `flake.nix` `rpiHosts`. |
+| **D13** | brink-server's single ZFS pool is named **`fast`**, matching maxdata's NVMe pool, and compresses with **zstd** rather than maxdata's lz4 | **Added 2026-08-06.** The name is the load-bearing half: it makes `/fast/k8s/local-path-provisioner` mean the same thing on both k3s servers, which Phase 6.2 (rewriting `nodePathMap` off the virtiofs path) and Phase 8 (site-pinning every local-path PVC) both depend on. Two pools called `fast` on two machines never collide, because Phase 11 receives into `tank/…` on the target. The compression divergence is deliberate and smaller: zstd gives materially better ratios at negligible CPU cost on a 10th-gen i5, and this box has one unmirrored disk, so capacity is worth more than the last few percent of throughput. Compression is per-dataset and re-applied on receive, so replication is unaffected. |
+| **D14** | brink-server uses **systemd-networkd**, not scripted networking | **Added 2026-08-06.** On a scripted-networking host `nixos-rebuild test`/`switch` stops `dhcpcd` — deleting every address and route — without starting `network-setup.service`, leaving the interface bare. That cost two recoveries on the pi (6.5), once as total silence and once, worse, as an applied address with **no default route**: LAN-reachable and apparently healthy while every outbound connection failed. brink-server is Brink's subnet router and primary DNS; it is precisely the host that must not be losable to a routine rebuild. networkd also handles RAs itself, so it needs no `accept_ra=2` sysctl to keep IPv6 once Phase 3 turns on forwarding. |
 
 ---
 
@@ -978,21 +984,46 @@ than after — see 3.1 for that choice.
 
 Bare-metal NixOS install, done by hand, at Brink.
 
+🔄 **Configuration written 2026-08-06; the install itself is still pending.**
+Full step-by-step procedure: [`brink-server-install.md`](./brink-server-install.md).
+
 - Single 1 TB NVMe. ZFS single-vdev — no redundancy, but gains snapshots,
   compression and tooling parity with maxdata. Backed up to maxdata's `tank` in
   Phase 11, which is what makes the lack of redundancy acceptable.
-- `hosts/nixos/brink-server/` with `hardware-configuration.nix` from
-  `nixos-generate-config`.
-- Static `192.168.1.2` (verified free in Phase 0).
-- Overlay client + subnet router for `192.168.1.0/24`.
-- AdGuard.
+- ✅ `hosts/nixos/brink-server/` written and **evaluating** —
+  `nix eval …#nixosConfigurations.brink-server.…drvPath` succeeds, rendering
+  `192.168.1.2/24`, gateway `192.168.1.1`, `hostId = b21961a5` (distinct from
+  maxdata's `ec7b6b2d` and the pi's `03030303`).
+- ⚠️ `hardware-configuration.nix` is **partly provisional**. Its `fileSystems`
+  block is correct by construction — the runbook creates exactly that layout, so
+  the file is the *source* of the layout rather than a record of it. The
+  kernel-module lists are a guess and must be reconciled on the hardware with
+  `nixos-generate-config --root /mnt --no-filesystems`. Without
+  `--no-filesystems` the generated output overwrites the layout with `by-uuid`
+  paths.
+- Static `192.168.1.2` (verified free in Phase 0), and *below* the UDM SE's DHCP
+  floor of `.6`, so claiming it needs no router change at all.
+- ✅ Installer media ready: NixOS 26.05 minimal x86_64 at
+  `~/Downloads/nixos-minimal-26.05-x86_64.iso` on the Mac, SHA-256 verified
+  against the published checksum.
+- Overlay client + subnet router for `192.168.1.0/24` — **Phase 3, not here.**
+- AdGuard — **Phase 4, not here.**
 - Secret enrolment per Phase 2b: sops **host** key at
   `/etc/ssh/ssh_host_ed25519_key`, `.sops.yaml`, `sops updatekeys`. No 1Password
-  component — D11 keeps the vault out of the host secret path entirely.
+  component — D11 keeps the vault out of the host secret path entirely. The
+  config declares the plumbing with **zero secrets**, which is what makes it
+  safe to commit before the host exists: sops-nix with an empty secret set is a
+  no-op at activation, so a first boot cannot fail on a key that could not have
+  been enrolled yet.
 - k3s server module (not enabled until Phase 7).
 
-The install procedure in `docs/Migrate_Maxdata.md:136-207` is reusable for the
-ZFS and `nixos-install` steps.
+Three choices worth reviewing: the pool is named **`fast`** to match maxdata and
+compresses with **zstd** where maxdata uses lz4 (D13), and the host runs
+**systemd-networkd** rather than the scripted networking that bit the pi twice
+(D14).
+
+The install procedure in `docs/Migrate_Maxdata.md:136-207` was the starting
+point for the ZFS and `nixos-install` steps.
 
 ## 5.2 Pi
 
@@ -1057,6 +1088,9 @@ does not move the pi; only updating the `nixos-raspberrypi` input does.
 ## 5.3 Exit criteria
 
 - [ ] brink-server at Brink on `192.168.1.2`, advertising `192.168.1.0/24`
+      — config written and evaluating (2026-08-06); **install not yet run**, see
+      [`brink-server-install.md`](./brink-server-install.md). Advertising the
+      subnet is Phase 3
 - [x] Pi physically at Winkel, identified by MAC
 - [x] Pi on the static `192.168.178.3` (2026-08-06) — advertising the subnet still pending, Phase 3
 - [ ] Pi renamed; `hostId` no longer collides with node3's
@@ -1161,11 +1195,10 @@ You have local access but prefer not to use a console. The safe sequence:
 5. `nixos-rebuild switch --flake .#maxdata` to make it permanent.
 
 ⚠️ **Step 2 does not prove the network config works — learned the hard way on
-the pi, 2026-08-06.** maxdata uses **scripted networking** (no
-systemd-networkd), and on such a host `nixos-rebuild test`/`switch` stops
-`dhcpcd` — which deletes every address and route — but does **not** start
-`network-setup.service`, which owns the static addresses. The interface is left
-with nothing. On the pi this presented twice, differently:
+the pi, 2026-08-06.** On a **scripted-networking** host `nixos-rebuild
+test`/`switch` stops `dhcpcd` — which deletes every address and route — but does
+**not** start `network-setup.service`, which owns the static addresses. The
+interface is left with nothing. On the pi this presented twice, differently:
 
 - first as total silence, at both the old and new address;
 - then, more insidiously, with the address applied but **the default route
@@ -1173,9 +1206,27 @@ with nothing. On the pi this presented twice, differently:
   failed with `Network is unreachable`. A `git pull` failed and a rebuild
   silently used a stale commit.
 
-Consequences for this phase:
+⚠️ **Correction, 2026-08-06 — this passage previously asserted "maxdata uses
+scripted networking (no systemd-networkd)". That looks wrong.**
+`hosts/nixos/maxdata/networking.nix:8-13` sets `useNetworkd = true` and
+`systemd.network.enable = true`, and builds `vmbr0` as a
+`systemd.network.netdevs` entry; maxdata's address was observed live on exactly
+that bridge, which scripted networking would not have created. So the specific
+`dhcpcd`-versus-`network-setup.service` failure above most likely **does not
+apply to maxdata at all** — it is a property of the pi, which is genuinely
+scripted.
 
-- A dead-man reboot is **not optional** here; it is what recovered the pi.
+Live confirmation on the box (`systemctl is-active systemd-networkd`) was
+attempted and **not completed** — the 1Password SSH agent stopped responding
+before it ran. Treat this correction as source-based and verify on maxdata
+before relying on either reading. It matters: if maxdata really is on networkd,
+the reason to fear step 2 is different from the one written here, and a plan
+built on the wrong failure mode will guard the wrong thing.
+
+Consequences for this phase, none of which change:
+
+- A dead-man reboot is **not optional** here; it is what recovered the pi, and
+  it is cheap insurance regardless of which stack maxdata runs.
 - Judge success **after a reboot**, not after `test`. A clean boot runs
   `network-setup.service` properly and is the only honest verification.
 - Check the **default route** explicitly, not just pingability from the same
