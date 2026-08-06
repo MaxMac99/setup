@@ -63,9 +63,16 @@ in {
       ];
       extra-substituters = [
         "https://nixos-raspberrypi.cachix.org"
+        # sops-install-secrets ships from the sops-nix *flake*, not nixpkgs, so
+        # cache.nixos.org has never built it: without this every host compiles
+        # it from source and runs its Go test suite whenever the input moves.
+        # That cost ionos ~20 min in a single buildPhase on 2026-08-06 (3.0.5)
+        # and applies to every sops-nix host, which is all of them.
+        "https://nix-community.cachix.org"
       ];
       extra-trusted-public-keys = [
         "nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI="
+        "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       ];
     };
     optimise.automatic = true;

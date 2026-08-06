@@ -140,6 +140,23 @@
   # K3s token from sops template
   systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce config.sops.templates."k3s-env".path;
 
+  # ionos rebuilds itself from a clone at /home/max/setup, owned by max, while
+  # nixos-rebuild evaluates as root — and nix's libgit2 refuses to open a
+  # repository the current user does not own (`error code = 7`). Without this
+  # every rebuild fails before it starts.
+  #
+  # It was set imperatively in /root/.gitconfig on 2026-08-06 to get the 26.11
+  # upgrade moving; declaring it here is what stops that undeclared state from
+  # being load-bearing. Note the path differs from pi/brink-server, which use
+  # an /etc/nixos clone — converging ionos onto that pattern is Phase 13 work.
+  #
+  # ⚠️ libgit2 reads this from $HOME/.gitconfig, so a rebuild launched under
+  # `systemd-run` must be given `--setenv=HOME=/root` or it will not be found.
+  programs.git = {
+    enable = true;
+    config.safe.directory = "/home/max/setup";
+  };
+
   # Fix WireGuard DNS resolution issue during boot
   systemd.services."wireguard-wg0-peer-ulBtv6Iou8HKpJzeJS9YALlZTSKE1+W+fZCEzM3hGiw=" = {
     after = ["nss-lookup.target"];
