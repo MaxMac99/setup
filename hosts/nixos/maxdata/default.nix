@@ -21,8 +21,6 @@
       ./smb.nix
       ./monitoring.nix
       ./hardware-configuration.nix
-      ./microvms.nix
-      ./microvm-bridge.nix
     ];
 
   hostSpec = {
@@ -75,7 +73,22 @@
       forceImportRoot = false;
     };
 
-    # ZFS ARC tuning for 32GB RAM (18GB reserved for 3x 6GB microVMs)
+    # ZFS ARC tuning for 32 GB RAM.
+    #
+    # The old comment here read "18GB reserved for 3x 6GB microVMs". Phase 6
+    # destroyed those guests, so nothing is reserved for them any more — but
+    # the 8 GB cap deliberately did **not** move with them.
+    #
+    # The freed 18 GB was a *fixed* reservation backing workloads that ran
+    # inside the guests, and those same workloads come back as native pods on
+    # this host from Phase 7. Giving the memory to ARC would only mean
+    # reclaiming it under pressure later, and ARC gives ground grudgingly. So
+    # it stays as k3s headroom instead: 8 GB ARC, ~23 GB for the OS, k3s and
+    # what it schedules.
+    #
+    # ⚠️ zfs_arc_max is set in three places on this host and they must agree —
+    # here as a kernelParam, here again as modprobe options, and a third time
+    # in zfs.nix's environment.etc."modprobe.d/zfs.conf".
     kernelParams = [
       "zfs.zfs_arc_max=8589934592" # 8GB ARC max
       "zfs.zfs_arc_min=2147483648" # 2GB ARC min

@@ -1,12 +1,9 @@
 # Global Network Configuration
 #
-# Two layers live here during the multi-site migration:
-#
-#   networkConfig.sites / .hosts   — the multi-site model. Source of truth from
-#                                    Phase 3 onwards.
-#   everything else                — the single-site model this repo was built
-#                                    on. Still consumed by the microVMs and
-#                                    maxdata; removed in Phase 6.
+# `networkConfig.sites` / `.hosts` is the model, and since Phase 6 it is the
+# only one — the flat single-site options this repo was built on are gone,
+# along with the microVMs and maxdata's use of them. What remains outside it is
+# `domain` and the `legacy.*` VIPs, both of which are named for what they are.
 #
 # See docs/multi-site-migration.md.
 {
@@ -235,8 +232,7 @@ in {
         maxdata = {
           site = "winkel";
           lanIPv4 = "192.168.178.2";
-          # overlayIPv4 still null: maxdata has not joined, because its sops
-          # wiring is Phase 6.1 and it cannot decrypt the auth key until then.
+          overlayIPv4 = "100.64.0.5";
           k3sRole = "server";
           # Deliberately not a subnet router (3.1): the pi is, so a rebuild of
           # maxdata cannot take Winkel's routing down with it.
@@ -326,77 +322,23 @@ in {
     };
 
     # ---------------------------------------------------------------------
-    # Legacy single-site model — removed in Phase 6
+    # Single-site leftovers
     #
-    # Consumed by modules/system/k3s-node.nix (the microVMs) and
-    # hosts/nixos/maxdata/networking.nix. Values describe the winkel site only.
+    # ✅ Phase 6 removed the deprecated block that lived here: dns.primary,
+    # dns.servers, gateway, subnet, staticIPs, staticIPv6s and ipv6Gateway.
+    # Their only consumers were the deleted modules/system/k3s-node.nix (the
+    # three microVMs) and hosts/nixos/maxdata/networking.nix — maxdata now
+    # reads sites.winkel like every other host, ending the
+    # last case of a host at either site not using its own site resolver.
+    #
+    # `domain` is not part of that block and stays: it is the local DNS suffix,
+    # consumed by modules/system/base.nix, and has no site dimension.
     # ---------------------------------------------------------------------
-
-    dns = {
-      primary = lib.mkOption {
-        type = lib.types.str;
-        default = "192.168.178.1";
-        description = "DEPRECATED. Primary DNS server (FritzBox). Use sites.<x>.dnsServers.";
-      };
-      servers = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        default = ["192.168.178.1" "1.1.1.1"];
-        description = "DEPRECATED. Use sites.<x>.dnsServers.";
-      };
-    };
-
-    gateway = lib.mkOption {
-      type = lib.types.str;
-      default = "192.168.178.1";
-      description = "DEPRECATED. Use sites.<x>.gateway.";
-    };
-
-    subnet = lib.mkOption {
-      type = lib.types.str;
-      default = "192.168.178.0/24";
-      description = "DEPRECATED. Use sites.<x>.subnet.";
-    };
 
     domain = lib.mkOption {
       type = lib.types.str;
       default = "local";
       description = "Local domain name";
-    };
-
-    staticIPs = lib.mkOption {
-      type = lib.types.attrsOf lib.types.str;
-      default = {
-        maxdata = "192.168.178.2";
-        k3s-node1 = "192.168.178.5";
-        k3s-node2 = "192.168.178.6";
-        k3s-node3 = "192.168.178.7";
-        ionos = "192.168.178.201"; # Via WireGuard
-      };
-      description = "DEPRECATED. Use hosts.<x>.lanIPv4 / .overlayIPv4.";
-    };
-
-    staticIPv6s = lib.mkOption {
-      type = lib.types.attrsOf lib.types.str;
-      default = {
-        # Private ULA addresses - NOT exposed to internet
-        # Only accessible via local network or WireGuard tunnel
-        maxdata = "fda8:a1db:5685::2";
-        k3s-node1 = "fda8:a1db:5685::5";
-        k3s-node2 = "fda8:a1db:5685::6";
-        k3s-node3 = "fda8:a1db:5685::7";
-        ionos = "fda8:a1db:5685::201"; # Via WireGuard
-      };
-      description = ''
-        DEPRECATED. Cluster dual-stack is dropped by D1; the overlay replaces
-        the ULA. Note maxdata never actually applies its entry — only the
-        microVMs consume this.
-      '';
-    };
-
-    ipv6Gateway = lib.mkOption {
-      type = lib.types.str;
-      default = "fda8:a1db:5685::1";
-      description = "DEPRECATED. IPv6 gateway (local). Nothing references this.";
     };
 
     # ---------------------------------------------------------------------

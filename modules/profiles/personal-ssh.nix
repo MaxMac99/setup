@@ -41,22 +41,6 @@ in {
           User = "max";
           IdentityFile = adminKey;
         };
-        # The three microVMs are decommissioned in Phase 6; these go with them.
-        "k3s-node1" = lib.hm.dag.entryAfter ["*"] {
-          HostName = "192.168.178.5";
-          User = "max";
-          IdentityFile = adminKey;
-        };
-        "k3s-node2" = lib.hm.dag.entryAfter ["*"] {
-          HostName = "192.168.178.6";
-          User = "max";
-          IdentityFile = adminKey;
-        };
-        "k3s-node3" = lib.hm.dag.entryAfter ["*"] {
-          HostName = "192.168.178.7";
-          User = "max";
-          IdentityFile = adminKey;
-        };
         "hetzner" = lib.hm.dag.entryAfter ["*"] {
           HostName = "u499100.your-storagebox.de";
           User = "u499100";

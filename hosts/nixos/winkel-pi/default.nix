@@ -69,7 +69,7 @@ in {
   networking = {
     hostName = "winkel-pi";
     # Was "03030303", which collided in form with the derived IDs the microVMs
-    # build from their node number (modules/system/k3s-node.nix:87). This host
+    # built from their node number (they and that module went in Phase 6). This host
     # has no ZFS pool, so the ID is cosmetic here — but a fleet where two hosts
     # can present the same ID is a pool-import hazard waiting for the first
     # machine that does.

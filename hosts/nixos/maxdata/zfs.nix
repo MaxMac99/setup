@@ -120,7 +120,11 @@
     options zfs l2arc_write_boost=209715200
   '';
 
-  # Performance tuning via /etc/modprobe.d/ for persistence
+  # Performance tuning via /etc/modprobe.d/ for persistence.
+  #
+  # ⚠️ The two ARC bounds below are the third copy on this host — see the note
+  # in default.nix, including why Phase 6 left them at 8/2 GB rather than
+  # spending the microVMs' freed 18 GB on ARC.
   environment.etc."modprobe.d/zfs.conf".text = ''
     options zfs zfs_arc_max=8589934592
     options zfs zfs_arc_min=2147483648
