@@ -52,6 +52,27 @@
     };
   };
 
+  # Self-update path. The pi clones and pulls this repo itself from GitHub over
+  # SSH, so it no longer depends on anyone copying a tree onto it. Its private
+  # key is placed out-of-band at /home/max/.ssh/id_k3s_pi — a headless host
+  # cannot reach a vault agent, so this is a device key like maxdata's — and the
+  # public half is registered as a *read-only* deploy key scoped to this one
+  # repo, so a compromised pi cannot rewrite the fleet's configuration.
+  programs.ssh.extraConfig = ''
+    Host github.com
+      User git
+      IdentitiesOnly yes
+      IdentityFile /home/max/.ssh/id_k3s_pi
+  '';
+
+  # /etc/nixos is owned by max, so `git pull` uses max's deploy key and root
+  # never needs an SSH identity. nixos-rebuild still evaluates as root, and
+  # libgit2 refuses to open a repository it does not own without this.
+  programs.git = {
+    enable = true;
+    config.safe.directory = "/etc/nixos";
+  };
+
   # mDNS so the host is reachable as k3s-pi.local without a static lease.
   services.avahi = {
     enable = true;
