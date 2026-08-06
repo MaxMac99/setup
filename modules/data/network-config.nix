@@ -35,9 +35,14 @@
       dnsServers = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         description = ''
-          Resolvers handed to hosts at this site, in order. Until Phase 4 this
-          is the router plus a public fallback; afterwards the site's AdGuard
-          comes first.
+          Resolvers handed to hosts at this site, in order: the site's AdGuard
+          first, the router second (Phase 4). This deliberately mirrors what
+          the router hands out over DHCP, so a statically-configured host and
+          a DHCP client see the same resolvers in the same order.
+
+          No public resolver belongs in this list. Falling through to one
+          bypasses ad-blocking and split-horizon together, which fails
+          intermittently rather than cleanly.
         '';
       };
       adguard = lib.mkOption {
@@ -133,7 +138,17 @@ in {
           router = "UDM SE";
           subnet = "192.168.1.0/24";
           gateway = "192.168.1.1";
-          dnsServers = ["192.168.1.1" "1.1.1.1"];
+          # AdGuard first, the router second — the same pair the UDM SE hands
+          # out over DHCP, so a host and a DHCP client resolve identically.
+          #
+          # 1.1.1.1 is deliberately gone. A public resolver in this list is not
+          # a safety net, it is a hole: a client that falls through to it
+          # bypasses both ad-blocking *and* split-horizon, so *.mvissing.de
+          # would silently resolve to the dead public ingress instead of the
+          # site VIP — and intermittently, depending on which server answered.
+          # The router is the correct fallback because it is the one resolver
+          # that is up whenever the LAN is.
+          dnsServers = ["192.168.1.2" "192.168.1.1"];
           # brink-server's own LAN address. modules/system/site-dns.nix
           # asserts this equals hosts.brink-server.lanIPv4, so the UDM SE's
           # DHCP setting and the address AdGuard binds cannot drift apart.
@@ -147,7 +162,9 @@ in {
           router = "FritzBox";
           subnet = "192.168.178.0/24";
           gateway = "192.168.178.1";
-          dnsServers = ["192.168.178.1" "1.1.1.1"];
+          # AdGuard first, FritzBox second — see the note on brink above for
+          # why no public resolver appears here.
+          dnsServers = ["192.168.178.3" "192.168.178.1"];
           # winkel-pi's own LAN address; see the note on brink above.
           #
           # ⚠️ Not to be confused with 192.168.178.14, the *in-cluster*
