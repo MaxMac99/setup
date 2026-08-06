@@ -25,7 +25,7 @@ One session per phase. Read this section first, update it last.
 | 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed (0 errors). UniFi `.unf` exported — confirm where it is stored |
 | 2 | Overlay spike | ✅ done | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Direct over native IPv6, MTU 1280, p99 6.8 ms, zero relay fallback. Spike torn down; IONOS ports closed and spike DNS records deleted |
 | 2b | Secret hygiene | ✅ done | 2026-08-06 | Rescoped then closed. 1Password is *not* the infrastructure vault (D11 revised); overlay keys go in sops-nix, which is all Phase 3 needed. SSH agent live. Remaining items moved to the phases that touch those hosts, one dropped — see 2b.3 |
-| 3 | Overlay rollout | 🔄 prerequisites underway | 2026-08-06 | Both subnet routers exist and can receive a sops secret (5.1, 5.2). **3.0.4 done: ionos reconciled onto `multi-site` and upgraded to 26.11, verified across a reboot** — the fleet is now uniform. **3.0.5 is the live risk: ionos cannot build its own closures** and needs a remote builder or the sops-nix substituter before Headscale. Left in 3.0: reopen IONOS ports, TLS renewal, the ionos age-key flip (now a one-liner). Needs from Max: IONOS ports, a DNS record, static routes on both routers, the FritzBox VPN peer list |
+| 3 | Overlay rollout | ✅ done | 2026-08-06 | **Headscale v0.29.3 on ionos**, dual-stack 443, LE cert via HTTP-01 (no DNS credential), embedded DERP region 999. Five nodes; both subnet routes approved and serving. **Unmodified client ↔ unmodified client verified both ways**; path **direct over native IPv6**, overlay MTU **1280 measured exactly** → flannel **1230**. ionos now on a **host** age key, proven across a cold boot. Survives reboot of the control server *and* of a client. Two design errors found and fixed the hard way — see 3.6. Open: 24 h sampling **waived** (3.5), GUI deferred to Phase 10 |
 | 4 | DNS | not started | | |
 | 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **5.1 and 5.2 are both done.** brink-server installed at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled, decrypt proven on the box. Pi **renamed `k3s-pi` → `winkel-pi`**, `hostId` `03030303` → `7a943cc4`, on static `192.168.178.3`, sops host key wired and **decrypt proven on the box** — all verified after a reboot. Both self-update from GitHub over read-only deploy keys. Nothing Phase-5-owned remains; the open exit criteria belong to **Phase 3** (overlay, and "Winkel reachable without maxdata") and **Phase 4** (AdGuard) |
 | 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
@@ -47,7 +47,8 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | Secret mechanism | sops-nix for all infrastructure secrets; 1Password for human/family credentials and the SSH agent only (D11, revised) | Phase 2b, 2026-08-05 |
 | Cross-site RTT / jitter | **p50 5.8 ms · p95 6.1 ms · p99 6.8 ms · jitter 0.45 ms**, both directions. 347 samples/direction over 5 h 55 min, zero loss, zero relay fallback. Relayed via ionos = 23–25 ms | Phase 2, 2026-08-05 → D4 |
 | Overlay path (direct vs relayed) | **Direct**, over native IPv6. Asymmetric: brink→winkel over IPv6, winkel→brink over CGNAT IPv4 | Phase 2 |
-| Overlay MTU → flannel MTU | overlay **1280** → flannel **1230** (VXLAN −50) | Phase 2 → D3 |
+| Overlay MTU → flannel MTU | overlay **1280** → flannel **1230** (VXLAN −50). ✅ **Re-measured on the production overlay 2026-08-06**, not just the spike: the cliff is exactly between 1280 and 1281 bytes total (`ping -M do -s 1252` passes, `1253` fails) against a 1500-byte same-LAN baseline | Phase 2 → D3, confirmed Phase 3 |
+| **`ip_forward` on subnet routers** | ✅ **solved by the module, not by hand.** `services.tailscale.useRoutingFeatures = "server"`/`"both"` sets `net.ipv4.conf.all.forwarding` and `net.ipv6.conf.all.forwarding` itself. Phase 2's finding that "neither overlay sets it" is true of the *products* but not of the NixOS module | Phase 3, 2026-08-06 |
 | IONOS Cloud firewall | **default-deny, only 22/80/443 inbound** — invisible from inside the VPS; the control plane needs an explicit opening | Phase 2, 2026-08-05 |
 | Control-plane TLS | **mandatory** — plain HTTP on an alternate port wedges clients permanently after any control outage | Phase 2 |
 | `ip_forward` on subnet routers | `0` on both pi and maxdata; neither overlay sets it — must be declared | Phase 2 |
@@ -55,7 +56,10 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | UniFi OS Tailscale app | **no first-party app found** — §2.2/§3.2 premise looks wrong; third-party pkg only, **unverified** | Phase 2 |
 | Brink DHCP range | `192.168.1.6-.199` — shrink from auto `.6-.254` | UDM SE, 2026-08-05 |
 | Winkel DHCP range | `192.168.178.20-.200` — already clear, no change | FritzBox, 2026-08-05 |
-| Overlay IPs per host | *pending* | Phase 3 → `networkConfig.hosts.*.overlayIPv4` |
+| Overlay IPs per host | **ionos `100.64.0.1` · brink-server `100.64.0.2` · winkel-pi `100.64.0.3` · iphone `100.64.0.4` · maxdata `100.64.0.5`** — sequential allocation, recorded in `networkConfig.hosts.*.overlayIPv4`. These become `--node-ip` in Phase 7 (D3) | Phase 3, 2026-08-06 |
+| **Headscale deployment** | **v0.29.3** on ionos, dual-stack `:443` (binds `[::]` despite logging `0.0.0.0`), gRPC on `:50443` (host-firewalled), embedded **DERP region 999** + STUN `udp/3478`, public DERP map disabled. TLS by Headscale's own ACME **HTTP-01** — no DNS credential, unlike Phase 2's manual DNS-01. Policy is a HuJSON file deployed from the store | Phase 3, 2026-08-06 |
+| **Overlay route acceptance** | ⚠️ **A host accepts routes iff it advertises one.** Accepted routes land in table 52 at `ip rule` priority 5270, *ahead* of main at 32766, so an accepted route covering the host's own subnet silently beats its LAN route. Broke maxdata, silently displaced ionos's `wg0` path to Winkel — see 3.6.1 | Phase 3, 2026-08-06 |
+| **IONOS Cloud firewall openings** | Only **UDP 3478** had to be added: 22/80/443 were already permitted, so Headscale on 443 with ACME on 80 needed no panel change. A firewalled port **times out** (~8 s); a rejected one fails in ~170 ms — useful for telling the cloud firewall apart from a local one | Phase 3, 2026-08-06 |
 | ionos → home RTT (existing wg0) | ~13 ms | Phase 0, `ping` from ionos |
 | Winkel WAN IPv6 prefix | `2a00:6020:b481:e300::/56` — record only, never depend on it (D2) | FritzBox, 2026-08-05 |
 | UDM SE static routes | present and configurable — Phase 3 unblocked | UDM SE, 2026-08-05 |
@@ -79,7 +83,9 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | **ionos deployment source** | ✅ **reconciled 2026-08-06.** `/home/max/setup` now tracks **`multi-site`**; upgraded `26.05.20260427` → **`26.11.20260802.6438090`** (gen 50, gen 49 kept as rollback), **verified across a reboot**. `/etc/nixos` is still a plain directory, unlike the pi/brink-server clone pattern. ⚠️ Requires `safe.directory` for root — set imperatively in `/root/.gitconfig`, **not yet declared in the config**, and invisible to `systemd-run` unless `HOME=/root` is passed | Phase 3.0.4, 2026-08-06 |
 | **ionos build capacity** | ⚠️ **no remote builders; builds locally on a small VPS and cannot cope.** A full `nixos-rebuild build` starved sshd for 20+ min — ping and the TCP handshake still succeeded while no login could complete — and needed a panel power-cycle. Use `--max-jobs 1 --cores 1` under `tmux`, check `free -m`/`df -h` first. ⚠️ A `nix.buildMachines` remote builder **cannot** fix this: it needs ionos to dial out to the builder, and brink-server is behind CGNAT. Invert it — build on brink-server and push with `nixos-rebuild --flake …#ionos --target-host max@212.132.82.102 --use-remote-sudo` | Phase 3.0.5, 2026-08-06 |
 | **`sops-install-secrets` is never cached** | It ships from the sops-nix flake, not nixpkgs, so `cache.nixos.org` has no build: every host compiles it and runs its test suite whenever the input moves — 20 min on ionos. Fix fleet-wide with the `nix-community.cachix.org` substituter, or per-run via `--option extra-substituters` | Phase 3.0.5, 2026-08-06 |
-| **ionos host age recipient** | `age19ylfvg7p6zw67t7dkutrj4d0dg5wllnf8ltwjzdlttuu33wt69ssv0mxlm`, from `/etc/ssh/ssh_host_ed25519_key`. Enrolled **alongside** the user-key `&ionos` on `multi-site`; decrypt of both `common.yaml` and `k3s.yaml` proven on the box. The user key `/home/max/.ssh/id_ed25519` derives `age100thyt…` and is still the live source — **do not rename that file** | Phase 3.0, 2026-08-06 |
+| **ionos host age recipient** | ✅ **live source since 2026-08-06.** `age19ylfvg7p6zw67t7dkutrj4d0dg5wllnf8ltwjzdlttuu33wt69ssv0mxlm`, from `/etc/ssh/ssh_host_ed25519_key`. Enrolled additively first, then `age.sshKeyPaths` flipped and **verified across a cold boot** — `k3s_token` written at boot, `k3s.service` up. The old user-key recipient `age100thyt…` remains in `.sops.yaml` as a one-line rollback | Phase 3.0, 2026-08-06 |
+| **maxdata host age recipient** | `age1ewxtypj7pkugz8vnf4pxtkgrnma8eg66p5shsq58kwdsku55vutsr2n2u7`, from `/etc/ssh/ssh_host_ed25519_key`. maxdata's **first sops block ever** — it had been a declared recipient consuming nothing since before Phase 0. Went straight to a host key because nothing consumed sops there, so no transition had to be staged. Decrypt of **both** files proven on the box before the config was written. **This is Phase 6.1's highest-risk item, done early and in isolation** | Phase 3, 2026-08-06 |
+| **User-key age identities** | ✅ **none left.** ionos and maxdata were the last two; both now derive from `/etc/ssh/ssh_host_ed25519_key`, satisfying D11/2b.2 across the fleet | 2026-08-06 |
 | ionos public ingress | 80/443 still DNAT'd to `192.168.178.10`, which is **dead** — ingress already broken, so 443 is free for the control server (3.0) | 2026-08-06 |
 | FritzBox VPN peers | `192.168.178.201/32`, `.202`, … — FritzBox is the WireGuard *server* today | FritzBox, 2026-08-05 |
 | Effective ionos↔home throughput | ~3 MB/s | Phase 0, scp over wg0 |
@@ -1102,29 +1108,113 @@ criteria.
 
 ## 3.5 Exit criteria
 
-- [ ] Unmodified Brink client reaches unmodified Winkel client, and vice versa
-      — **requires brink-server; see 3.1.** If Phase 3 runs without it, this
-      splits into the Winkel direction here and the Brink direction in Phase 5
-- [ ] Phone off-net reaches both sites
-- [ ] Path characterised as direct or relayed; RTT recorded
-- [ ] **ionos derives its age key from a host key** (inherited from Phase 2b),
-      verified by a successful `k3s.service` start after `switch`
-- [ ] **Control server survives a reboot of itself and of a client** — Phase 2
-      measured that an established data plane survives a control outage, but a
-      client restarting while the control server is down loses the overlay
-      entirely and does not recover until control returns (see
-      `overlay-evaluation.md` §3.5). Confirm the production deployment starts
-      cleanly from cold on both sides
-- [ ] **Longer-window RTT/flap sampling on the production overlay** — inherited
-      from Phase 2, which ran 5 h 55 min on throwaway state (347/347 direct,
-      zero loss). Run the equivalent sampler for at least 24 h here, where it
-      measures the real thing and can cover diurnal variation. If it shows
-      direct→relay flapping, revisit D4 before Phase 7
-- [ ] GUI reachable and shows all peers
-- [ ] Control server config and ACLs committed
-- [ ] Every existing FritzBox VPN peer has an equivalent overlay client, verified
-      working — the FritzBox tunnel is not retired until Phase 13, so this is
-      reversible
+- [x] **Unmodified Brink client reaches unmodified Winkel client, and vice
+      versa** (2026-08-06). Mac → maxdata 11.8 ms and → winkel-pi 15.8 ms;
+      maxdata → Mac 9.9 ms, → UDM SE 6.9 ms, → brink-server 5.9 ms. All 0%
+      loss, and none of the endpoints tested run an overlay client
+- [x] **Phone off-net reaches both sites** — iPhone enrolled as `100.64.0.4`
+      via the Tailscale app pointed at the self-hosted control server
+- [x] **Path characterised: direct over native IPv6, not relayed.**
+      `pong from winkel-pi via [2a00:6020:b481:e300:…]:41641 in 5ms`, matching
+      Phase 2's p50 of 5.8 ms on throwaway state
+- [x] **Overlay MTU measured exactly: 1280.** The cliff sits precisely between
+      1280 and 1281 bytes total (`-M do -s 1252` passes, `1253` fails), against
+      a 1500-byte same-LAN baseline. Confirms D3 on the production overlay, so
+      Phase 7's flannel MTU is **1230**
+- [x] **ionos derives its age key from a host key** (inherited from Phase 2b) —
+      and verified after a **cold boot**, not merely after `switch`:
+      `/run/secrets/k3s_token` was written at boot and `k3s.service` came up.
+      Activation and boot are different code paths, and only the second one is
+      the failure this staging existed to prevent. With maxdata corrected the
+      same day, **no host now derives a sops identity from a user key**
+- [x] **Control server survives a reboot of itself and of a client** — both
+      halves exercised on 2026-08-06. ionos rebooted for the age-key flip and
+      all four hosts reconnected with both routes still *Serving*, no
+      intervention. brink-server was then cold-booted: it rejoined on the same
+      address, decrypted its auth key at boot, and **cross-site routing came
+      back by itself** (7.4 ms to maxdata) with its own LAN unaffected
+- [~] **Longer-window RTT/flap sampling — deliberately waived, 2026-08-06.**
+      Not done, and recorded as waived rather than ticked, because the two are
+      not the same and Phase 7's D4 gate rests on this. What exists is Phase
+      2's **5 h 55 min** on throwaway state: 347/347 direct, zero loss, zero
+      relay fallback. What is missing is diurnal variation and a longer
+      baseline for flap frequency on the *production* overlay.
+
+      The waiver is reasonable on the evidence — nothing observed has ever
+      relayed, and D4's timers sit 73× and 735× above the measured p99 — but it
+      is a judgement call, not a measurement. **Phase 7's "etcd stable 24 h, no
+      leader elections" gate is now the first real long-window test**, and
+      Phase 12's permanent blackbox probes are the durable one. If either shows
+      direct→relay flapping, revisit D4 before trusting the cluster to it
+- [ ] GUI reachable and shows all peers — **deferred to Phase 10 by design**
+      (3.4), not outstanding work. `headscale nodes list` suffices until then
+- [x] **Control server config and ACLs committed** — server, client module and
+      the HuJSON policy all in git, deployed from the store
+- [x] **Every existing FritzBox VPN peer has an equivalent overlay client** —
+      the peer list turned out to be exactly two: ionos and the iPhone. ionos
+      is a mesh node and the iPhone is enrolled, so the set is covered. The
+      FritzBox tunnel is *not* retired until Phase 13 and remains the
+      independent second path — see 3.6, where an overlay change silently took
+      it out of use
+
+---
+
+## 3.6 Two failures worth keeping
+
+Both were introduced by this phase's own configuration, and both generalise
+beyond it.
+
+### 3.6.1 Only subnet routers may accept routes
+
+⚠️ **This broke maxdata outright and degraded ionos invisibly.**
+
+Accepting routes puts them in **table 52**, which tailscale consults via an
+`ip rule` at priority **5270 — ahead of the main table at 32766**. An accepted
+route for a prefix the host is *directly connected to* therefore outranks its
+own LAN route.
+
+| Host | What happened |
+|---|---|
+| **maxdata** | Accepted winkel-pi's `192.168.178.0/24` — its own subnet. Replies to LAN neighbours went into the tunnel instead of out `vmbr0`. Incoming worked, outgoing did not: **ARP stayed `REACHABLE` while ping and ssh were dead** |
+| **ionos** | Its `wg0` carries `192.168.178.201/24`, so the accepted route displaced the **FritzBox tunnel** as the path to Winkel. Everything kept working while the independent second path Phase 13 depends on quietly stopped being used |
+| **brink-server** | Unaffected — tailscale never installs an accepted route for a prefix the node itself *advertises* |
+
+ionos is the more instructive case: nothing looked wrong. The failure was a
+silent loss of redundancy, which is exactly the class of fault that is only ever
+discovered when the redundancy is needed.
+
+**Rule, now enforced in `modules/system/overlay-client.nix`: a host accepts
+routes if and only if it advertises one.** Non-routers lose nothing — overlay
+peers stay reachable at their `100.64.0.0/10` addresses, and the far site's LAN
+is reached the way any unmodified client reaches it, through the router's static
+route. Verified: maxdata reaches `192.168.1.2` at 5.9 ms with `--accept-routes`
+off, via the FritzBox route.
+
+📌 **maxdata was recovered over the overlay** (`ssh -J ionos max@100.64.0.5`)
+while its LAN address was dead. That is D10's argument for putting the pi at
+Winkel, arriving unplanned: the site had a second way in that did not depend on
+the broken host.
+
+### 3.6.2 Removing iptables rules needs one deploy of overlap
+
+⚠️ **Headscale bound 443 and still received nothing.**
+
+Freeing 443 meant deleting the six 80/443 DNAT rules pointing at the dead
+ingress VIP. Both the `extraCommands` that *add* them and the
+`extraStopCommands` that *delete* them were removed in the same change — so
+when `firewall.service` reloaded, it ran the **new** stop commands, which no
+longer knew those rules existed. The rules stayed live, kept swallowing 80/443
+into the dead tunnel, and Headscale never saw a packet.
+
+The symptom was diagnostic once read properly: connections to 80/443 failed in
+~170 ms while a genuinely firewalled port (`tcp/3478` before it was opened) took
+the full 8 s to time out. **Fast failure is a reject or an ICMP unreachable;
+slow failure is a drop.**
+
+**Pattern: keep the delete half for one deploy, then remove it.** Or flush the
+rules by hand, as was done here. Anything managed imperatively through
+`extraCommands` is only ever removed by a matching `extraStopCommands` that is
+still present at reload time.
 
 ---
 
@@ -1378,9 +1468,12 @@ All three are owned by later phases; nothing is left that belongs to Phase 5.
       ceremony; its recipient was already derived from its host key and only the
       `sops` block was missing
 - [ ] AdGuard serving at both sites (Phase 4 exit criteria still met)
-- [ ] **Winkel is reachable without maxdata** — the precondition for Phase 6.
-      Verify by stopping maxdata's overlay client and confirming you can still
-      reach the Winkel LAN through the pi
+- [x] **Winkel is reachable without maxdata** — the precondition for Phase 6,
+      and proven the hard way rather than by the planned drill. On 2026-08-06
+      maxdata lost its LAN address entirely (3.6.1) while winkel-pi kept
+      serving `192.168.178.0/24` and stayed reachable throughout; Brink could
+      still reach the Winkel LAN, and maxdata itself was recovered *through*
+      the overlay. This is precisely D10's scenario, unrehearsed
 
 ---
 
@@ -1400,10 +1493,25 @@ Add a sops config to maxdata, verify it can decrypt `k3s.yaml`, and only then
 proceed. **Destroy the images first and the k3s token becomes undecryptable** —
 the single easiest way to brick this migration.
 
-**This item is owned here.** It was Phase 2b work item 1; when 2b closed on
-2026-08-06 it moved to this phase rather than blocking there, because nothing in
-Phase 3 depends on it and doing it early would have meant rebuilding maxdata
-twice. It remains the single highest-risk item in the migration.
+✅ **Done early, in Phase 3 (2026-08-06) — this phase no longer owns it.**
+maxdata now has a `sops` block deriving from `/etc/ssh/ssh_host_ed25519_key`,
+and decryption of **both** `common.yaml` and `k3s.yaml` was proven on the box
+*before* the config was written. `/run/secrets/` exists on maxdata for the first
+time.
+
+Pulling it forward was deliberate. It was the single highest-risk item in the
+migration precisely because it was bundled with the irreversible step: if
+maxdata could not decrypt `k3s.yaml`, the token — encrypted to identities living
+inside the very disk images 6.2 deletes — would be gone. Doing it while the
+FritzBox tunnel was still up, no images were being destroyed, and Phase 3 was
+already touching every host separated the risk from the irreversibility. What
+remains here is only to re-confirm the decrypt immediately before 6.2 runs.
+
+**Historical note.** It was Phase 2b work item 1; when 2b closed it moved here
+rather than blocking there, on the reasoning that nothing in Phase 3 depended on
+it. That reasoning turned out to be wrong in a useful way — Phase 3 wanted
+maxdata on the overlay, which needed a decryptable auth key, which needed
+exactly this.
 
 **Partly de-risked by Phase 2b (2026-08-05).** maxdata's existing
 `/home/max/.ssh/id_ed25519` derives `age1s44mfk…`, which is exactly the
@@ -1574,7 +1682,10 @@ ZFS pools are never touched by any step in this phase.
 
 ## 6.6 Exit criteria
 
-- [ ] maxdata decrypts `secrets/k3s.yaml` with its own host key — **verified before deletion**
+- [x] maxdata decrypts `secrets/k3s.yaml` with its own **host** key — proven on
+      the box 2026-08-06, in Phase 3, before any image is touched. ⚠️ Re-confirm
+      immediately before 6.2 deletes the images; it is cheap and it is the one
+      check whose failure is unrecoverable
 - [ ] microVMs stopped and their images removed
 - [ ] maxdata reachable from both sites after `switch`
 - [ ] `zpool status` clean, all datasets mounted
