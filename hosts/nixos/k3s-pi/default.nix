@@ -78,6 +78,17 @@ in {
     };
   };
 
+  # IPv6 keeps arriving by SLAAC now that dhcpcd is gone — the kernel does it.
+  # `accept_ra = 2` rather than the default 1 because a host ignores RAs when
+  # forwarding is on, and this box becomes a subnet router in Phase 3.
+  #
+  # Beware when switching a *running* host off DHCP: dhcpcd leaves
+  # `addr_gen_mode=1` (none), `autoconf=0` and `accept_ra=0` behind on its
+  # interface, so IPv6 vanishes entirely — no global address and not even a
+  # link-local — until those are reset or the host reboots. A clean boot
+  # restores the kernel defaults, so this only bites during a live switch.
+  boot.kernel.sysctl."net.ipv6.conf.end0.accept_ra" = 2;
+
   # Self-update path. The pi clones and pulls this repo itself from GitHub over
   # SSH, so it no longer depends on anyone copying a tree onto it. Its private
   # key is placed out-of-band at /home/max/.ssh/id_k3s_pi — a headless host
