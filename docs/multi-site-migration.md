@@ -25,7 +25,7 @@ One session per phase. Read this section first, update it last.
 | 1 | Backups | ✅ done | 2026-08-05 | Restore rehearsal passed (0 errors). UniFi `.unf` exported — confirm where it is stored |
 | 2 | Overlay spike | ✅ done | 2026-08-05 | **Headscale + Tailscale** — see [`overlay-evaluation.md`](./overlay-evaluation.md). Direct over native IPv6, MTU 1280, p99 6.8 ms, zero relay fallback. Spike torn down; IONOS ports closed and spike DNS records deleted |
 | 2b | Secret hygiene | ✅ done | 2026-08-06 | Rescoped then closed. 1Password is *not* the infrastructure vault (D11 revised); overlay keys go in sops-nix, which is all Phase 3 needed. SSH agent live. Remaining items moved to the phases that touch those hosts, one dropped — see 2b.3 |
-| 3 | Overlay rollout | not started | | **Fully unblocked on the host side: both subnet routers now exist and both can receive a sops secret** — brink-server (5.1) and winkel-pi (5.2). Prerequisites left in 3.0: reopen IONOS ports, TLS renewal, ionos age key. Headscale should take 443 (ingress already dead). Needs from Max: IONOS ports, a DNS record, static routes on both routers, the FritzBox VPN peer list |
+| 3 | Overlay rollout | 🔄 prerequisites underway | 2026-08-06 | Both subnet routers exist and can receive a sops secret (5.1, 5.2). **3.0.4 done: ionos reconciled onto `multi-site` and upgraded to 26.11, verified across a reboot** — the fleet is now uniform. **3.0.5 is the live risk: ionos cannot build its own closures** and needs a remote builder or the sops-nix substituter before Headscale. Left in 3.0: reopen IONOS ports, TLS renewal, the ionos age-key flip (now a one-liner). Needs from Max: IONOS ports, a DNS record, static routes on both routers, the FritzBox VPN peer list |
 | 4 | DNS | not started | | |
 | 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **5.1 and 5.2 are both done.** brink-server installed at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled, decrypt proven on the box. Pi **renamed `k3s-pi` → `winkel-pi`**, `hostId` `03030303` → `7a943cc4`, on static `192.168.178.3`, sops host key wired and **decrypt proven on the box** — all verified after a reboot. Both self-update from GitHub over read-only deploy keys. Nothing Phase-5-owned remains; the open exit criteria belong to **Phase 3** (overlay, and "Winkel reachable without maxdata") and **Phase 4** (AdGuard) |
 | 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
@@ -76,7 +76,9 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | brink-server installer media | NixOS **26.05** minimal x86_64, on the Mac, SHA-256 matches published `7f5df09b…f870` | 2026-08-06 |
 | Winkel reachable from off-site | **yes, verified** — `ssh -J max@212.132.82.102 max@192.168.178.{2,3}` returns `maxdata` / `winkel-pi` (`k3s-pi` before the rename); ionos `wg0` up at `.201`, 0% loss, ~14 ms. This jump is the only route into Winkel until Phase 3; neither ssh alias carries a `ProxyJump` | 2026-08-06 |
 | maxdata networking stack | **systemd-networkd — confirmed live, question closed.** `systemd-networkd` active+enabled; `network-setup.service` and `dhcpcd.service` **do not exist as units at all**; `vmbr0` built from `20-vmbr0.netdev` + 3 `.network` files, `networkctl` routable/online. 6.5's scripted-networking claim was wrong, so its failure mode cannot occur on maxdata — Phase 6 must guard a networkd/bridge restart instead | Live check on the box, 2026-08-06 |
-| **ionos deployment source** | ⚠️ **`/home/max/setup`, a clone on `main` at `e97d2b6`** — *not* `multi-site`, and `/etc/nixos` is a plain directory. Running `26.05.20260427`, generation 49 dated **2026-05-10**, no remote builders. The flake pins `26.11.20260802`, so any rebuild from this branch is a release upgrade of the k3s server, public edge and only route into Winkel. Blocks the age-key flip and Headscale alike — see 3.0.4 | Phase 3 recon, 2026-08-06 |
+| **ionos deployment source** | ✅ **reconciled 2026-08-06.** `/home/max/setup` now tracks **`multi-site`**; upgraded `26.05.20260427` → **`26.11.20260802.6438090`** (gen 50, gen 49 kept as rollback), **verified across a reboot**. `/etc/nixos` is still a plain directory, unlike the pi/brink-server clone pattern. ⚠️ Requires `safe.directory` for root — set imperatively in `/root/.gitconfig`, **not yet declared in the config**, and invisible to `systemd-run` unless `HOME=/root` is passed | Phase 3.0.4, 2026-08-06 |
+| **ionos build capacity** | ⚠️ **no remote builders; builds locally on a small VPS and cannot cope.** A full `nixos-rebuild build` starved sshd for 20+ min — ping and the TCP handshake still succeeded while no login could complete — and needed a panel power-cycle. Use `--max-jobs 1 --cores 1` under `tmux`, check `free -m`/`df -h` first. Phase 3 builds Headscale here: add a **remote builder** (brink-server, x86_64-linux, 32 GB, idle) or expect a repeat | Phase 3.0.5, 2026-08-06 |
+| **`sops-install-secrets` is never cached** | It ships from the sops-nix flake, not nixpkgs, so `cache.nixos.org` has no build: every host compiles it and runs its test suite whenever the input moves — 20 min on ionos. Fix fleet-wide with the `nix-community.cachix.org` substituter, or per-run via `--option extra-substituters` | Phase 3.0.5, 2026-08-06 |
 | **ionos host age recipient** | `age19ylfvg7p6zw67t7dkutrj4d0dg5wllnf8ltwjzdlttuu33wt69ssv0mxlm`, from `/etc/ssh/ssh_host_ed25519_key`. Enrolled **alongside** the user-key `&ionos` on `multi-site`; decrypt of both `common.yaml` and `k3s.yaml` proven on the box. The user key `/home/max/.ssh/id_ed25519` derives `age100thyt…` and is still the live source — **do not rename that file** | Phase 3.0, 2026-08-06 |
 | ionos public ingress | 80/443 still DNAT'd to `192.168.178.10`, which is **dead** — ingress already broken, so 443 is free for the control server (3.0) | 2026-08-06 |
 | FritzBox VPN peers | `192.168.178.201/32`, `.202`, … — FritzBox is the WireGuard *server* today | FritzBox, 2026-08-05 |
@@ -840,11 +842,42 @@ derived from ionos's `/etc/ssh/ssh_host_ed25519_key`, is enrolled in
 plaintexts unchanged. Proven on the box: ionos decrypts **both** `common.yaml`
 (`a342c743…`) and `k3s.yaml` (`cc44af01…`) with the host key it will switch to.
 
-⚠️ **The flip is blocked on 3.0.4 below, not on the key.** The key-material
-uncertainty is gone; the deployment risk is not, and it is larger than this
-paragraph assumed when it was written.
+✅ **Unblocked 2026-08-06.** 3.0.4 is resolved — ionos now tracks `multi-site`,
+so the re-keyed files and the `&ionos-host` recipient are present on the box.
+The 26.11 upgrade confirmed the current path still works end to end:
+`sops-install-secrets` imported `/home/max/.ssh/id_ed25519` as
+`age100thyt…` and wrote `k3s_token` **at boot**.
 
-### 3.0.4 ionos is on a different branch, three months behind
+What remains is a one-line change plus its verification: point
+`age.sshKeyPaths` at `/etc/ssh/ssh_host_ed25519_key`, rebuild, and confirm
+`k3s_token` is still written **after a reboot** — activation alone does not
+test the boot path, which is the whole risk. Both keys are enrolled, so a
+failure is recoverable by reverting one line rather than by re-keying.
+
+### 3.0.4 ionos is on a different branch, three months behind ✅
+
+✅ **Resolved the same day.** ionos was reconciled onto `multi-site` and upgraded
+to `26.11.20260802.6438090` (generation 50), **verified across a reboot**:
+`/run/booted-system` equals `/run/current-system`, `k3s_token` was written at
+boot rather than only at activation, `wg0` re-established with a live handshake,
+Winkel reachable through it, zero failed units. Generation 49 remains as
+rollback. The fleet is now uniform on `26.11.20260802.6438090` except the pi,
+which tracks nixos-raspberrypi's nixpkgs by design (D12).
+
+The risk was smaller than this section first assumed, and the reasons are worth
+keeping — they generalise:
+
+- **ionos is a k3s _agent_**, `role = lib.mkForce "agent"`, `serverAddr =
+  https://192.168.178.5:6443`. It holds **no etcd**, so no quorum exposure.
+- **It was the straggler, not the outlier.** The microVMs already ran
+  `26.11.20260802` / k3s **v1.35.6**; ionos ran k3s **v1.35.2**. The upgrade
+  *converged* an existing skew rather than creating one.
+- **Its config diff across the branches is cosmetic** — hardcoded IPs replaced
+  by `networkConfig.legacy.ingressVIP`, which Phase 0.6 already verified renders
+  byte-identical.
+
+⚠️ **What actually went wrong was resource exhaustion, not configuration.**
+See 3.0.5 — that is the finding with consequences for the rest of this phase.
 
 ⚠️ **Discovered 2026-08-06, and it reshapes this phase.** Every other host in
 the fleet tracks `multi-site`. ionos does not, and never has.
@@ -885,6 +918,62 @@ a control server on ionos. Decide deliberately:
 
 Either way, **verify after a reboot**, not after `test` — the boot path is what
 `k3s_token` decryption actually depends on.
+
+### 3.0.5 ionos cannot build its own closures — this phase must plan around it
+
+⚠️ **Learned the hard way, 2026-08-06.** ionos has **no remote builders**
+(`builders =` is empty in `/etc/nix/nix.conf`) and builds everything locally on
+a small VPS. Starting a full `nixos-rebuild build` on it drove the box into
+resource starvation: ping kept answering and TCP 22 kept completing its
+handshake, but **sshd could not finish a banner exchange for over twenty
+minutes**. It had to be power-cycled from the IONOS panel.
+
+Two things made that recoverable, and both are worth relying on deliberately:
+
+- `nixos-rebuild build` **activates nothing**. Through the whole incident ionos
+  stayed on generation 49 with its original k3s and tunnel. A hard reboot was
+  therefore safe — there was nothing half-applied to roll back.
+- The partial download survives in the store, so the retry was fast.
+
+**The trap is that "build" reads as the safe step.** It is safe with respect to
+*configuration* and unsafe with respect to *resources*, and those are different
+axes. On this host, check `free -m` and `df -h /` first, and constrain the run:
+
+```sh
+sudo nixos-rebuild switch --flake /home/max/setup#ionos --max-jobs 1 --cores 1
+```
+
+`--cores 1` matters alongside `--max-jobs 1`: it caps parallelism *inside* a
+single derivation, which is what bounds a Go or C++ compiler's memory. Run it
+under `tmux`, never a bare ssh session.
+
+**`sops-install-secrets` is the specific offender**, and it recurs on every
+host. It comes from the sops-nix flake, not nixpkgs, so `cache.nixos.org` has
+never built it — it compiles from source and runs its test suite every time the
+input moves. It spent 20 minutes in `buildPhase` here. Fix it once, fleet-wide:
+
+```nix
+nix.settings = {
+  substituters = ["https://nix-community.cachix.org"];
+  trusted-public-keys = ["nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="];
+};
+```
+
+Until then it can be passed per-invocation with `--option extra-substituters` /
+`--option extra-trusted-public-keys`, which is how this upgrade was finally
+completed.
+
+**Consequence for this phase:** step 1 is "control server on ionos", i.e.
+another build on the box that just fell over. Either add the substituter first,
+or give ionos a **remote builder** — brink-server is x86_64-linux with 32 GB and
+is idle, so it is the obvious candidate and would serve Phases 7–13 as well.
+
+📌 **A build counter is a diagnostic.** Mid-run this looked like a cache-coverage
+problem, and a Renovate-bumped `flake.lock` pointing at a non-channel nixpkgs
+revision was the theory. `[1/14/171 built]` disproved it: if coverage were
+genuinely missing at the perl layer, everything downstream would rebuild and the
+queue would be in the thousands, not 171. A small queue with a flake-provided Go
+package at its head means "a few uncached derivations", not "wrong nixpkgs".
 
 ## 3.1 Subnet routers — the staging is gone
 
@@ -1369,7 +1458,36 @@ scripted networking (no systemd-networkd)". That was wrong.**
 `systemd.network.netdevs` entry; maxdata's address was observed live on exactly
 that bridge, which scripted networking would not have created. So the specific
 `dhcpcd`-versus-`network-setup.service` failure above **does not apply to
-maxdata at all** — it is a property of the pi, which is genuinely scripted.
+maxdata at all**.
+
+⚠️ **But it is not "a property of the pi" either — that was too narrow.** The
+fleet splits two ways, and ionos is on the scripted side:
+
+| Scripted (`dhcpcd` + `network-setup.service`) | systemd-networkd |
+|---|---|
+| `winkel-pi`, **`ionos`** | `maxdata`, `brink-server` (D14) |
+
+ionos's upgrade on 2026-08-06 reproduced the exact signature — `network-setup.
+service` appeared under *stopping* and never under *starting*, while
+`dhcpcd.service` and `network-addresses-ens6.service` restarted:
+
+```
+stopping:   … network-setup.service …
+starting:   … (network-setup.service absent) …
+restarting: dhcpcd.service, network-addresses-ens6.service, sshd.service …
+```
+
+**It was harmless there, for a reason that does not generalise.** ionos's `ens6`
+is DHCP-configured, so dhcpcd owns both address and default route and restoring
+them is its job; `network-setup.service` had no static configuration to reapply.
+The pi is the dangerous case precisely because its address *is* static, so that
+unit is the only thing that would have reinstated it.
+
+The check is the same either way and takes one command —
+`ip -4 route show default` — but the interpretation differs: on a DHCP interface
+a missing route means dhcpcd failed, on a static one it means
+`network-setup.service` never ran. Phase 3 rebuilds ionos again for Headscale,
+so this recurs until ionos moves to networkd for D14's reasons.
 
 ✅ **Confirmed live on the box, 2026-08-06.** The check that was outstanding has
 now run, and it settles the question harder than the source reading did:
