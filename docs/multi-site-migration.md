@@ -27,7 +27,7 @@ One session per phase. Read this section first, update it last.
 | 2b | Secret hygiene | ✅ done | 2026-08-06 | Rescoped then closed. 1Password is *not* the infrastructure vault (D11 revised); overlay keys go in sops-nix, which is all Phase 3 needed. SSH agent live. Remaining items moved to the phases that touch those hosts, one dropped — see 2b.3 |
 | 3 | Overlay rollout | not started | | ⚠️ **Depends on brink-server** — moving the pi left Brink with no overlay host (3.1). Prerequisites in 3.0: reopen IONOS ports, TLS renewal, ionos age key. Headscale should take 443 (ingress already dead) |
 | 4 | DNS | not started | | |
-| 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **Pi moved to Winkel** and now self-updates from GitHub; HA/matter removed; re-image skipped. Remaining: static `.3`, rename, sops host key, AdGuard, k3s agent — plus brink-server, which Phase 3 now needs first |
+| 5 | brink-server + pi relocation | 🔄 partly done | 2026-08-06 | **Pi at Winkel on static `192.168.178.3`**, self-updating from GitHub; HA/matter removed; re-image skipped. Remaining: rename, sops host key, AdGuard, k3s agent — plus brink-server, which Phase 3 now needs first |
 | 6 | maxdata microVMs out | not started | | ⚠️ first irreversible step |
 | 7 | Fresh cluster | not started | | |
 | 8 | Storage and site affinity | not started | | |
@@ -61,7 +61,7 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | UDM SE static routes | present and configurable — Phase 3 unblocked | UDM SE, 2026-08-05 |
 | FritzBox static routes | table present, empty, configurable | FritzBox, 2026-08-05 |
 | Address availability | `192.168.178.3`, `.240-.250`, `192.168.1.2`, `192.168.1.240-.250` all free — verified on the wire | Phase 0, 2026-08-05 |
-| k3s-pi current location | **Winkel**, `192.168.178.118` (DHCP lease reissued from its previous stay). Moved 2026-08-05; MAC `dc:a6:32:22:a2:a1`. Static `.3` still pending | Phase 5, 2026-08-05 |
+| k3s-pi current location | **Winkel**, static `192.168.178.3` since 2026-08-06 (was `.118` by DHCP). MAC `dc:a6:32:22:a2:a1`; verified across a clean reboot | Phase 5, 2026-08-06 |
 | k3s-pi nixpkgs | **NixOS 26.05** via `nixos-raspberrypi`'s own nixpkgs, not the fleet's 26.11 (D12). `nix flake update nixpkgs` does not move it | Phase 5, 2026-08-06 |
 | k3s-pi self-management | `/etc/nixos` is a git clone on `multi-site`, pulled over SSH with a read-only deploy key; `git pull && nixos-rebuild switch` runs on the pi | Phase 5, 2026-08-06 |
 | brink-server hardware | **in hand** — Phase 3 now depends on it, since moving the pi left Brink with no overlay host (3.1) | 2026-08-06 |
@@ -996,9 +996,9 @@ ZFS and `nixos-install` steps.
 
 ## 5.2 Pi
 
-**Physically at Winkel since 2026-08-05**, on `192.168.178.118` — a DHCP lease
-the FritzBox reissued from its previous stay. Identity confirmed by MAC
-`dc:a6:32:22:a2:a1`, not by name.
+**Physically at Winkel since 2026-08-05**, on the static `192.168.178.3` since
+2026-08-06 (it first took `.118`, a DHCP lease the FritzBox reissued from its
+previous stay). Identity confirmed by MAC `dc:a6:32:22:a2:a1`, not by name.
 
 ### Done
 
@@ -1014,12 +1014,16 @@ the FritzBox reissued from its previous stay. Identity confirmed by MAC
    build — but the real justification is that since the pi moved to Winkel it
    cannot reach a single smart-home device, as they are all at Brink and there
    is no cross-site mDNS.
+5. ✅ **Static `192.168.178.3`** (2026-08-06), from `networkConfig` rather than
+   inline. `.3` was verified free from the Winkel LAN itself. Applying it live
+   broke networking twice — see 6.5, which now carries the warning.
 6. ✅ Physically moved to Winkel.
-7. ✅ Verified by SSH and MAC, not mDNS. ⚠️ **The warning in this step has
-   inverted:** maxdata's stale Avahi record for `k3s-pi.local → 192.168.178.118`
-   now *happens to be correct*, because the FritzBox reissued that exact lease.
-   It will silently go wrong again the moment the pi takes the static `.3`. Keep
-   confirming by MAC.
+7. ✅ Verified by SSH and MAC, not mDNS. ⚠️ **This warning briefly inverted and
+   is now live again.** maxdata's stale Avahi record `k3s-pi.local →
+   192.168.178.118` was *accidentally correct* while the FritzBox had reissued
+   that exact lease — so it lulled rather than alerted. Since the pi took the
+   static `.3` on 2026-08-06 it is wrong once more. Keep confirming by MAC, and
+   flush maxdata's cache when convenient.
 8. ⏭️ Repointing is **not needed** — Phase 3 configures both static routes once,
    at their final next hops, and maxdata never advertises a subnet.
 
@@ -1041,8 +1045,6 @@ does not move the pi; only updating the `nixos-raspberrypi` input does.
    Suggested: `pi-winkel` or `anchor-winkel`. Note this also renames the
    directory under `hosts/nixos/`, the `rpiHosts` entry in `flake.nix`, and the
    `k3s-pi` key in `networkConfig.hosts`.
-5. **Static `192.168.178.3`** (verified free on the wire, 2026-08-06). Currently
-   `useDHCP = true`.
 6. **Overlay client + subnet router** for `192.168.178.0/24`, with
    `net.ipv4.ip_forward` declared — Phase 3.
 7. **AdGuard** — Phase 4.
@@ -1056,7 +1058,7 @@ does not move the pi; only updating the `nixos-raspberrypi` input does.
 
 - [ ] brink-server at Brink on `192.168.1.2`, advertising `192.168.1.0/24`
 - [x] Pi physically at Winkel, identified by MAC
-- [ ] Pi on the static `192.168.178.3`, advertising `192.168.178.0/24`
+- [x] Pi on the static `192.168.178.3` (2026-08-06) — advertising the subnet still pending, Phase 3
 - [ ] Pi renamed; `hostId` no longer collides with node3's
 - [ ] Secrets decrypt on both hosts, from **host** keys
 - [ ] AdGuard serving at both sites (Phase 4 exit criteria still met)
@@ -1157,6 +1159,33 @@ You have local access but prefer not to use a console. The safe sequence:
 3. Verify reachability from both sites and over the overlay.
 4. `sudo shutdown -c` to cancel the reboot.
 5. `nixos-rebuild switch --flake .#maxdata` to make it permanent.
+
+⚠️ **Step 2 does not prove the network config works — learned the hard way on
+the pi, 2026-08-06.** maxdata uses **scripted networking** (no
+systemd-networkd), and on such a host `nixos-rebuild test`/`switch` stops
+`dhcpcd` — which deletes every address and route — but does **not** start
+`network-setup.service`, which owns the static addresses. The interface is left
+with nothing. On the pi this presented twice, differently:
+
+- first as total silence, at both the old and new address;
+- then, more insidiously, with the address applied but **the default route
+  missing** — LAN-reachable, so it looked fine, while every outbound connection
+  failed with `Network is unreachable`. A `git pull` failed and a rebuild
+  silently used a stale commit.
+
+Consequences for this phase:
+
+- A dead-man reboot is **not optional** here; it is what recovered the pi.
+- Judge success **after a reboot**, not after `test`. A clean boot runs
+  `network-setup.service` properly and is the only honest verification.
+- Check the **default route** explicitly, not just pingability from the same
+  subnet: `ip -4 route show default` plus an outbound connection.
+
+Also: disabling DHCP silently disables IPv6. `dhcpcd` leaves `accept_ra=0`,
+`addr_gen_mode=1` (none) and `autoconf=0` behind, so the kernel generates no
+address at all — not even a link-local — until the host reboots. Declare
+`net.ipv6.conf.<iface>.accept_ra = 2` on any host that both forwards and needs
+SLAAC, because a forwarding host ignores RAs at the default `1`.
 
 The pi at Winkel is an independent second path in: it is on the overlay and does
 not depend on maxdata, so it can reach maxdata by LAN IP even if maxdata's

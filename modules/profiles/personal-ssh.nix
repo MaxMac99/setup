@@ -33,12 +33,11 @@ in {
           User = "max";
           IdentityFile = adminKey;
         };
-        # At Winkel since 2026-08-05, on a DHCP lease the FritzBox reissued from
-        # its previous stay. Becomes the static 192.168.178.3 in Phase 5. Do not
-        # use k3s-pi.local: maxdata's Avahi record happens to agree right now,
-        # which makes it lull rather than alert once the address changes.
+        # At Winkel on its static address since 2026-08-06. Do not use
+        # k3s-pi.local: maxdata's Avahi still serves a stale record for the
+        # DHCP address this host used to hold.
         "k3s-pi" = lib.hm.dag.entryAfter ["*"] {
-          HostName = "192.168.178.118";
+          HostName = "192.168.178.3";
           User = "max";
           IdentityFile = adminKey;
         };
