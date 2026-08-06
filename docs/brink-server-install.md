@@ -426,8 +426,19 @@ ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_brink_server -C "brink-server deploy ke
 cat ~/.ssh/id_brink_server.pub
 ```
 
-On GitHub → `MaxMac99/setup` → Settings → Deploy keys → Add deploy key. Title
-`brink-server`, **read-only** (leave "Allow write access" unchecked).
+On GitHub → `MaxMac99/setup` → **Settings → Deploy keys → Add deploy key**.
+Title `brink-server`, **read-only** (leave "Allow write access" unchecked).
+
+⚠️ **Check which kind of key you actually created** — this went wrong on
+2026-08-06. Account keys and deploy keys are both accepted by `ssh -T`, and the
+greeting is the only thing that distinguishes them:
+
+| Response | What it means |
+|---|---|
+| `Hi MaxMac99/setup!` | ✅ deploy key — scoped to this repo |
+| `Hi MaxMac99!` | ❌ **account key** — write access to *every* repo on the account |
+
+The second defeats the entire point of the read-only scoping.
 
 It must be a *distinct* key from the pi's `id_k3s_pi`: GitHub refuses to
 register the same deploy key on a repository twice. Read-only scoping means a
@@ -515,5 +526,13 @@ sudo sh -c '
 - [ ] Root and `max` console passwords set and stored in **1Password**, typed
       with the `us`/`de` keymap difference in mind
 - [ ] "After Power Loss → Power On" set in firmware
+
+✅ **All met on 2026-08-06** except the two human items (passwords filed in
+1Password; "After Power Loss" set in firmware). The strongest evidence is that
+`nixos-rebuild build` from a clean clone produced
+`qa3yp9vv5iwb1hjvmb5p9qa9rnnhbhdl-nixos-system-brink-server-26.11…` — the exact
+store path the box was already running, so pushed config and running system are
+provably the same thing. `switch` was then exercised once to validate that path
+too, since the running system had only ever come from `nixos-install`.
 
 Then Phase 3 is unblocked.
