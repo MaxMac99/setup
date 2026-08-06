@@ -129,6 +129,20 @@ in {
         # on forwarding.
         IPv6AcceptRA = true;
       };
+
+      # ⚠️ Take the route from the RA, but not the resolver.
+      #
+      # The UDM SE advertises itself as a DNS server via RDNSS, and networkd
+      # appends that to the link's DNS list — so `resolvectl` showed a third
+      # server, `2a00:6020:b444:bb00::1`, that appears nowhere in this repo.
+      # resolved is free to fail over to it, and anything answered there
+      # bypasses AdGuard's blocking *and* the split-horizon rewrites, which
+      # fails intermittently rather than cleanly (Phase 4, 2026-08-06).
+      #
+      # sites.brink.dnsServers is the only thing that should decide this
+      # host's resolvers.
+      ipv6AcceptRAConfig.UseDNS = false;
+
       linkConfig.RequiredForOnline = "routable";
     };
   };
