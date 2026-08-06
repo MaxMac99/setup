@@ -76,6 +76,8 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | brink-server installer media | NixOS **26.05** minimal x86_64, on the Mac, SHA-256 matches published `7f5df09b…f870` | 2026-08-06 |
 | Winkel reachable from off-site | **yes, verified** — `ssh -J max@212.132.82.102 max@192.168.178.{2,3}` returns `maxdata` / `winkel-pi` (`k3s-pi` before the rename); ionos `wg0` up at `.201`, 0% loss, ~14 ms. This jump is the only route into Winkel until Phase 3; neither ssh alias carries a `ProxyJump` | 2026-08-06 |
 | maxdata networking stack | **systemd-networkd — confirmed live, question closed.** `systemd-networkd` active+enabled; `network-setup.service` and `dhcpcd.service` **do not exist as units at all**; `vmbr0` built from `20-vmbr0.netdev` + 3 `.network` files, `networkctl` routable/online. 6.5's scripted-networking claim was wrong, so its failure mode cannot occur on maxdata — Phase 6 must guard a networkd/bridge restart instead | Live check on the box, 2026-08-06 |
+| **ionos deployment source** | ⚠️ **`/home/max/setup`, a clone on `main` at `e97d2b6`** — *not* `multi-site`, and `/etc/nixos` is a plain directory. Running `26.05.20260427`, generation 49 dated **2026-05-10**, no remote builders. The flake pins `26.11.20260802`, so any rebuild from this branch is a release upgrade of the k3s server, public edge and only route into Winkel. Blocks the age-key flip and Headscale alike — see 3.0.4 | Phase 3 recon, 2026-08-06 |
+| **ionos host age recipient** | `age19ylfvg7p6zw67t7dkutrj4d0dg5wllnf8ltwjzdlttuu33wt69ssv0mxlm`, from `/etc/ssh/ssh_host_ed25519_key`. Enrolled **alongside** the user-key `&ionos` on `multi-site`; decrypt of both `common.yaml` and `k3s.yaml` proven on the box. The user key `/home/max/.ssh/id_ed25519` derives `age100thyt…` and is still the live source — **do not rename that file** | Phase 3.0, 2026-08-06 |
 | ionos public ingress | 80/443 still DNAT'd to `192.168.178.10`, which is **dead** — ingress already broken, so 443 is free for the control server (3.0) | 2026-08-06 |
 | FritzBox VPN peers | `192.168.178.201/32`, `.202`, … — FritzBox is the WireGuard *server* today | FritzBox, 2026-08-05 |
 | Effective ionos↔home throughput | ~3 MB/s | Phase 0, scp over wg0 |
@@ -793,8 +795,9 @@ the real modules from scratch. The only tailscale in the repo is
 
 ## 3.0 Prerequisites the original plan did not list
 
-Three things must be true before any of the above, and none were visible when
-this phase was written.
+Four things must be true before any of the above, and none were visible when
+this phase was written. **3.0.4 is the one that gates the others**, because
+every remaining item in this phase ends in a `nixos-rebuild` on ionos.
 
 **Reachability.** Phase 2 opened TCP 8443 and UDP 3478 on the IONOS Cloud
 firewall and they were closed again at teardown. That firewall is default-deny
@@ -830,6 +833,58 @@ Additive order, never a flag day: derive the host-key recipient → add it to
 `age.sshKeyPaths` → `nixos-rebuild test` with a dead-man reboot armed → verify
 `k3s_token` still decrypts and k3s stays up → `switch` → only then drop the old
 recipient and `updatekeys` again.
+
+🔄 **The additive half is done (2026-08-06, `49fa463`).** `age19ylfvg7p…`,
+derived from ionos's `/etc/ssh/ssh_host_ed25519_key`, is enrolled in
+`.sops.yaml` alongside `&ionos` and both files were re-keyed with their
+plaintexts unchanged. Proven on the box: ionos decrypts **both** `common.yaml`
+(`a342c743…`) and `k3s.yaml` (`cc44af01…`) with the host key it will switch to.
+
+⚠️ **The flip is blocked on 3.0.4 below, not on the key.** The key-material
+uncertainty is gone; the deployment risk is not, and it is larger than this
+paragraph assumed when it was written.
+
+### 3.0.4 ionos is on a different branch, three months behind
+
+⚠️ **Discovered 2026-08-06, and it reshapes this phase.** Every other host in
+the fleet tracks `multi-site`. ionos does not, and never has.
+
+| | ionos | pi / brink-server |
+|---|---|---|
+| Deploy source | `/home/max/setup`, a clone on **`main`** at `e97d2b6` | `/etc/nixos` on `multi-site` |
+| `/etc/nixos` | a plain directory, not a repo | a real clone |
+| Running system | `nixos-system-ionos-**26.05.20260427**.1c3fe55` | 26.05 (pi) / 26.11 (brink-server), both current |
+| Last generation | **49, dated 2026-05-10** — the only one on the box | days old |
+| Remote builders | none; it builds locally | same |
+
+Two consequences:
+
+1. **There is no such thing as a small rebuild of ionos right now.** The
+   `multi-site` flake pins nixpkgs `26.11.20260802`; ionos runs `26.05.20260427`
+   with a matching `flake.lock`. Any `nixos-rebuild switch` from this branch is a
+   **release upgrade plus three months of churn**, applied to the k3s server,
+   the public edge, and the WireGuard tunnel that is currently the only route
+   into Winkel. Headscale cannot be deployed without paying that cost.
+2. **Secrets have diverged by branch.** The `&ionos-host` enrolment and both
+   re-keyed files live on `multi-site`. On `main` they are the pre-re-key
+   versions with no host-key recipient — so flipping `age.sshKeyPaths` while
+   deploying from `main` breaks `k3s_token` at boot, which is the exact failure
+   the additive order exists to avoid.
+
+**This is Phase 3's first task, not a side quest**, since step 1 of the phase is
+a control server on ionos. Decide deliberately:
+
+- **Reconcile ionos onto `multi-site` first**, as its own scoped change with a
+  dead-man reboot armed and the IONOS console open. Pays the upgrade once,
+  before anything depends on it, and while a known-good generation 49 exists to
+  roll back to. Preferred — but it is a real upgrade and should be treated as
+  one, not smuggled in under "deploy Headscale".
+- Or **stage on `main`**: apply the additive sops enrolment there too, flip the
+  key, and only then converge the branches. Smaller blast radius per step, at
+  the cost of the same edit existing on two branches.
+
+Either way, **verify after a reboot**, not after `test` — the boot path is what
+`k3s_token` decryption actually depends on.
 
 ## 3.1 Subnet routers — the staging is gone
 
