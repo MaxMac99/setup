@@ -12,6 +12,7 @@
       "modules/profiles/development.nix"
       "modules/profiles/gcloud.nix"
       "modules/profiles/full-nvim.nix"
+      "modules/system/overlay-client.nix"
     ])
     ++ [
       inputs.zfs-exporter.nixosModules.default
@@ -28,6 +29,15 @@
     username = "max";
     hostName = "maxdata";
   };
+
+  # Joins the mesh as a peer but advertises no subnet — the pi is Winkel's
+  # subnet router (3.1). maxdata still needs the overlay itself, because from
+  # Phase 7 its k3s --node-ip is an overlay address (D3).
+  #
+  # maxdata has no sops block yet (Phase 6.1 adds one), which is exactly why
+  # overlayClient.authKeySecret defaults to null: this import declares no
+  # secret and so cannot fail activation on the host that is hardest to lose.
+  overlayClient.enable = true;
 
   boot = {
     loader = {

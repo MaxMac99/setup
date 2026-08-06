@@ -10,14 +10,22 @@
       "modules/system/openssh.nix"
       "modules/system/k3s-base.nix"
       "modules/system/minimal-zsh.nix"
+      "modules/system/overlay-client.nix"
     ])
-    ++ [./hardware-configuration.nix];
+    ++ [
+      ./hardware-configuration.nix
+      ./overlay-server.nix
+    ];
 
   hostSpec = {
     username = "max";
     hostName = "ionos";
     isMinimal = true;
   };
+
+  # ionos runs the control server *and* joins as a peer. It advertises no
+  # subnet — it has no LAN to offer.
+  overlayClient.enable = true;
 
   # Disable swap completely to avoid kswapd0 CPU issues
   zramSwap.enable = false;
@@ -45,8 +53,15 @@
       # Trust interfaces used by K3s
       trustedInterfaces = ["flannel.1" "cni0" "flannel-v6.1" "wg0"];
 
-      # Disable reverse path filtering for K3s compatibility
-      checkReversePath = false;
+      # Disable reverse path filtering for K3s compatibility.
+      #
+      # mkForce because the tailscale module sets this to "loose" whenever
+      # useRoutingFeatures accepts routes, and an unforced `false` collides
+      # with it. Forcing is safe rather than a workaround: `false` disables
+      # rp_filter outright, which is strictly more permissive than the "loose"
+      # mode tailscale asks for, so overriding cannot break subnet routing —
+      # it only keeps the wider allowance k3s's asymmetric flannel paths need.
+      checkReversePath = lib.mkForce false;
 
       # Interface-specific rules - allow Flannel VXLAN only on internal interfaces
       interfaces = {
@@ -54,23 +69,25 @@
         ens6.allowedUDPPorts = []; # No VXLAN on public interface
       };
 
-      # Enable NAT for forwarding traffic to internal Traefik
+      # ⚠️ The 80/443 DNAT to the in-cluster Traefik was removed here in Phase
+      # 3, and it was already dead before it was removed.
+      #
+      # Six rules forwarded ens6:80 and ens6:443 (TCP and QUIC) to
+      # networkConfig.legacy.ingressVIP — 192.168.178.10, a MetalLB address
+      # Traefik held by first-come luck rather than by configuration. That
+      # target stopped responding before Phase 0, so public ingress has been
+      # broken for some time and nothing working is being displaced.
+      #
+      # They have to go rather than merely being unused: DNAT happens in
+      # PREROUTING, *before* the local-delivery decision, so while those rules
+      # existed Headscale could not have received a packet on 443 no matter
+      # what it bound to. Phase 9 rebuilds public ingress on ionos properly
+      # with a hostNetwork Traefik (D7), which also ends the masquerading that
+      # currently hides every client IP.
       extraCommands = ''
         # Enable IP forwarding
         echo 1 > /proc/sys/net/ipv4/ip_forward
         echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
-
-        # Forward HTTP (80) traffic from public interface to internal Traefik
-        iptables -t nat -A PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination ${config.networkConfig.legacy.ingressVIP}:80
-        ip6tables -t nat -A PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination [${config.networkConfig.legacy.ingressVIPv6}]:80
-
-        # Forward HTTPS (443) TCP traffic from public interface to internal Traefik
-        iptables -t nat -A PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination ${config.networkConfig.legacy.ingressVIP}:443
-        ip6tables -t nat -A PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination [${config.networkConfig.legacy.ingressVIPv6}]:443
-
-        # Forward HTTPS (443) UDP traffic for HTTP/3 QUIC
-        iptables -t nat -A PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination ${config.networkConfig.legacy.ingressVIP}:443
-        ip6tables -t nat -A PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination [${config.networkConfig.legacy.ingressVIPv6}]:443
 
         # Masquerade outgoing traffic so responses route back correctly
         iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
@@ -79,12 +96,6 @@
 
       extraStopCommands = ''
         # Clean up NAT rules on stop
-        iptables -t nat -D PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination ${config.networkConfig.legacy.ingressVIP}:80 2>/dev/null || true
-        ip6tables -t nat -D PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination [${config.networkConfig.legacy.ingressVIPv6}]:80 2>/dev/null || true
-        iptables -t nat -D PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination ${config.networkConfig.legacy.ingressVIP}:443 2>/dev/null || true
-        ip6tables -t nat -D PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination [${config.networkConfig.legacy.ingressVIPv6}]:443 2>/dev/null || true
-        iptables -t nat -D PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination ${config.networkConfig.legacy.ingressVIP}:443 2>/dev/null || true
-        ip6tables -t nat -D PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination [${config.networkConfig.legacy.ingressVIPv6}]:443 2>/dev/null || true
         iptables -t nat -D POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || true
         ip6tables -t nat -D POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || true
       '';

@@ -15,6 +15,7 @@ in {
     (map lib.custom.relativeToRoot [
       "modules/system/openssh.nix"
       "modules/system/minimal-zsh.nix"
+      "modules/system/overlay-client.nix"
     ])
     ++ [./hardware-configuration.nix];
 
@@ -23,6 +24,13 @@ in {
     hostName = "brink-server";
     isMinimal = true;
   };
+
+  # Brink's subnet router (networkConfig.hosts.brink-server.subnetRouter). It
+  # advertises 192.168.1.0/24 and is the next hop for the UDM SE's static route
+  # to Winkel. Brink has no second always-on host, so this is a single point of
+  # failure for cross-site routing here — accepted in 3.2 because the UDM SE
+  # cannot fill the role itself.
+  overlayClient.enable = true;
 
   boot = {
     loader = {

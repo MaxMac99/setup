@@ -15,6 +15,7 @@ in {
     (map lib.custom.relativeToRoot [
       "modules/system/openssh.nix"
       "modules/system/minimal-zsh.nix"
+      "modules/system/overlay-client.nix"
     ])
     # Board specifics only. `nixos-raspberrypi.lib.nixosSystem` (see flake.nix)
     # already supplies inject-overlays, nixpkgs-rpi and trusted-nix-caches —
@@ -38,6 +39,12 @@ in {
     enable = true;
     powerOnBoot = true;
   };
+
+  # Winkel's subnet router (networkConfig.hosts.winkel-pi.subnetRouter), and
+  # the reason D10 put the pi here: it advertises 192.168.178.0/24 and is the
+  # FritzBox's next hop to Brink, so a nixos-rebuild on maxdata cannot take
+  # Winkel's routing, DNS and the only way in down with it.
+  overlayClient.enable = true;
 
   hostSpec = {
     username = "max";

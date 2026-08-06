@@ -1,0 +1,34 @@
+// Headscale ACL policy — Phase 3 of docs/multi-site-migration.md.
+//
+// HuJSON (JSON with comments and trailing commas). Headscale reads this from
+// disk with policy.mode = "file", which is why the overlay's policy lives in
+// git and deploys with nixos-rebuild — the deciding difference against
+// NetBird, whose policy lives in sqlite behind a REST API (overlay-evaluation
+// §3.8).
+//
+// This is deliberately permissive between nodes, and that is a considered
+// choice rather than a placeholder:
+//
+//   * The estate has exactly one human owner. There is no multi-tenant
+//     boundary here for an ACL to enforce.
+//   * From Phase 7 the overlay carries the *cluster's* traffic — etcd peer and
+//     client (2379/2380), kubelet (10250), the apiserver (6443) and flannel
+//     VXLAN (8472), between four nodes in three L3 domains. Enumerating those
+//     port-by-port buys nothing while every node is equally trusted, and a
+//     missing rule fails as an intermittent cluster fault rather than a clean
+//     denial, which is a genuinely bad way to spend a debugging afternoon.
+//   * The security boundary that matters is the *edge*: what the IONOS Cloud
+//     firewall admits, and what Traefik terminates. Not peer-to-peer traffic
+//     inside a mesh whose members are all ours.
+//
+// Tighten this when there is a second principal to separate — a family
+// member's device, or a guest — not before.
+{
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["*"],
+      "dst": ["*:*"],
+    },
+  ],
+}

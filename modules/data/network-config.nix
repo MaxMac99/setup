@@ -9,7 +9,11 @@
 #                                    maxdata; removed in Phase 6.
 #
 # See docs/multi-site-migration.md.
-{lib, ...}: let
+{
+  lib,
+  config,
+  ...
+}: let
   siteModule = lib.types.submodule {
     options = {
       description = lib.mkOption {
@@ -99,6 +103,19 @@
         default = null;
         description = "Target k3s role from Phase 7; null means not a cluster member";
       };
+      subnetRouter = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Whether this host advertises its site's whole subnet onto the overlay,
+          making unmodified LAN clients reachable from the other site (Phase 3).
+
+          Exactly one host per site should set this. The router's static route
+          for the *remote* subnet points at its own site's subnet router, never
+          at the remote one — a router can only hand a packet to an address it
+          can already reach.
+        '';
+      };
     };
   };
 in {
@@ -142,16 +159,20 @@ in {
           site = "brink";
           lanIPv4 = "192.168.1.2";
           k3sRole = "server";
+          subnetRouter = true; # Brink's only always-on host
         };
         maxdata = {
           site = "winkel";
           lanIPv4 = "192.168.178.2";
           k3sRole = "server";
+          # Deliberately not a subnet router (3.1): the pi is, so a rebuild of
+          # maxdata cannot take Winkel's routing down with it.
         };
         winkel-pi = {
           site = "winkel";
           lanIPv4 = "192.168.178.3";
           k3sRole = "agent";
+          subnetRouter = true; # D10 — the unattended-site anchor
         };
         ionos = {
           site = "public";
@@ -159,6 +180,73 @@ in {
           publicIPv6 = "2a02:2479:5c:a00::1";
           k3sRole = "server";
         };
+      };
+    };
+
+    # ---------------------------------------------------------------------
+    # Mesh overlay (Phase 3) — Headscale control server + Tailscale clients
+    # ---------------------------------------------------------------------
+
+    overlay = {
+      controlServerHost = lib.mkOption {
+        type = lib.types.str;
+        default = "headscale.mvissing.de";
+        description = ''
+          Public hostname of the Headscale control server on ionos. Needs an
+          A/AAAA record pointing at ionos, and it must resolve publicly because
+          Let's Encrypt validates it over HTTP-01.
+        '';
+      };
+      controlServerUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "https://${config.networkConfig.overlay.controlServerHost}";
+        readOnly = true;
+        description = ''
+          What clients pass to `--login-server`. **HTTPS on 443, never plain
+          HTTP on an alternate port** — Phase 2 showed a client's fallback
+          heuristic escalates to port 443 after any control interruption and
+          then wedges permanently (overlay-evaluation §2.1).
+        '';
+      };
+      magicDnsBaseDomain = lib.mkOption {
+        type = lib.types.str;
+        default = "mesh.mvissing.de";
+        description = ''
+          MagicDNS suffix for node names. Headscale requires this to differ
+          from the server_url hostname, so it cannot be `mvissing.de` itself.
+        '';
+      };
+      prefixV4 = lib.mkOption {
+        type = lib.types.str;
+        default = "100.64.0.0/10";
+        description = "Overlay IPv4 pool. Must sit inside Tailscale's 100.64.0.0/10.";
+      };
+      derpRegionId = lib.mkOption {
+        type = lib.types.int;
+        default = 999;
+        description = ''
+          Region id for ionos's embedded DERP. Kept in the private range so it
+          never collides with Tailscale's public regions. Relay stays inside
+          the estate rather than transiting Tailscale's infrastructure.
+        '';
+      };
+      derpStunPort = lib.mkOption {
+        type = lib.types.port;
+        default = 3478;
+        description = ''
+          STUN port for NAT traversal, UDP. ⚠️ Must be opened in the **IONOS
+          Cloud firewall**, which is default-deny and invisible from inside the
+          VPS — blocked packets never reach `ens6`, so tcpdump shows nothing.
+        '';
+      };
+      mtu = lib.mkOption {
+        type = lib.types.int;
+        default = 1280;
+        description = ''
+          Measured overlay MTU (Phase 2 → D3). Flannel gets this minus 50 for
+          VXLAN overhead in Phase 7. A wrong value blackholes large payloads
+          while ping still succeeds.
+        '';
       };
     };
 
