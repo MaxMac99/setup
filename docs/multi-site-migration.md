@@ -66,10 +66,10 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | winkel-pi location | **Winkel**, static `192.168.178.3` since 2026-08-06 (was `.118` by DHCP). MAC `dc:a6:32:22:a2:a1`; verified across a clean reboot | Phase 5, 2026-08-06 |
 | winkel-pi nixpkgs | **NixOS 26.05** via `nixos-raspberrypi`'s own nixpkgs, not the fleet's 26.11 (D12). `nix flake update nixpkgs` does not move it | Phase 5, 2026-08-06 |
 | winkel-pi self-management | `/etc/nixos` is a git clone on `multi-site`, pulled over SSH with a read-only deploy key; `git pull && nixos-rebuild switch` runs on the pi. First rebuild after the rename needs the attribute spelled out (`#winkel-pi`), since the old one no longer exists | Phase 5, 2026-08-06 |
-| **Self-updating clones vs rewritten history** | ⚠️ `multi-site` was rebased and force-pushed after the pi cloned it, leaving `/etc/nixos` on an **orphaned** commit no ref contained — invisible locally, and `git pull` would have *merged* the two histories rather than failing. Repair on a pull-only clone is `git fetch && git reset --hard origin/multi-site`, never `pull`. **brink-server is unchecked** | Phase 5.2, 2026-08-06 |
+| **Self-updating clones vs rewritten history** | ⚠️ `multi-site` was rebased and force-pushed after the pi cloned it, leaving `/etc/nixos` on an **orphaned** commit no ref contained — invisible locally, and `git pull` would have *merged* the two histories rather than failing. Repair on a pull-only clone is `git fetch && git reset --hard origin/multi-site`, never `pull`. Detect with `git merge-base --is-ancestor HEAD origin/multi-site`. **brink-server checked and clean** — cloned after the rewrite, fast-forwards normally | Phase 5.2, 2026-08-06 |
 | brink-server hardware | **installed and self-managing** — `git pull && nixos-rebuild switch` proven on the box; build from a clean clone is bit-identical to the running system | Phase 5.1, 2026-08-06 |
 | brink-server config | **written and evaluating**, install in progress. `hostId = b21961a5`; ZFS pool **`main`**, single vdev, zstd, **native mountpoints + `zfsutil`** (D13); systemd-networkd; sops host key declared with zero secrets | Phase 5.1, 2026-08-06 |
-| brink-server age recipient | `age1pqhavyh47c882zd3h20a8q0mng5kdm5qsz7d4f2vayrjfndcsyxq4m7d3a`, derived from `/etc/ssh/ssh_host_ed25519_key` — a **host** key (D11/2b.2). 5th recipient of `common.yaml`; decrypt proven on the box, plaintext hash unchanged. Deliberately *not* added to `k3s.yaml`: that token belongs to the cluster Phase 7 destroys | Phase 5.1, 2026-08-06 |
+| brink-server age recipient | `age1pqhavyh47c882zd3h20a8q0mng5kdm5qsz7d4f2vayrjfndcsyxq4m7d3a`, derived from `/etc/ssh/ssh_host_ed25519_key` — a **host** key (D11/2b.2). 5th recipient of `common.yaml`; decrypt proven on the box, plaintext hash unchanged. Deliberately *not* added to `k3s.yaml`: that token belongs to the cluster Phase 7 destroys. **Re-proven after winkel-pi's enrolment re-wrapped the data key** — same hash `a342c743…`, so all three recipients (Mac, brink-server, winkel-pi) verify against the re-keyed file | Phase 5.1, re-verified 2026-08-06 |
 | brink-server NIC | `eno1`, MAC `84:a9:38:4c:9a:71` (altnames `enp0s31f6`, `enx84a9384c9a71`) | Phase 5.1, 2026-08-06 |
 | Repo layout | **bare repo + worktrees** (`setup/.bare`, worktrees `main`/`multi-site`/`opencode`). `.git` is a 76-byte pointer file, so rsyncing a worktree to another machine breaks every git-based flake fetch — copy without `.git`, or clone properly | 2026-08-06 |
 | brink-server NVMe | Samsung MZVLB1T0HBLR-000H1, 953.9 GiB, serial `S4GRNX0R315239`. Arrived with a Windows layout (499 M ESP / 128 M MSR / 943.7 G / 9.5 G recovery), zapped | Phase 5.1, 2026-08-06 |
@@ -1131,9 +1131,14 @@ git fetch origin && git reset --hard origin/multi-site
 
 `reset --hard` rather than `pull`, precisely *because* the host authors nothing:
 there is no local work to preserve, and a merge would manufacture history that
-only exists on that host. **brink-server has the same arrangement and was cloned
-before this was known** — check it the same way before Phase 3 depends on its
-self-update path.
+only exists on that host. Distinguish the two cases by the fetch line —
+`b187c6d..5376880` is a fast-forward, `+ 8aa8e67...d92d9b9 (forced update)` is
+the orphan — or, non-destructively, with
+`git merge-base --is-ancestor HEAD origin/multi-site`.
+
+✅ **brink-server checked and clean** (2026-08-06): `HEAD` is an ancestor of
+origin, 3 behind and 0 ahead, fast-forwarded normally. It was cloned *after* the
+rewrite, so only the pi was ever affected.
 
 ⚠️ **The pi tracks a different nixpkgs from the rest of the fleet.** It is built
 with `nixos-raspberrypi.lib.nixosSystem` and therefore that flake's nixpkgs
