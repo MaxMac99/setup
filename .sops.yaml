@@ -23,6 +23,7 @@ creation_rules:
         - *maxdata
         - *ionos
         - *brink-server
+        - *winkel-pi
   - path_regex: secrets/k3s.yaml
     key_groups:
       - age:

@@ -94,6 +94,21 @@ in {
   # restores the kernel defaults, so this only bites during a live switch.
   boot.kernel.sysctl."net.ipv6.conf.end0.accept_ra" = 2;
 
+  # Host key, not a user key (D11, 2b.2). Unlike brink-server this needed no key
+  # ceremony: the &winkel-pi recipient in .sops.yaml was *already* derived from
+  # this host's /etc/ssh/ssh_host_ed25519_key — re-deriving from the live key on
+  # 2026-08-06 reproduced it exactly. The recipiency was never stale key
+  # material, only unwired, which is why it looked dead since adfcc70.
+  #
+  # No secrets are declared yet, and that is what keeps this safe: sops-nix with
+  # an empty secret set is a no-op at activation, so nothing here can fail a
+  # boot. The pi needs its first secret in Phase 3 (the overlay pre-auth key),
+  # which is exactly what this plumbing exists to receive.
+  sops = {
+    defaultSopsFile = lib.custom.relativeToRoot "secrets/common.yaml";
+    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
+  };
+
   # Self-update path. The pi clones and pulls this repo itself from GitHub over
   # SSH, so it no longer depends on anyone copying a tree onto it. Its private
   # key is placed out-of-band at /home/max/.ssh/id_winkel_pi — a headless host
