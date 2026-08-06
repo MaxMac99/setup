@@ -148,7 +148,7 @@ in {
           lanIPv4 = "192.168.178.2";
           k3sRole = "server";
         };
-        k3s-pi = {
+        winkel-pi = {
           site = "winkel";
           lanIPv4 = "192.168.178.3";
           k3sRole = "agent";

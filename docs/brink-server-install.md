@@ -440,7 +440,7 @@ greeting is the only thing that distinguishes them:
 
 The second defeats the entire point of the read-only scoping.
 
-It must be a *distinct* key from the pi's `id_k3s_pi`: GitHub refuses to
+It must be a *distinct* key from the pi's `id_winkel_pi`: GitHub refuses to
 register the same deploy key on a repository twice. Read-only scoping means a
 compromised brink-server cannot rewrite the fleet's configuration.
 

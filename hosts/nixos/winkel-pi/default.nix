@@ -8,7 +8,7 @@
   # Address plan lives in modules/data/network-config.nix, not inline here, so
   # the router's static route and this host cannot drift apart.
   site = config.networkConfig.sites.winkel;
-  self = config.networkConfig.hosts.k3s-pi;
+  self = config.networkConfig.hosts.winkel-pi;
   prefixLength = lib.toInt (lib.last (lib.splitString "/" site.subnet));
 in {
   imports =
@@ -41,13 +41,18 @@ in {
 
   hostSpec = {
     username = "max";
-    hostName = "k3s-pi";
+    hostName = "winkel-pi";
     isMinimal = true;
   };
 
   networking = {
-    hostName = "k3s-pi";
-    hostId = "03030303";
+    hostName = "winkel-pi";
+    # Was "03030303", which collided in form with the derived IDs the microVMs
+    # build from their node number (modules/system/k3s-node.nix:87). This host
+    # has no ZFS pool, so the ID is cosmetic here — but a fleet where two hosts
+    # can present the same ID is a pool-import hazard waiting for the first
+    # machine that does.
+    hostId = "7a943cc4";
 
     # Static, because the FritzBox static route for 192.168.1.0/24 points here
     # (Phase 3) and a subnet router cannot sit on a lease. `.3` is outside the
@@ -91,7 +96,7 @@ in {
 
   # Self-update path. The pi clones and pulls this repo itself from GitHub over
   # SSH, so it no longer depends on anyone copying a tree onto it. Its private
-  # key is placed out-of-band at /home/max/.ssh/id_k3s_pi — a headless host
+  # key is placed out-of-band at /home/max/.ssh/id_winkel_pi — a headless host
   # cannot reach a vault agent, so this is a device key like maxdata's — and the
   # public half is registered as a *read-only* deploy key scoped to this one
   # repo, so a compromised pi cannot rewrite the fleet's configuration.
@@ -99,7 +104,7 @@ in {
     Host github.com
       User git
       IdentitiesOnly yes
-      IdentityFile /home/max/.ssh/id_k3s_pi
+      IdentityFile /home/max/.ssh/id_winkel_pi
   '';
 
   # /etc/nixos is owned by max, so `git pull` uses max's deploy key and root
@@ -110,7 +115,7 @@ in {
     config.safe.directory = "/etc/nixos";
   };
 
-  # mDNS so the host is reachable as k3s-pi.local without a static lease.
+  # mDNS so the host is reachable as winkel-pi.local without a static lease.
   services.avahi = {
     enable = true;
     nssmdns4 = true;

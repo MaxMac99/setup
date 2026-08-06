@@ -86,7 +86,7 @@
     # matching nixpkgs; see its README, "Using the flake to create NixOS
     # configuration". Consequence: the pi tracks nixos-raspberrypi's nixpkgs
     # independently of the rest of the fleet.
-    rpiHosts = ["k3s-pi"];
+    rpiHosts = ["winkel-pi"];
 
     mkNixosHost = host: let
       isRPi = builtins.elem host rpiHosts;
@@ -155,7 +155,7 @@
           boot.kernelParams = ["usb-storage.quirks=174c:55aa:u"];
 
           nixpkgs.hostPlatform = "aarch64-linux";
-          networking.hostName = "k3s-pi-installer";
+          networking.hostName = "rpi-installer";
           networking.useDHCP = lib.mkDefault true;
 
           system.stateVersion = "25.11";
@@ -167,7 +167,7 @@
   in {
     formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.alejandra);
 
-    packages.aarch64-linux.k3s-pi-installer = mkRPiInstaller.config.system.build.sdImage;
+    packages.aarch64-linux.rpi-installer = mkRPiInstaller.config.system.build.sdImage;
 
     darwinConfigurations =
       builtins.listToAttrs
@@ -190,7 +190,7 @@
           (builtins.attrNames (builtins.readDir ./hosts/nixos))
         ))
       // {
-        k3s-pi-installer = mkRPiInstaller;
+        rpi-installer = mkRPiInstaller;
       };
   };
 }

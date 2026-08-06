@@ -34,9 +34,9 @@ in {
           IdentityFile = adminKey;
         };
         # At Winkel on its static address since 2026-08-06. Do not use
-        # k3s-pi.local: maxdata's Avahi still serves a stale record for the
-        # DHCP address this host used to hold.
-        "k3s-pi" = lib.hm.dag.entryAfter ["*"] {
+        # mDNS: maxdata's Avahi still serves a stale k3s-pi.local record for
+        # the DHCP address this host used to hold under its old name.
+        "winkel-pi" = lib.hm.dag.entryAfter ["*"] {
           HostName = "192.168.178.3";
           User = "max";
           IdentityFile = adminKey;
