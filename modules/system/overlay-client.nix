@@ -58,10 +58,15 @@ in {
       # net.ipv6.conf.all.forwarding (tailscale.nix), which is what Phase 3
       # item 4 requires — Phase 2 measured ip_forward = 0 on both candidates
       # and subnet routing fails silently without it.
+      #
+      # "none" rather than "client" for everyone else, to match the
+      # --accept-routes decision below: "client" exists to loosen reverse-path
+      # filtering for accepted routes, and a host that accepts none does not
+      # want its rp_filter relaxed for nothing.
       useRoutingFeatures =
         if advertises
         then "both"
-        else "client";
+        else "none";
 
       extraUpFlags =
         [
@@ -71,12 +76,37 @@ in {
           # Phase 4 owns DNS. The overlay must not rewrite either site's
           # resolver as a side effect of joining.
           "--accept-dns=false"
-
-          # Accept the *other* site's advertised subnet. Without this a host
-          # joins the mesh but still cannot reach the far LAN.
-          "--accept-routes"
         ]
-        ++ lib.optional advertises "--advertise-routes=${site.subnet}";
+        ++ lib.optionals advertises [
+          "--advertise-routes=${site.subnet}"
+
+          # ⚠️ **Only subnet routers accept routes, and this is not a
+          # preference — it is a correctness requirement.** Learned by breaking
+          # maxdata on 2026-08-06.
+          #
+          # Accepting routes installs them in table 52, which tailscale
+          # consults via `ip rule` at priority **5270 — ahead of the main table
+          # at 32766**. So an accepted route for a prefix the host is
+          # *directly connected to* silently outranks its own LAN route.
+          #
+          # maxdata accepted winkel-pi's 192.168.178.0/24 — its own subnet —
+          # and every reply to a LAN neighbour went into the tunnel instead of
+          # out vmbr0. Incoming worked, outgoing did not: ARP fine, ping dead,
+          # host reachable only over the overlay. ionos failed differently and
+          # more quietly: its wg0 carries 192.168.178.201/24, so the accepted
+          # route displaced the **FritzBox tunnel**, dissolving the second
+          # independent path into Winkel that Phase 13 still depends on, while
+          # everything appeared to work.
+          #
+          # Subnet routers are safe because tailscale never installs an
+          # accepted route for a prefix the node itself advertises — which is
+          # exactly why brink-server was unaffected while maxdata was not.
+          #
+          # Non-routers lose nothing that matters: every overlay peer stays
+          # reachable at its 100.64.0.0/10 address, and reaching the *far
+          # site's LAN* is the subnet router's job by construction (3.1).
+          "--accept-routes"
+        ];
     };
 
     # Routes are advertised, not granted: they stay inactive until approved on
