@@ -158,12 +158,15 @@ in {
         brink-server = {
           site = "brink";
           lanIPv4 = "192.168.1.2";
+          overlayIPv4 = "100.64.0.2";
           k3sRole = "server";
           subnetRouter = true; # Brink's only always-on host
         };
         maxdata = {
           site = "winkel";
           lanIPv4 = "192.168.178.2";
+          # overlayIPv4 still null: maxdata has not joined, because its sops
+          # wiring is Phase 6.1 and it cannot decrypt the auth key until then.
           k3sRole = "server";
           # Deliberately not a subnet router (3.1): the pi is, so a rebuild of
           # maxdata cannot take Winkel's routing down with it.
@@ -171,6 +174,7 @@ in {
         winkel-pi = {
           site = "winkel";
           lanIPv4 = "192.168.178.3";
+          overlayIPv4 = "100.64.0.3";
           k3sRole = "agent";
           subnetRouter = true; # D10 — the unattended-site anchor
         };
@@ -178,6 +182,7 @@ in {
           site = "public";
           publicIPv4 = "212.132.82.102";
           publicIPv6 = "2a02:2479:5c:a00::1";
+          overlayIPv4 = "100.64.0.1";
           k3sRole = "server";
         };
       };

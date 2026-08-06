@@ -33,11 +33,32 @@
   # Joins the mesh as a peer but advertises no subnet — the pi is Winkel's
   # subnet router (3.1). maxdata still needs the overlay itself, because from
   # Phase 7 its k3s --node-ip is an overlay address (D3).
+  overlayClient = {
+    enable = true;
+    authKeySecret = "overlay_authkey";
+  };
+
+  # maxdata's first sops block. It was a declared recipient of both files since
+  # before Phase 0 while consuming nothing, which is the drift Phase 0.5 spotted
+  # and 2b.3 item 1 carried.
   #
-  # maxdata has no sops block yet (Phase 6.1 adds one), which is exactly why
-  # overlayClient.authKeySecret defaults to null: this import declares no
-  # secret and so cannot fail activation on the host that is hardest to lose.
-  overlayClient.enable = true;
+  # Straight to a **host** key (D11/2b.2) rather than the user key its original
+  # recipient came from. That shortcut is available here precisely *because*
+  # nothing consumed sops on this host: there is no running service to migrate,
+  # so there is no transition to stage — unlike ionos, where a live k3s_token
+  # forced the additive dance.
+  #
+  # ⚠️ Phase 6.1 calls this the single highest-risk item in the migration: the
+  # microVMs' k3s token is encrypted to identities that live *inside* the disk
+  # images that phase deletes, so if maxdata cannot decrypt k3s.yaml first, the
+  # token is gone. Proven before this was written, not after — an actual
+  # `sops -d` on the box under an age key derived from
+  # /etc/ssh/ssh_host_ed25519_key reproduced both plaintext hashes exactly. The
+  # old user-key recipient is deliberately still in .sops.yaml as a fallback.
+  sops = {
+    defaultSopsFile = lib.custom.relativeToRoot "secrets/common.yaml";
+    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
+  };
 
   boot = {
     loader = {
