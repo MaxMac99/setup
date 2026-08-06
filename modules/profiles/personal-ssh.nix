@@ -2,28 +2,25 @@
 #
 # The private keys live in 1Password and ssh reaches them through its agent
 # (modules/profiles/projects.nix owns the `Host *` block and the IdentityAgent
-# setting). What lands on disk is only the public half, under ~/.ssh/1password/
-# so it cannot collide with an unmanaged ~/.ssh/id_*.pub.
+# setting). `IdentitiesOnly yes` still needs a file to decide *which*
+# agent-resident key to offer, so the public halves are referenced straight out
+# of the Nix store: immutable, root-owned, and nothing lands in ~/.ssh that can
+# be mistaken for a stray key copy and deleted.
 {config, ...}: let
-  pubKeyDir = ".ssh/1password";
-
-  # max's interactive admin key: committed as modules/data/keys/max-admin.pub and
-  # installed into authorized_keys on every host by modules/system/base.nix. It
-  # belongs to the person, not to a machine — the private half is in 1Password,
+  # max's interactive admin key. It is both inbound and outbound — installed
+  # into authorized_keys on every host by modules/system/base.nix, and presented
+  # from here — so it lives in ../data/keys and is referenced, never copied. It
+  # belongs to the person, not to a machine: the private half is in 1Password,
   # so any device with the vault can use it. Machine-to-machine keys such as
   # modules/data/keys/maxdata.pub stay device-bound and keep their hostname,
   # because a headless host cannot talk to a vault agent.
-  adminKey = "~/${pubKeyDir}/id_max_admin.pub";
-  hetznerKey = "~/${pubKeyDir}/id_hetzner.pub";
+  adminKey = "${../data/keys/max-admin.pub}";
+
+  # Outbound only — see ../data/pubkeys/README.md for why this must not live in
+  # ../data/keys, which base.nix grants login with on every host.
+  hetznerKey = "${../data/pubkeys/id_hetzner.pub}";
 in {
   home-manager.users.${config.hostSpec.username} = {lib, ...}: {
-    home.file = {
-      "${pubKeyDir}/id_max_admin.pub".source = ../data/keys/max-admin.pub;
-      "${pubKeyDir}/id_hetzner.pub".text = ''
-        ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKA8xBELyk1Lh4TYvFEGBCyymas7TlZRyohCNwhm9ioS id_hetzner
-      '';
-    };
-
     programs.ssh = {
       settings = {
         "ionos" = lib.hm.dag.entryAfter ["*"] {
@@ -36,11 +33,12 @@ in {
           User = "max";
           IdentityFile = adminKey;
         };
-        # Still physically at Brink on a DHCP lease; moves to 192.168.178.3 in
-        # Phase 5. Do not use k3s-pi.local — maxdata's Avahi still serves a stale
-        # record for 192.168.178.118 from when the pi last lived at Winkel.
+        # At Winkel since 2026-08-05, on a DHCP lease the FritzBox reissued from
+        # its previous stay. Becomes the static 192.168.178.3 in Phase 5. Do not
+        # use k3s-pi.local: maxdata's Avahi record happens to agree right now,
+        # which makes it lull rather than alert once the address changes.
         "k3s-pi" = lib.hm.dag.entryAfter ["*"] {
-          HostName = "192.168.1.90";
+          HostName = "192.168.178.118";
           User = "max";
           IdentityFile = adminKey;
         };
