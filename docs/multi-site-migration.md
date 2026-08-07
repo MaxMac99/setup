@@ -99,7 +99,7 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | Winkel reachable from off-site | **yes, verified** — `ssh -J max@212.132.82.102 max@192.168.178.{2,3}` returns `maxdata` / `winkel-pi` (`k3s-pi` before the rename); ionos `wg0` up at `.201`, 0% loss, ~14 ms. This jump is the only route into Winkel until Phase 3; neither ssh alias carries a `ProxyJump` | 2026-08-06 |
 | maxdata networking stack | **systemd-networkd — confirmed live, question closed.** `systemd-networkd` active+enabled; `network-setup.service` and `dhcpcd.service` **do not exist as units at all**; `vmbr0` built from `20-vmbr0.netdev` + 3 `.network` files, `networkctl` routable/online. 6.5's scripted-networking claim was wrong, so its failure mode cannot occur on maxdata — Phase 6 must guard a networkd/bridge restart instead | Live check on the box, 2026-08-06 |
 | **ionos deployment source** | ✅ **reconciled 2026-08-06.** `/home/max/setup` now tracks **`multi-site`**; upgraded `26.05.20260427` → **`26.11.20260802.6438090`** (gen 50, gen 49 kept as rollback), **verified across a reboot**. `/etc/nixos` is still a plain directory, unlike the pi/brink-server clone pattern. ⚠️ Requires `safe.directory` for root — set imperatively in `/root/.gitconfig`, **not yet declared in the config**, and invisible to `systemd-run` unless `HOME=/root` is passed | Phase 3.0.4, 2026-08-06 |
-| **ionos build capacity** | ⚠️ **no remote builders; builds locally on a small VPS and cannot cope.** A full `nixos-rebuild build` starved sshd for 20+ min — ping and the TCP handshake still succeeded while no login could complete — and needed a panel power-cycle. Use `--max-jobs 1 --cores 1` under `tmux`, check `free -m`/`df -h` first. ⚠️ A `nix.buildMachines` remote builder **cannot** fix this: it needs ionos to dial out to the builder, and brink-server is behind CGNAT. Invert it — build on brink-server and push with `nixos-rebuild --flake …#ionos --target-host max@212.132.82.102 --use-remote-sudo` | Phase 3.0.5, 2026-08-06 |
+| **ionos build capacity** | ⚠️ **no remote builders; builds locally on a small VPS and cannot cope.** A full `nixos-rebuild build` starved sshd for 20+ min — ping and the TCP handshake still succeeded while no login could complete — and needed a panel power-cycle. Use `--max-jobs 1 --cores 1` under `tmux`, check `free -m`/`df -h` first. ⚠️ A `nix.buildMachines` remote builder **cannot** fix this: it needs ionos to dial out to the builder, and brink-server is behind CGNAT. Invert it — build on brink-server and push with `nixos-rebuild --flake …#ionos --target-host max@212.132.82.102 --use-remote-sudo`. ⚠️ **Qualified 2026-08-07: this applies to input-moving rebuilds, not to config-only ones.** The starvation happened during the **26.05 → 26.11 upgrade**, where `sops-install-secrets` compiled and ran its test suite. With nixpkgs unmoved, 7.1's firewall change `dry-build`-ed to **4 trivial derivations** and switched in seconds with 1.2 GB free. **Run `nixos-rebuild dry-build` first and let it decide** — assuming the expensive path cost a session's worth of avoidance for a change that did not need it. ⚠️ Also note the inversion is not currently *possible*: brink-server cannot SSH to ionos (`Permission denied (publickey)`; its only key is the GitHub deploy key `id_brink_server`), and granting access means a `.pub` in `modules/data/keys/` plus an ionos deploy — so it needs one ionos build to bootstrap regardless | Phase 3.0.5, 2026-08-06; qualified Phase 7.1, 2026-08-07 |
 | **`sops-install-secrets` is never cached** | It ships from the sops-nix flake, not nixpkgs, so `cache.nixos.org` has no build: every host compiles it and runs its test suite whenever the input moves — 20 min on ionos. Fix fleet-wide with the `nix-community.cachix.org` substituter, or per-run via `--option extra-substituters` | Phase 3.0.5, 2026-08-06 |
 | **ionos host age recipient** | ✅ **live source since 2026-08-06.** `age19ylfvg7p6zw67t7dkutrj4d0dg5wllnf8ltwjzdlttuu33wt69ssv0mxlm`, from `/etc/ssh/ssh_host_ed25519_key`. Enrolled additively first, then `age.sshKeyPaths` flipped and **verified across a cold boot** — `k3s_token` written at boot, `k3s.service` up. The old user-key recipient `age100thyt…` remains in `.sops.yaml` as a one-line rollback | Phase 3.0, 2026-08-06 |
 | **maxdata host age recipient** | `age1ewxtypj7pkugz8vnf4pxtkgrnma8eg66p5shsq58kwdsku55vutsr2n2u7`, from `/etc/ssh/ssh_host_ed25519_key`. maxdata's **first sops block ever** — it had been a declared recipient consuming nothing since before Phase 0. Went straight to a host key because nothing consumed sops there, so no transition had to be staged. Decrypt of **both** files proven on the box before the config was written. **This is Phase 6.1's highest-risk item, done early and in isolation** | Phase 3, 2026-08-06 |
@@ -2033,7 +2033,58 @@ Per-node flags:
 - ionos keeps `--node-taint=edge=true:NoSchedule`; note the zone label changes
   from the current `external` to `public`, so any Pulumi nodeSelector must agree
 
-## 7.1 Close the internet-facing k3s ports
+## 7.1 Close the internet-facing k3s ports ✅ done 2026-08-07
+
+✅ **Fixed and deployed to ionos.** The ports now live on the overlay interface
+only, via `networking.firewall.interfaces.${config.services.tailscale.interfaceName}`
+in `k3s-base.nix` — referencing the option rather than hardcoding `tailscale0`,
+so it cannot drift.
+
+**Measured before:**
+
+```
+-A nixos-fw -p tcp -m tcp --dport 6443  -j nixos-fw-accept     <- no -i, so ens6 too
+-A nixos-fw -p tcp -m tcp --dport 2379  -j nixos-fw-accept
+-A nixos-fw -p tcp -m tcp --dport 2380  -j nixos-fw-accept
+-A nixos-fw -p tcp -m tcp --dport 10250 -j nixos-fw-accept
+```
+
+**After:** all four carry `-i tailscale0`, and the global surface is exactly
+`22/80/443` TCP plus `443/3478/41641/56527` UDP.
+
+⚠️ **The important nuance, which the original text understated.** Nothing was
+ever actually reachable — an external probe confirmed all four ports filtered
+*before* the fix as well. They were held shut **solely by the IONOS Cloud
+firewall**, a web-panel control that lives outside this repo and is invisible
+from inside the VPS. So this was one undocumented, out-of-band control standing
+between the public internet and etcd, with no second layer behind it: a latent
+exposure rather than an active breach, and exactly the kind that survives a
+panel misclick.
+
+✅ **The "ionos cannot build" warning does not apply to changes like this — and
+the decision-log entry deserves this qualification.** `nixos-rebuild dry-build`
+reported **4 trivial derivations** (`manifest.json`, `activate`, `dry-activate`,
+the system derivation) and the switch added only firewall units. The 20-minute
+sshd starvation happened during the **26.05 → 26.11 upgrade**, where
+`sops-install-secrets` compiled from source and ran its test suite. With nixpkgs
+unmoved, a config-only change on ionos is seconds. Measure with `dry-build`
+before assuming the expensive path.
+
+Consequence: the elaborate remedy — wire `brink-server` up as a push-deploy host
+with `--target-host` — was **not needed** and was not done. Worth knowing it is
+also not currently *possible*: brink-server cannot SSH to ionos
+(`Permission denied (publickey)`), because its only key is the GitHub deploy key
+`id_brink_server`. Granting it access means adding a `.pub` to
+`modules/data/keys/`, which every host reads, and then deploying ionos — so the
+bootstrap needs an ionos deploy either way.
+
+**Verified after the switch:** `headscale`, `tailscaled` and `sshd` all active;
+`headscale.mvissing.de/health` → **HTTP 200**; 4 nodes online; maxdata still
+reaches ionos over the overlay (10–30 ms); and an external probe still shows
+only `22/80/443` open. `dry-activate` had predicted precisely this — *"would
+reload the following units: firewall.service"* and nothing else.
+
+### Original analysis
 
 `modules/system/k3s-base.nix:19-29` puts 6443, 10250, 2379 and 2380 in the
 **global** `allowedTCPPorts` list, and 8472 in the global UDP list. NixOS global
@@ -2052,7 +2103,10 @@ per-interface on the overlay interface only.
       k3s logs)
 - [ ] Cross-site pod-to-pod at full MTU — verified with a 1400-byte payload, not
       just ping
-- [ ] `nmap` from outside confirms only 22/80/443 open on ionos
+- [x] Only 22/80/443 open on ionos from outside — ✅ **7.1 done 2026-08-07**,
+      verified by an external probe before *and* after, plus the host firewall
+      now scoping the k3s ports to `tailscale0`. Re-check after the cluster is
+      up, since a running k3s can add rules of its own
 
 ---
 
