@@ -11,6 +11,7 @@
       "modules/system/k3s-cluster.nix"
       "modules/system/minimal-zsh.nix"
       "modules/system/overlay-client.nix"
+      "modules/system/roaming-dns.nix"
     ])
     ++ [
       ./hardware-configuration.nix
@@ -30,6 +31,15 @@
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # The tailnet's resolver (D15). Blocking only, no split-horizon rewrites —
+  # see modules/system/roaming-dns.nix for why neither site's resolver could
+  # do this job, and why 53 is scoped to the overlay interface rather than
+  # opened globally as it is at the sites.
+  #
+  # ⚠️ Paired with `dns.nameservers.global` in ./overlay-server.nix, which is
+  # what actually points clients here. The module asserts the two agree.
+  roamingDns.enable = true;
 
   # Disable swap completely to avoid kswapd0 CPU issues
   zramSwap.enable = false;

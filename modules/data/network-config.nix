@@ -287,6 +287,37 @@ in {
           from the server_url hostname, so it cannot be `mvissing.de` itself.
         '';
       };
+      roamingResolver = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = config.networkConfig.hosts.ionos.overlayIPv4;
+        description = ''
+          Overlay address of the resolver Headscale pushes to every tailnet
+          client (D15). Null disables the push and leaves clients on whatever
+          their local network hands them.
+
+          This is the roaming counterpart to `sites.<site>.adguard`, and it has
+          the same drift hazard, so it is checked the same way:
+          `modules/system/roaming-dns.nix` asserts this equals the overlay
+          address of the host actually running that resolver, because the value
+          is *published* by Headscale (`hosts/nixos/ionos/overlay-server.nix`)
+          and *bound* by AdGuard, in two files that never reference each other.
+
+          ⚠️ **Why a third resolver rather than pointing the tailnet at a site.**
+          Tailnet DNS is global, but the two site resolvers answer
+          `*.mvissing.de` *differently on purpose* — brink rewrites to
+          192.168.1.240, winkel to 192.168.178.240. Naming either one here
+          gives every roaming *and* on-site client the wrong site's ingress
+          VIP. The roaming view has no rewrites at all, which is correct: a
+          client on neither LAN should get the public address, which is what
+          public DNS already returns.
+
+          ⚠️ Safe to push fleet-wide only because every NixOS host passes
+          `--accept-dns=false` (`modules/system/overlay-client.nix:78`), so no
+          server follows it. Drop that flag on a host and it starts resolving
+          through ionos, losing split-horizon and gaining a dependency on the
+          VPS for all name resolution.
+        '';
+      };
       prefixV4 = lib.mkOption {
         type = lib.types.str;
         default = "100.64.0.0/10";

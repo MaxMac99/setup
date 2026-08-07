@@ -76,9 +76,40 @@ in {
         # Must differ from the server_url hostname — Headscale rejects the
         # config otherwise.
         base_domain = overlay.magicDnsBaseDomain;
-        # Phase 4 owns resolvers. Clients pass --accept-dns=false, so this
-        # names nodes without touching either site's DNS.
-        override_local_dns = false;
+
+        # D15 step 2 — push the roaming resolver to every client.
+        #
+        # ⚠️ This used to be `override_local_dns = false` with the note that
+        # "Phase 4 owns resolvers". Phase 4 owns the *sites*; it left a client
+        # at **neither** site with no ad-blocking and no split-horizon, which
+        # is the gap D15 exists to close.
+        #
+        # `global` names the AdGuard in ./roaming-dns.nix on this same host.
+        # The address comes from networkConfig so the two cannot drift —
+        # roaming-dns.nix asserts it equals the address it binds.
+        #
+        # ⚠️ **`override_local_dns = true` replaces the client's resolver, it
+        # does not supplement it.** That is what makes the setting useful and
+        # also what makes a mistake total: if this address stops answering,
+        # every client that accepts tailnet DNS loses name resolution outright
+        # the moment the VPN connects, rather than degrading.
+        #
+        # ⚠️ Safe fleet-wide only because `--accept-dns=false` is client-side
+        # and every NixOS host sets it (modules/system/overlay-client.nix:78).
+        # Headscale pushes this to all of them; they all ignore it. Drop that
+        # flag on a host and it silently starts resolving through this VPS,
+        # losing split-horizon — so a host at a site would resolve
+        # `paperless.mvissing.de` to the public edge and get a 404.
+        #
+        # ⚠️ Open question, to settle when the phone's `--accept-dns=true` goes
+        # on: a phone with always-on VPN follows this **at home too**, and then
+        # gets the public address for `*.mvissing.de`, sending local traffic
+        # out to ionos and back. Functional, but it discards Phase 4's
+        # split-horizon. iOS Tailscale on-demand rules can disconnect on the
+        # two home SSIDs, which keeps both behaviours correct. The Mac is
+        # unaffected — it only joins the tailnet when away.
+        override_local_dns = overlay.roamingResolver != null;
+        nameservers.global = lib.optional (overlay.roamingResolver != null) overlay.roamingResolver;
       };
 
       # Embedded DERP, kept inside the estate. Phase 2 measured 347/347 direct

@@ -56,10 +56,36 @@ in {
         of to the public address (D9). Set to null to disable split-horizon
         entirely.
 
-        Only *subdomains* are rewritten. AdGuard's `*.example.org` wildcard
-        does not match `example.org` itself, which is what we want: the apex
-        has no MX, TXT or CAA today (checked 2026-08-06) but it is the one
-        name a real public website would later live at.
+        The apex is rewritten too, and needs its own entry because AdGuard's
+        `*.example.org` wildcard does not match `example.org` itself.
+
+        ⚠️ **This reverses a Phase 4 decision, and the reversal is the point.**
+        That decision excluded the apex on the grounds that it "is the one name
+        a real public website would later live at". No such website exists;
+        what actually lives there is **Homepage**, the dashboard
+        (`apps/homepage.ts` in `homelab-k8s`, host `mvissing.de`). The
+        exclusion therefore did not reserve the apex for a hypothetical, it
+        broke the estate's most prominent name for every client at both sites:
+        `mvissing.de` resolved to ionos, where the default-closed public edge
+        answers with `CN=TRAEFIK DEFAULT CERT` and 404. Measured from a Brink
+        client 2026-08-07 — `dig mvissing.de` → `212.132.82.102` while
+        `grafana.mvissing.de` → `192.168.1.240`, and forcing the apex to the
+        site VIP gave a clean 302 with a valid certificate. The internal
+        Traefik had been serving it correctly the whole time; only DNS was
+        wrong.
+
+        ⚠️ **Untested edge, and the one to check before ever adding mail to
+        this domain.** The apex has no MX, TXT or CAA records — re-verified
+        against 1.1.1.1 on 2026-08-07, unchanged since the Phase 4 check — so
+        nothing can be measured about how AdGuard treats non-address queries
+        for a name that carries an address rewrite. AdGuard rewrites are
+        documented as A/AAAA/CNAME, but a rewrite is capable of turning other
+        types into NODATA, and that failure would be silent: mail would simply
+        stop being delivered with the DNS config reading as correct. If SPF,
+        DMARC or an MX is ever added at the apex, query those types against a
+        site resolver *and* against 1.1.1.1 and compare, before trusting it.
+        Adding a public website has the same shape — internal clients would
+        keep getting the dashboard, and this entry is the one line to remove.
       '';
     };
 
@@ -214,6 +240,17 @@ in {
                 answer = site.ingressVIP;
                 enabled = true;
               }
+              # ⚠️ The apex needs its own entry — `*.x` does not match `x`.
+              # Without it the dashboard at `mvissing.de` resolved publicly at
+              # both sites and answered 404 behind an untrusted certificate,
+              # while every subdomain worked. See splitHorizonDomain's
+              # description for why the Phase 4 exclusion was wrong and what
+              # to re-check before putting mail or a public site here.
+              {
+                domain = cfg.splitHorizonDomain;
+                answer = site.ingressVIP;
+                enabled = true;
+              }
             ]
             # Pass-through exceptions. Two entries per name because the
             # special answer `A` preserves only A records and `AAAA` only
@@ -235,25 +272,10 @@ in {
           );
         };
 
-        # The two lists the in-cluster instance ran. Restoring the Phase 1
-        # backup would have added nothing else: it carried `users: []`,
-        # `user_rules: []`, `rewrites: []` and `clients.persistent: []` — a
-        # stock install. Recorded in the migration doc so this is not
-        # rediscovered later.
-        filters = [
-          {
-            enabled = true;
-            url = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt";
-            name = "AdGuard DNS filter";
-            id = 1;
-          }
-          {
-            enabled = true;
-            url = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt";
-            name = "AdAway Default Blocklist";
-            id = 2;
-          }
-        ];
+        # Shared with the roaming resolver on ionos (D15) so the three
+        # instances cannot drift into blocking different things. See the file
+        # for why that drift would be silent.
+        filters = import (lib.custom.relativeToRoot "modules/data/adguard-filters.nix");
       };
     };
 
