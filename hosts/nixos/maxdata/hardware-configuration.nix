@@ -58,6 +58,24 @@
     fsType = "zfs";
   };
 
+  # ⚠️ Declared because it is `mountpoint=legacy`, and a legacy dataset with no
+  # `fileSystems` entry never mounts — it just loses to a directory of the same
+  # name in the parent. That is not hypothetical here: this dataset sat at 96 K
+  # and unmounted while 689 G of Time Machine data accumulated in `tank/k8s`
+  # itself, inheriting the parent's properties and ignoring the 3 T quota meant
+  # to bound it. Moved into the real dataset 2026-08-07.
+  #
+  # Nested under `/tank/k8s`, so systemd orders this mount after its parent's
+  # automatically. That ordering is the reason this one is declared rather than
+  # given a native mountpoint like D13 prefers for data datasets: the parent is
+  # a legacy fstab mount, and leaving the child to `zfs-mount.service` would put
+  # two independent mounting mechanisms in a race at boot — the losing order
+  # recreating exactly the shadowing this fixes.
+  fileSystems."/tank/k8s/timemachine" = {
+    device = "tank/k8s/timemachine";
+    fsType = "zfs";
+  };
+
   fileSystems."/tank/fast-backup" = {
     device = "tank/fast-backup";
     fsType = "zfs";
