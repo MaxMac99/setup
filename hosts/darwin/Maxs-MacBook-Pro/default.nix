@@ -67,6 +67,24 @@
       defaultSopsFile = lib.custom.relativeToRoot "secrets/common.yaml";
       defaultSopsFormat = "yaml";
       age.keyFile = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
+
+      # ⚠️ Render secrets somewhere that survives a reboot.
+      #
+      # The default is `%r/secrets.d`, where `%r` is the runtime directory. On
+      # Linux that is a tmpfs which systemd re-populates at boot, so secrets
+      # reappear. **On macOS `%r` is `$TMPDIR`** —
+      # `/var/folders/…/T/secrets.d` — which the OS clears, and nothing
+      # re-renders it until the next `darwin-rebuild switch`. Every secret
+      # therefore silently vanishes on reboot: `~/.kube/config` becomes a
+      # dangling symlink, and the `$(cat …)` calls below fail on every new
+      # shell.
+      #
+      # Persisting them means the plaintext lives on disk rather than in a
+      # temp dir. That is an acceptable trade here and not really a new one:
+      # the age key that decrypts everything already sits at
+      # ~/.config/sops/age/keys.txt, and the disk is FileVault-encrypted.
+      defaultSecretsMountPoint = "${config.home.homeDirectory}/.config/sops-nix/secrets.d";
+
       secrets."personal/pulumi-token" = {};
       secrets."personal/pulumi-passphrase" = {};
     };

@@ -362,15 +362,31 @@ in {
         default = "fda8:a1db:5685::10";
         description = "IPv6 counterpart of legacy.ingressVIP. Removed with D1.";
       };
-      lokiVIP = lib.mkOption {
-        type = lib.types.str;
-        default = "192.168.178.11";
-        description = ''
-          In-cluster Loki LoadBalancer, hardcoded in maxdata's Alloy config
-          (hosts/nixos/maxdata/monitoring.nix:67). Moves with the pool in
-          Phase 8.
-        '';
-      };
+    };
+
+    # ---------------------------------------------------------------------
+    # Cluster service addresses this fleet has to know about
+    # ---------------------------------------------------------------------
+
+    lokiVIP = lib.mkOption {
+      type = lib.types.str;
+      default = "192.168.178.241";
+      description = ''
+        In-cluster Loki LoadBalancer, consumed by maxdata's Alloy
+        (hosts/nixos/maxdata/monitoring.nix). Sits in sites.winkel.metallbPool.
+
+        ⚠️ Moved out of `legacy` in Phase 8 and repinned .11 → .241 with the
+        pool. It is no longer an undeclared literal: homelab-k8s pins it
+        explicitly in infrastructure/sites.ts, and MetalLB's winkel-pool has
+        autoAssign disabled, so the address is reserved rather than won by
+        allocation order.
+
+        ⚠️ This is a two-repo constant with no link between the copies. If the
+        Pulumi pin and this value disagree, Alloy ships maxdata's journal to an
+        address nothing answers on — and **nothing reports an error**. Loki
+        just never hears from maxdata. Verify after any change by querying
+        Loki for the maxdata job, not by checking that Alloy is running.
+      '';
     };
   };
 }
