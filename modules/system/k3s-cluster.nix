@@ -110,6 +110,19 @@ in {
       }
     ];
 
+    # Point kubectl at the cluster. Without this it falls back to its built-in
+    # default of localhost:8080 and fails with "connection refused" or
+    # "current-context is not set" — which reads like a broken cluster and is
+    # only a missing environment variable. Every previous session that ran
+    # kubectl on a node had to export this by hand.
+    #
+    # ⚠️ Servers only. k3s writes `/etc/rancher/k3s/k3s.yaml` on servers and
+    # **not on agents**, so setting this fleet-wide would point winkel-pi at a
+    # file that does not exist — trading one confusing error for another.
+    # Verified live: the three servers have it at mode 644, winkel-pi has no
+    # kubeconfig at all.
+    environment.variables.KUBECONFIG = lib.mkIf isServer "/etc/rancher/k3s/k3s.yaml";
+
     sops.secrets.${cfg.tokenSecret} = {
       sopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
       restartUnits = ["k3s.service"];

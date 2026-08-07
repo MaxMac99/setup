@@ -33,6 +33,15 @@ in {
           User = "max";
           IdentityFile = adminKey;
         };
+        # Added Phase 8 — brink-server had no alias at all, having been built in
+        # Phase 5 without one while every other host has had one for months.
+        # Reachable from Winkel over the overlay's subnet route, so this address
+        # works from either site.
+        "brink-server" = lib.hm.dag.entryAfter ["*"] {
+          HostName = "192.168.1.2";
+          User = "max";
+          IdentityFile = adminKey;
+        };
         # At Winkel on its static address since 2026-08-06. Do not use
         # mDNS: maxdata's Avahi still serves a stale k3s-pi.local record for
         # the DHCP address this host used to hold under its old name.
