@@ -213,7 +213,7 @@ Two things are deliberately *not* in the cluster:
 | **D5** | One MetalLB L2 pool per site; every LB IP pinned | L2 mode requires a shared segment, which no longer holds. Today Traefik, `adguard-dns` and UniFi are unpinned and will drift on rebuild. UDM SE DHCP defaults to `.6–.254` and must be shrunk to free a pool. |
 | **D6** | No cross-site replicated storage | Longhorn/Ceph over consumer uplinks is a reliability trap. Every `local-path` PVC gets an explicit site pin. `databases/postgresql.ts:291` (`// can run on any k3s node since /mnt/k8s-fast is shared via virtiofs`) becomes false the moment maxdata is a real node. |
 | **D7** | hostNetwork Traefik on ionos | Today `iptables DNAT` + `MASQUERADE -o wg0` (`hosts/nixos/ionos/default.nix:63-77`) hides every public client IP from Traefik. |
-| **D8** | cert-manager DNS-01 via IONOS webhook | Domain stays at IONOS (`ns*.ui-dns.*`). Needs the community `cert-manager-webhook-ionos` rather than a built-in solver. Removes the inbound-port-80-per-hostname dependency and enables a wildcard, cutting issuance volume. Note `CLAUDE.md:51` already falsely claims DNS-01; the code is HTTP-01 (`infrastructure/cert-manager.ts:72-80`). |
+| **D8** | ~~cert-manager DNS-01 via IONOS webhook~~ → **keep HTTP-01. DNS-01 is dropped.** | **Revised 2026-08-07. Do not go looking for an IONOS DNS API token: there will not be one.** The original decision needed the community `cert-manager-webhook-ionos` plus an API key from the IONOS Developer portal, and that credential is declined. It is not a loss, because **D7 removes the reason D8 existed.** HTTP-01 fails today only because ionos's DNAT points at `192.168.178.10`, an address no pool contains any more; once D7 puts Traefik on ionos itself — real public IPv4/IPv6, 22/80/443 already permitted in the IONOS Cloud firewall (Phase 3) — port 80 reaches a live Traefik and HTTP-01 validates for every name. Phase 4 established the **public zone already wildcards onto ionos**, so every `*.mvissing.de` name resolves publicly to the validating host. The wildcard was only ever a volume optimisation, and ~10 hostnames sits far inside Let's Encrypt's 50-certs-per-week-per-registered-domain limit. Net effect: Phase 9 loses a chart, a secret and a moving part. ⚠️ **Two things this makes load-bearing.** First, the ACME solver Ingress must be served by the **ionos** Traefik — cert-manager creates a temporary Ingress per challenge, and if a site-local Traefik claims it the challenge is unreachable from the internet, so the solver needs an explicit `ingressClass` rather than the default. Second, renewal now depends on **:80 reachability** rather than a DNS record, so anything that breaks public ingress silently breaks renewal ~30 days later. If a wildcard is ever genuinely wanted without an IONOS credential, the fallbacks are `acme-dns` (one hand-made CNAME per name in the IONOS web UI, then a small DNS server on ionos) or moving the zone's nameservers to a free API-capable provider such as deSEC — neither is needed for Phase 9. Note `CLAUDE.md:51` claims DNS-01 and is simply wrong; the code is and stays HTTP-01 (`infrastructure/cert-manager.ts:72-80`). |
 | **D9** | AdGuard native on brink-server + pi | Per above. Overlay DNS layered on top for node names. Split-horizon for `*.mvissing.de`. |
 | **D10** | Pi lives at Winkel | Brink already has an always-on x86 node. Winkel's only machine is the unattended one — with the pi there, a `nixos-rebuild` on maxdata does not simultaneously kill Winkel's DNS, subnet router and your only route in. Cost: Brink becomes single-node for site infra. |
 | **D11** | sops-nix is the single mechanism for infrastructure secrets. 1Password holds human and family credentials, and is the SSH agent — it is deliberately *outside* the secret path | **Revised 2026-08-05.** Originally "1Password is the vault; sops-nix stays the on-host delivery." The offline rule that motivated the split — *if a host needs a secret before the network is up, it must decrypt offline* — turned out to exclude every boot-critical secret from 1Password anyway, leaving one laptop token as the sole candidate for opnix. That does not justify a flake input, a service account and a token file per host. sops-nix already does this offline, in git, with per-host scoping. See Phase 2b.1 for the full reasoning, including why host age identities can never live in the vault. |
@@ -2385,20 +2385,37 @@ hostname reaches ionos today and is answered by Headscale, which serves only its
 own API. Ingress is not "unconfigured", it is **shadowed** — the names resolve
 and the TLS handshake succeeds against the wrong service.
 
-## 9.2 cert-manager DNS-01
+## 9.2 cert-manager — stay on HTTP-01
 
-Switch both `ClusterIssuer`s from HTTP-01 (`infrastructure/cert-manager.ts:72-80`)
-to DNS-01 via the community `cert-manager-webhook-ionos`. Issue a wildcard
-`*.mvissing.de` to cut issuance volume. Restore the Phase 1 cert secrets
-**before** creating any Ingress:
+⚠️ **This section used to say "switch to DNS-01 via the community
+`cert-manager-webhook-ionos`". D8 was revised on 2026-08-07 and that is no
+longer the plan** — the IONOS DNS API token it required is declined, and D7
+removes the need for it. Both `ClusterIssuer`s keep the HTTP-01 solver they
+already have (`infrastructure/cert-manager.ts:72-80`), and there is **no
+wildcard**: one certificate per hostname, which ~10 names keeps far inside the
+50-per-week-per-registered-domain limit.
+
+The prerequisite is therefore **9.1, not a credential**. HTTP-01 cannot succeed
+until Traefik terminates :80 on ionos, because the current DNAT target
+`192.168.178.10` exists in no pool. Do 9.1 first.
+
+Two things that are easy to get wrong:
+
+- **Pin the solver's `ingressClass` to the ionos Traefik.** cert-manager creates
+  a temporary Ingress per challenge. If a site-local Traefik claims it, the
+  challenge is unreachable from the public internet and validation fails with
+  nothing obviously wrong at either end.
+- **Validate on `letsencrypt-staging` first** (`cert-manager.ts:95-133`).
+  More important than under DNS-01, not less: renewal now depends on :80 being
+  publicly reachable, so a broken ingress becomes a broken renewal about 30
+  days later, long after the change that caused it.
+
+Restore the Phase 1 cert secrets **before** creating any Ingress:
 
 ```sh
 kubectl apply -f ~/backup/cert-secrets.yaml
 cmctl status certificate <name>
 ```
-
-Validate against staging first (`letsencrypt-staging` already exists,
-`cert-manager.ts:95-133`).
 
 ## 9.3 Fix the exposed Traefik API
 
@@ -2410,10 +2427,19 @@ the Authentik-protected `traefik.mvissing.de` route entirely. Either drop
 
 ## 9.4 Exit criteria
 
-- [ ] Wildcard `*.mvissing.de` issued from production Let's Encrypt
+- [ ] ~~Wildcard `*.mvissing.de` issued~~ → **per-hostname certificates issued
+      from production Let's Encrypt via HTTP-01** (D8 revised — no wildcard, no
+      DNS-01, no IONOS credential)
 - [ ] Real client IPs visible in Traefik access logs
 - [ ] `:9000` no longer reachable from the LAN
 - [ ] All hostnames resolve and serve valid TLS from both sites and off-net
+- [ ] **Brink has a working ingress on `192.168.1.240`** — carried over from
+      Phase 8. Both sites' AdGuard already rewrite `*.mvissing.de` to their own
+      `ingressVIP`, so Brink resolves every hostname to an address nothing
+      serves. Until this is closed, Phase 8's Authentik-survives-maxdata work
+      does not actually deliver: a Brink client still cannot reach Home
+      Assistant or Authentik by name while maxdata is down, even though both
+      are running on brink-server
 
 ---
 
