@@ -15,6 +15,7 @@
     ++ [
       ./hardware-configuration.nix
       ./overlay-server.nix
+      ./public-ingress.nix
     ];
 
   hostSpec = {

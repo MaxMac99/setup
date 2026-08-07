@@ -43,7 +43,21 @@ in {
       # service the whole network depends on.
       tls_letsencrypt_hostname = overlay.controlServerHost;
       tls_letsencrypt_challenge_type = "HTTP-01";
-      tls_letsencrypt_listen = ":80";
+
+      # ⚠️ Loopback, not `:80` — and nginx now owns the public :80 (D16,
+      # ./public-ingress.nix). Renewal still works because that nginx routes
+      # `Host: headscale.mvissing.de` straight back here; it is a hop, not a
+      # change of protocol. Move this port and you must move the proxy_pass
+      # with it, or Headscale's certificate quietly stops renewing and the
+      # overlay control plane fails ~90 days later, far from the change.
+      #
+      # 8081 rather than 8080 on purpose: the public Traefik runs hostNetwork
+      # on this node and its dashboard port takes 8080.
+      #
+      # `port = 443` below is deliberately untouched. Headscale still owns the
+      # public 443 socket directly, so nothing about the overlay's reachability
+      # depends on nginx being healthy. Splitting 443 by SNI is Stage B.
+      tls_letsencrypt_listen = "127.0.0.1:8081";
 
       dns = {
         magic_dns = true;
