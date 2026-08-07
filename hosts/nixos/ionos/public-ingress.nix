@@ -33,10 +33,7 @@
 # default-closed: its ingress class is `traefik-public` and its CRD label
 # selector is `ingress=public`, so a name only becomes reachable when something
 # opts in explicitly. Stage B grants the capability, not the access.
-{
-  config,
-  ...
-}: let
+{config, ...}: let
   overlay = config.networkConfig.overlay;
 
   # Where Headscale's ACME listener moved to, so this nginx can own :80.

@@ -15,7 +15,10 @@
   cfg = config.overlayClient;
   net = config.networkConfig;
   self = net.hosts.${config.hostSpec.hostName} or null;
-  site = if self == null || self.site == "public" then null else net.sites.${self.site};
+  site =
+    if self == null || self.site == "public"
+    then null
+    else net.sites.${self.site};
   advertises = self != null && self.subnetRouter && site != null;
 in {
   options.overlayClient = {
