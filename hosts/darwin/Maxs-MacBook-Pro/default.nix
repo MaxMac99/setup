@@ -36,6 +36,26 @@
     "modules/apps/insomnia.nix"
     "modules/apps/k9s.nix"
     "modules/apps/kubeconfig.nix"
+    # Overlay client, for when this machine is at neither site. In-site access
+    # does not need it — the `brink` and `winkel` kubeconfig contexts reach the
+    # API directly over each site's LAN.
+    #
+    # ⚠️ Registration is manual and the flags are not optional:
+    #
+    #   tailscale up --login-server=https://headscale.mvissing.de \
+    #                --accept-routes=false --accept-dns=false
+    #
+    # `--accept-routes=false` because this machine *moves between the sites
+    # whose subnets are advertised on the mesh*, and 3.6.1 is exactly that
+    # failure: an accepted route covering the subnet you are sitting on
+    # outranks your own LAN route and takes the LAN away. It is also
+    # unnecessary — each router already has a static route to the other site.
+    #
+    # `--accept-dns=false` because Phase 4 put DNS on the site's own AdGuard,
+    # and the overlay must not rewrite the resolver as a side effect of
+    # joining. nix-darwin's `overrideLocalDns` already defaults to false; this
+    # is the client-side half of the same decision.
+    "modules/apps/tailscale.nix"
     "modules/apps/opencode"
     "modules/apps/1password.nix"
     "modules/apps/teleport.nix"

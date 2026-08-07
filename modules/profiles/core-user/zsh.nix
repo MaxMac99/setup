@@ -38,8 +38,18 @@
       PROMPT="%(?:%{$fg_bold[green]%}%1{➜%} :%{$fg_bold[red]%}%1{➜%} ) %{$fg[cyan]%}%(4~|…/%3~|%~)%{$reset_color%}"
       PROMPT+=' $(git_prompt_info)'
 
-      # K3s cluster kubeconfig
-      export KUBECONFIG=~/.kube/k3s-config
+      # ⚠️ No KUBECONFIG export here. There used to be one pointing at
+      # ~/.kube/k3s-config — a kubeconfig for k3s-node1 (192.168.178.5), a
+      # microVM destroyed in Phase 6. Because this file is interactive-only
+      # (.zshrc), it silently beat every other source in an interactive shell
+      # while leaving non-interactive `ssh host cmd` alone, so the same machine
+      # answered differently depending on how you asked it.
+      #
+      # Both hosts that need it now get it from somewhere that knows the truth:
+      # the Mac renders ~/.kube/config — kubectl's own default — from
+      # modules/apps/kubeconfig.nix, and cluster servers get
+      # /etc/rancher/k3s/k3s.yaml from modules/system/k3s-cluster.nix. maxdata
+      # is both, and this export was shadowing its server config.
 
       # Clone a repo into a worktree layout:
       #   <name>/.bare      the bare repository
