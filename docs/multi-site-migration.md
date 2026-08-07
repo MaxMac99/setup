@@ -2016,16 +2016,79 @@ Two verification lessons, both learned by getting them wrong:
 
 # Phase 7 — Fresh cluster
 
-1. `ionos` — `--cluster-init`, first server.
+**Config written and verified 2026-08-07; nothing deployed yet.**
+`modules/system/k3s-cluster.nix` derives every node's role, node IP and zone
+from `networkConfig.hosts`, and all four hosts evaluate. Rendered flags:
+
+| Host | role | `--node-ip` | zone | joins |
+|---|---|---|---|---|
+| ionos | server | `100.64.0.1` | `public` | `--cluster-init` |
+| brink-server | server | `100.64.0.2` | `brink` | `https://100.64.0.1:6443` |
+| maxdata | server | `100.64.0.5` | `winkel` | `https://100.64.0.1:6443` |
+| winkel-pi | **agent** | `100.64.0.3` | `winkel` | `https://100.64.0.1:6443` |
+
+⚠️ **One parameterised module, not `k3s-server.nix` + `k3s-agent.nix`.** 6.2
+asked for a split by role *and*, in the same sentence, to "parameterise node
+role" — contradictory instructions. An agent is a strict subset of a server
+(six fewer flags, none added), so a split would duplicate the shared half or
+need a third module to hold it, and that module already exists as
+`k3s-base.nix`. See the header of `k3s-cluster.nix`.
+
+⚠️ **The local-path provisioner is deliberately absent.** `k3s-node.nix` shipped
+one pinned to the dead virtiofs path. A correct `nodePathMap` needs per-node
+storage decisions across four genuinely different disks, which is Phase 8's
+subject with D6. Phase 7's gate does not mention storage; guessing would ship a
+manifest wrong on three nodes of four.
+
+## 7.0 Prerequisites — done 2026-08-07
+
+- ✅ **brink-server added as a recipient of `secrets/k3s.yaml`** (6 → 7). It was
+  excluded in Phase 5 because the token then belonged to the cluster Phase 6
+  destroyed. ⚠️ **Order was load-bearing**: a host declaring
+  `sops.secrets.k3s_token` without being a recipient fails *activation*, and
+  brink-server is Brink's DNS and subnet router at the site with nobody in it.
+  Recipient first, decrypt proven on the box, `k3sCluster.enable` last.
+- ✅ **Token rotated.** The old one belonged to the destroyed cluster *and* had
+  been echoed into a session transcript. New value is a fresh
+  `secrets.token_urlsafe(48)`.
+- ✅ **The `K3S_TOKEN=` prefix removed from the secret.** The value used to be
+  literally `K3S_TOKEN=<token>`, so ionos's `tokenFile` took the whole string —
+  prefix included — as the token, while the microVMs' sops *template* wrapped it
+  a second time into `K3S_TOKEN=K3S_TOKEN=…`. Both landed on the same effective
+  token by accident, which is why it worked. Now a raw scalar, consumed only via
+  `tokenFile`.
+- ✅ **All four hosts decrypt the rotated file with their own host keys** —
+  verified on each box, identical hash `81a7572f…`.
+
+⚠️ **ionos carries stale cluster state and it must be cleared before bring-up.**
+It holds **2.7 GB** under `/var/lib/rancher/k3s/agent` and **no `server/db`**,
+because it was an *agent* of the old cluster. Starting it as a `--cluster-init`
+server on top of another cluster's CA and node identity does not re-initialise —
+it fails or resumes. Stop k3s and remove `/var/lib/rancher/k3s` on ionos first.
+The other three have no k3s state at all: brink-server and winkel-pi never ran
+it, and on maxdata it lived inside the microVMs.
+
+## 7.0.1 Bring-up order
+
+1. `ionos` — clear stale state, then `--cluster-init`, first server.
 2. `brink-server` and `maxdata` join as servers.
-3. `pi` joins as agent.
+3. `winkel-pi` joins as agent.
 
 Per-node flags:
 
 - `--node-ip=<overlay IP>` and `--flannel-iface=<overlay iface>` (D3)
-- **Pinned flannel MTU** — compute from the overlay MTU minus VXLAN overhead and
-  set it explicitly. Verify with a large-payload ping (`ping -M do -s 1400`)
-  across sites, not just a default ping.
+- **Pinned flannel MTU** — ⚠️ **corrected 2026-08-07: there is no
+  `--flannel-mtu` flag.** Checked against the installed **k3s v1.35.6+k3s1**;
+  `k3s server --help` matches zero MTU options (only `--flannel-backend`,
+  `-iface`, `-conf`, `-cni-conf`). Flannel *derives* its MTU from
+  `--flannel-iface` minus backend overhead, so naming the interface is the only
+  lever — and naming the wrong one is D3's blackhole.
+  `tailscale0` measures **1280 on all four nodes**, so `flannel.1` must come up
+  at **1230** (VXLAN −50). **This is a prediction to verify, not an
+  assumption**, and the old cluster is the control that proves the mechanism: it
+  rode `wg0` at MTU 1420 and its `flannel.1` was **1370** — exactly 1420 − 50.
+  Check `ip link show flannel.1` on every node after bring-up, then the
+  large-payload ping (`ping -M do -s 1400`) across sites.
 - `--node-label=topology.kubernetes.io/zone=<brink|winkel|public>`
 - etcd WAN tuning (D4), values from Phase 2 measurements
 - `--disable=servicelb,traefik,local-storage` (unchanged intent)

@@ -58,3 +58,13 @@ creation_rules:
           - *ionos
           - *ionos-host
           - *winkel-pi
+          # Added Phase 7. brink-server was deliberately left out of this file
+          # in Phase 5 because the token then belonged to the cluster Phase 6
+          # destroyed. It is a member of the new one, so it needs the new token.
+          #
+          # ⚠️ Order matters and is not cosmetic: a host that declares
+          # `sops.secrets.k3s_token` without being a recipient fails
+          # *activation*. brink-server is Brink's DNS and subnet router at the
+          # site with nobody in it, so this recipient and a proven decrypt come
+          # strictly before k3sCluster.enable is set on that host.
+          - *brink-server

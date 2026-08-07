@@ -17,6 +17,7 @@ in {
       "modules/system/minimal-zsh.nix"
       "modules/system/overlay-client.nix"
       "modules/system/site-dns.nix"
+      "modules/system/k3s-cluster.nix"
     ])
     # Board specifics only. `nixos-raspberrypi.lib.nixosSystem` (see flake.nix)
     # already supplies inject-overlays, nixpkgs-rpi and trusted-nix-caches —
@@ -49,6 +50,12 @@ in {
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # k3s **agent** at Winkel (Phase 7) — the only non-server in the cluster.
+  # Deliberate: this is a Raspberry Pi on a USB-SATA disk, and etcd on that is a
+  # reliability trap. It is also D10's out-of-band anchor, so it should stay
+  # useful when the cluster is not.
+  k3sCluster.enable = true;
 
   # Winkel's DNS resolver (networkConfig.sites.winkel.adguard = this host's own
   # .3), and the second half of D10's argument for putting the pi here: DNS,

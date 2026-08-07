@@ -8,7 +8,7 @@
   imports =
     (map lib.custom.relativeToRoot [
       "modules/system/openssh.nix"
-      "modules/system/k3s-base.nix"
+      "modules/system/k3s-cluster.nix"
       "modules/system/minimal-zsh.nix"
       "modules/system/overlay-client.nix"
     ])
@@ -123,20 +123,23 @@
     };
   };
 
-  # Configure K3s as agent (worker node)
-  services.k3s = {
-    role = lib.mkForce "agent";
-    tokenFile = config.sops.secrets.k3s_token.path;
-    serverAddr = "https://192.168.178.5:6443"; # k3s-node1
-    extraFlags = lib.mkForce (toString [
-      "--node-name=ionos"
-      "--node-label=edge=true" # Mark as edge node (custom label)
-      "--node-label=topology.kubernetes.io/zone=external" # For scheduling
-      "--node-ip=192.168.178.201,fda8:a1db:5685::201"
-      "--flannel-iface=wg0" # Use WireGuard interface for Flannel VXLAN traffic
-      # Taint to prevent accidental scheduling - only pods with toleration will run here
+  # ionos is the cluster's first server (Phase 7) — it bootstraps etcd and is
+  # the join target for the other three.
+  #
+  # It was an *agent* until Phase 7, pointing at `https://192.168.178.5:6443`
+  # (k3s-node1) over `--flannel-iface=wg0` with a dual-stack `--node-ip` on the
+  # FritzBox WireGuard. All three of those premises are gone: Phase 6 destroyed
+  # k3s-node1, D3 moves node IPs and flannel onto the overlay, and D1 drops
+  # cluster dual-stack. The zone label also changes `external` → `public` to
+  # match the networkConfig.sites keys — any Pulumi nodeSelector must follow.
+  k3sCluster = {
+    enable = true;
+    clusterInit = true;
+    extraFlags = [
+      # Public edge: nothing schedules here without saying so explicitly.
+      "--node-label=edge=true"
       "--node-taint=edge=true:NoSchedule"
-    ]);
+    ];
   };
 
   # Configure sops secret for K3s token

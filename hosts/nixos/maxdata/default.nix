@@ -13,6 +13,7 @@
       "modules/profiles/gcloud.nix"
       "modules/profiles/full-nvim.nix"
       "modules/system/overlay-client.nix"
+      "modules/system/k3s-cluster.nix"
     ])
     ++ [
       inputs.zfs-exporter.nixosModules.default
@@ -35,6 +36,12 @@
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # k3s server at Winkel (Phase 7) — the role the three microVMs used to fill
+  # between them, now run natively on the host that already owns the storage.
+  # That is the point of Phase 6: the ZFS pools, the NFS exports and the k3s
+  # server are finally the same machine, with no virtiofs in between.
+  k3sCluster.enable = true;
 
   # maxdata's first sops block. It was a declared recipient of both files since
   # before Phase 0 while consuming nothing, which is the drift Phase 0.5 spotted

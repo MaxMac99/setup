@@ -17,6 +17,7 @@ in {
       "modules/system/minimal-zsh.nix"
       "modules/system/overlay-client.nix"
       "modules/system/site-dns.nix"
+      "modules/system/k3s-cluster.nix"
     ])
     ++ [./hardware-configuration.nix];
 
@@ -35,6 +36,17 @@ in {
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # k3s server at Brink (Phase 7). Role, node IP and zone all come from
+  # networkConfig.hosts.brink-server.
+  #
+  # ⚠️ This host carries Brink's DNS *and* its subnet router, and it is the only
+  # always-on machine at that site — so it is the one node where a failed
+  # activation costs the site. Two consequences, both already discharged before
+  # this was enabled: brink-server had to become a recipient of secrets/k3s.yaml
+  # first (a missing secret fails activation outright), and the decrypt was
+  # proven on the box, not assumed from .sops.yaml.
+  k3sCluster.enable = true;
 
   # Brink's DNS resolver (networkConfig.sites.brink.adguard = this host's own
   # .2). ⚠️ brink-server is Brink's only always-on machine, so this is a single
