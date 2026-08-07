@@ -220,6 +220,8 @@ Two things are deliberately *not* in the cluster:
 | **D12** | The pi is built with `nixos-raspberrypi.lib.nixosSystem`, and so tracks *that* flake's nixpkgs rather than the fleet's | **Added 2026-08-06.** The pi's configuration did not evaluate at all: nixos-raspberrypi's kernel overlay and nixpkgs' own `hardware/device-tree.nix` are version-coupled, and building the host from our nixpkgs while injecting their overlays fails with `attribute 'buildDTBs' missing`. Updating the input does not help — latest `main` fails identically. Their `lib.nixosSystem` is the documented drop-in that defaults to the matching nixpkgs. Consequence: the pi runs NixOS 26.05 while the fleet runs 26.11, and `nix flake update nixpkgs` does not move it — only the `nixos-raspberrypi` input does. `lib` must travel with it, because it passes through `specialArgs` where it overrides the module system's own and a foreign `lib` recurses through `_module.args`. See `flake.nix` `rpiHosts`. |
 | **D13** | brink-server's single ZFS pool is named **`main`**, uses **native mountpoints** (`-o zfsutil`) rather than `mountpoint=legacy`, and compresses with **zstd** | **Added 2026-08-06, revised the same day during the install.** The first draft named the pool `fast` to match maxdata, arguing it made `/fast/k8s/local-path-provisioner` mean the same thing on both k3s servers. That argument was too strong — local-path's `nodePathMap` is per-node, so the paths never had to match — and `fast` only earns its name on maxdata by contrast with `tank`. On a single-pool box it says nothing, so `main`. **The mountpoint half matters more.** `mountpoint=legacy` makes NixOS the only thing able to mount a dataset, so every dataset created later needs a matching `fileSystems` entry or it silently never mounts — which is exactly how maxdata acquired the SMB datasets that Phase 0.1 found "appear nowhere in `hardware-configuration.nix`". Native mountpoints make `zfs list` authoritative and reduce relocating a dataset to `zfs set mountpoint=`, with no rebuild. Cost: NixOS must mount with `-o zfsutil`, because plain `mount -t zfs` refuses any dataset whose mountpoint is not `legacy`. Only boot-critical datasets are declared; data datasets are left to `zfs-mount.service` on purpose. Compression: zstd gives materially better ratios at negligible CPU cost on a 10th-gen i5, and one unmirrored disk makes capacity worth more than the last few percent of throughput. Replication is unaffected — compression is per-dataset and re-applied on receive. |
 | **D14** | brink-server uses **systemd-networkd**, not scripted networking | **Added 2026-08-06.** On a scripted-networking host `nixos-rebuild test`/`switch` stops `dhcpcd` — deleting every address and route — without starting `network-setup.service`, leaving the interface bare. That cost two recoveries on the pi (6.5), once as total silence and once, worse, as an applied address with **no default route**: LAN-reachable and apparently healthy while every outbound connection failed. brink-server is Brink's subnet router and primary DNS; it is precisely the host that must not be losable to a routine rebuild. networkd also handles RAs itself, so it needs no `accept_ra=2` sysctl to keep IPv6 once Phase 3 turns on forwarding. |
+| **D15** | Roaming clients resolve through a **third AdGuard on ionos**, overlay-only and with **no split-horizon rewrites** | **Added 2026-08-07.** Measured first: a host on the overlay at neither site has **no ad-blocking and no split-horizon at all**. Verified from ionos — `192.168.1.2:53` unreachable (clients run `--accept-routes=false` per 3.6.1, so they never install the subnet route) and `100.64.0.2:53` unreachable (AdGuard deliberately does *not* bind the overlay address, because it starts before `tailscale0` exists and would crash-loop). ionos resolved via `212.227.123.16`, its provider's DNS. **Why a third instance rather than pushing a site resolver:** tailnet DNS is global, but the two site AdGuards answer *differently by design* — brink rewrites `*.mvissing.de` → `192.168.1.240`, winkel → `192.168.178.240`. Pointing the tailnet at one of them gives every roaming *and* on-site client the wrong site's ingress VIP. **Why no rewrites on ionos:** a client that is on neither LAN *should* resolve `paperless.mvissing.de` to the public ingress, which is what public DNS already returns — so the correct roaming view is simply "blocking, no rewrites". ⚠️ **`bind_hosts = ["0.0.0.0"]` is safe here and only here**: nothing holds `:53` on ionos and `systemd-resolved` is `not-found`, so there is no stub-resolver collision — unlike brink-server, where that forced the explicit LAN bind. This also removes any ordering dependency on `tailscale0`, which gets its address ~6 s *after* `network-online.target`. ⚠️ **The load-bearing half is the firewall, not the bind**: `site-dns.nix` opens 53 **globally**, and copying that to a publicly-reachable VPS creates an open resolver. 53 must be scoped to `tailscale0` alone, exactly as 7.1 scoped the k3s ports | Phase 8 planning, 2026-08-07 |
+| **D16** | ionos's `80`/`443` are owned by a **native SNI router**, not by Traefik or Headscale directly | **Added 2026-08-07.** Found while answering "how do I reach services without the overlay": public DNS already wildcards `*.mvissing.de` → `212.132.82.102`, but **Headscale currently holds both 80 and 443 on ionos** (80 for its own ACME HTTP-01), and the old DNAT to the dead `192.168.178.10` is gone. So 9.1's `hostNetwork` Traefik has a port conflict the phase never mentions. Resolution: a native `nginx stream` + `ssl_preread` owns 80/443 and routes by SNI — `headscale.mvissing.de` to local Headscale, everything else to in-cluster Traefik. **TCP passthrough, not termination**, so Headscale keeps its own ACME, Traefik keeps the cert-manager wildcard, and every `IngressRoute` stays in Pulumi. Real client IPs survive via **PROXY protocol** into a Traefik entrypoint, which is what D7 wanted from hostNetwork anyway. ⚠️ **Port 80 needs a `Host` rule, not SNI** — plaintext HTTP has no SNI — so nginx needs an `http` block for 80 beside the `stream` block for 443. **Why not simply put Headscale behind Traefik**, which is simpler and gives cleaner URLs: it would make the overlay control plane depend on the thing it bootstraps, which the Layering rule forbids by name. The failure is narrow but real — a broken cluster plus a node reboot leaves that node unable to rejoin the overlay and therefore the cluster. Winkel has an independent way in (the FritzBox WireGuard); **Brink has none**. Rejected for that asymmetry, not for elegance | Phase 8 planning, 2026-08-07 |
 
 ---
 
@@ -2347,6 +2349,42 @@ traffic.
 
 Internal Traefik stays as a per-site LoadBalancer for LAN access.
 
+⚠️ **This phase has a port conflict it does not mention. Read D16 before
+starting.** Checked live 2026-08-07: **Headscale already listens on both `:80`
+and `:443` on ionos** — 443 for the control server, 80 for its own ACME HTTP-01
+— so a `hostNetwork` Traefik cannot simply take them. The old DNAT rules to
+`192.168.178.10` are already gone; the only remnant of that path is
+`-A POSTROUTING -o wg0 -j MASQUERADE`.
+
+**Decided approach (D16):** a native `nginx stream` + `ssl_preread` on ionos owns
+80/443 and routes by **SNI passthrough** — `headscale.mvissing.de` to local
+Headscale, everything else to in-cluster Traefik. Neither terminates at the
+router, so Headscale keeps its ACME and Traefik keeps the cert-manager wildcard,
+and all routing config stays in Pulumi. Client IPs are carried into Traefik with
+**PROXY protocol**, which delivers 9.4's "real client IPs" criterion without
+Traefik holding the socket.
+
+Two things this implies for the work:
+
+- Port 80 cannot be split by SNI — plaintext HTTP has none. It needs an `http`
+  block matching on `Host`, beside the `stream` block for 443.
+- Traefik moves to an internal port and must have PROXY protocol **trusted** on
+  that entrypoint. Getting this wrong silently reports the router's address as
+  every client's IP, which looks exactly like the DNAT problem 9.1 exists to
+  fix — so verify against a real external client, not from ionos itself.
+
+**Not chosen:** putting Headscale behind Traefik. Simpler and prettier, but it
+makes the overlay control plane depend on the cluster it bootstraps. See D16 for
+why Brink's lack of an independent path in is what settles it.
+
+## 9.1a Public DNS is already in place
+
+No work needed, but worth knowing before debugging: `*.mvissing.de` already
+resolves publicly to **`212.132.82.102`** via a wildcard onto the apex, so every
+hostname reaches ionos today and is answered by Headscale, which serves only its
+own API. Ingress is not "unconfigured", it is **shadowed** — the names resolve
+and the TLS handshake succeeds against the wrong service.
+
 ## 9.2 cert-manager DNS-01
 
 Switch both `ClusterIssuer`s from HTTP-01 (`infrastructure/cert-manager.ts:72-80`)
@@ -2549,6 +2587,27 @@ Add:
 
 ## Open items
 
+- **Roaming ad-blocking — agreed and designed, not built.** *(Decided
+  2026-08-07; the design and its traps are D15.)* Today a device on the overlay
+  at neither site has **no ad-blocking and no split-horizon** — measured, not
+  assumed. Three pieces, in order:
+  1. A third AdGuard on **ionos**, `bind_hosts = ["0.0.0.0"]`, **no rewrites**,
+     with 53 scoped to `tailscale0` in the firewall. ⚠️ That scoping is the
+     load-bearing part — `site-dns.nix` opens 53 globally and copying it here
+     would publish an open resolver on a public VPS.
+  2. Headscale pushes it: `dns.nameservers.global = ["100.64.0.1"]` and
+     `override_local_dns = true`. Safe fleet-wide, because `--accept-dns=false`
+     is client-side and every server keeps it.
+  3. Mac and phone register with `--accept-dns=true` — and still
+     `--accept-routes=false`, per 3.6.1.
+
+  ⚠️ **Open sub-question, decide when enrolling the phone.**
+  `--accept-dns=true` applies whenever Tailscale is *connected*, not only when
+  away. A phone with always-on VPN would resolve via ionos at home too and get
+  the **public** ingress for `*.mvissing.de`, sending local traffic out and
+  back — functional, but it discards Phase 4's split-horizon. iOS Tailscale's
+  on-demand rules can disconnect on the home SSIDs, which keeps both
+  behaviours correct; the Mac is unaffected since it only joins when away.
 - **Resolve Pulumi's secrets provider.** *(From Phase 2b work item 4, parked
   here 2026-08-06 — real, but not boot-critical and not a migration blocker.)*
   `Pulumi.default.yaml` has `encryptionsalt` and 16 `secure:` entries, so
@@ -2585,7 +2644,8 @@ Add:
 - **`tank/timemachine-*` — resolved.** Those datasets do not exist despite
   `setup-smb-datasets.sh:13-24`. Nothing to preserve. The live data is under
   `/tank/k8s/timemachine`, in the *parent* dataset — see Phase 13 item 7.
-- **maxdata has no ULA IPv6.** `networkConfig.staticIPv6s.maxdata`
-  (`modules/data/network-config.nix:52`) is defined but never applied — only the
-  microVMs reference `staticIPv6s`. D1 removes the need, but confirm nothing else
-  depended on it.
+- **~~maxdata has no ULA IPv6~~ — resolved by Phase 6.** The option this
+  described, `networkConfig.staticIPv6s`, was deleted with the rest of the
+  single-site model once the microVMs — its only consumers — were destroyed.
+  Nothing else depended on it, which the removal proved: all four hosts still
+  evaluate. D1 had already removed the need.
