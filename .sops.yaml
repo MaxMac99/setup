@@ -49,6 +49,18 @@ creation_rules:
         - *ionos-host
         - *brink-server
         - *winkel-pi
+  # Cluster-admin client credentials for kubectl on workstations.
+  #
+  # ⚠️ Deliberately its own file with a *narrow* recipient list, rather than
+  # living in common.yaml. common.yaml is readable by every host including
+  # winkel-pi, which is an **agent** and has no admin credentials of its own —
+  # putting them there would hand it privileges the cluster never granted it.
+  # The servers are not recipients either: they already have
+  # /etc/rancher/k3s/k3s.yaml locally and gain nothing from a second copy.
+  - path_regex: secrets/kubeconfig.yaml
+    key_groups:
+      - age:
+          - *maxs-macbook-pro
   - path_regex: secrets/k3s.yaml
     key_groups:
       - age:

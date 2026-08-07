@@ -35,6 +35,7 @@
     "modules/apps/docker-desktop.nix"
     "modules/apps/insomnia.nix"
     "modules/apps/k9s.nix"
+    "modules/apps/kubeconfig.nix"
     "modules/apps/opencode"
     "modules/apps/1password.nix"
     "modules/apps/teleport.nix"
