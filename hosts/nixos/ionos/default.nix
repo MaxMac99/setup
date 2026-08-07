@@ -161,16 +161,19 @@
     # runs on both, but only a boot proves the k3s token survives a cold start,
     # which is the failure this ordering exists to prevent.
     age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
-    secrets.k3s_token = {
-      restartUnits = ["k3s.service"];
-    };
-    templates."k3s-env".content = ''
-      K3S_TOKEN=${config.sops.placeholder.k3s_token}
-    '';
   };
 
-  # K3s token from sops template
-  systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce config.sops.templates."k3s-env".path;
+  # ⚠️ Phase 7 removed this host's own `secrets.k3s_token`, its `k3s-env`
+  # template and the forced `EnvironmentFile`. `modules/system/k3s-cluster.nix`
+  # now declares the secret once and feeds it to k3s via `tokenFile`.
+  #
+  # The template was `K3S_TOKEN=${placeholder.k3s_token}` — and the stored
+  # secret's value was *itself* `K3S_TOKEN=<token>`, so the env file came out as
+  # `K3S_TOKEN=K3S_TOKEN=<token>` while `tokenFile` read the prefix as part of
+  # the token. Both paths landed on the same effective string by accident, which
+  # is exactly why the breakage never surfaced. 7.0 stripped the prefix from the
+  # secret; keeping two sources of truth for one token would have turned that
+  # fix into a silent mismatch between the env var and the file.
 
   # ionos rebuilds itself from a clone at /home/max/setup, owned by max, while
   # nixos-rebuild evaluates as root — and nix's libgit2 refuses to open a
