@@ -289,6 +289,82 @@ in {
       wants = ["network-online.target"];
     };
 
+    # ⚠️ **`systemd-resolved` never re-elects, and restarting AdGuard is enough
+    # to lose it. Measured on brink-server 2026-08-07.**
+    #
+    # This is the Phase 6 defect, which the decision log recorded as
+    # "**Only maxdata can hit this** — brink-server and winkel-pi *are* their
+    # sites' resolvers and point at themselves, so their primary is up as soon
+    # as their link is". **That is wrong**, and the correction matters more
+    # than the original finding: the reasoning covers *boot ordering* only. A
+    # resolver host queries itself, so any restart of AdGuard is a window in
+    # which resolved's query fails — and resolved then rotates to the next
+    # server and **stays there for the life of the boot**.
+    #
+    # The next server is the site's router. It answers everything perfectly
+    # well, so the host looks healthy while `doubleclick.net` returns a real
+    # address and `*.mvissing.de` returns the public edge instead of the site
+    # VIP. Blocking and split-horizon are both silently bypassed. On
+    # brink-server this had been true since a routine `nixos-rebuild switch`,
+    # found only because an unrelated check happened to curl the apex:
+    # `Current DNS Server: 192.168.1.1` where the config says 192.168.1.2.
+    #
+    # ⚠️ The nastiest part is that **every deploy touching this module
+    # re-triggers it**, including the deploy that ships this fix. Which is why
+    # the unit is bound to `adguardhome.service` rather than to
+    # `network-online.target` as maxdata's boot-time equivalent is
+    # (hosts/nixos/maxdata/networking.nix): it must fire on *every* AdGuard
+    # start, not once per boot. It is self-correcting on first deploy.
+    #
+    # ⚠️ **Not sufficient estate-wide, and deliberately so** — this only helps
+    # a host that runs its own AdGuard. maxdata points at *winkel-pi's*, so a
+    # restart there can rotate maxdata onto the FritzBox with nothing local to
+    # notice. maxdata survived the 2026-08-07 deploy, but by query timing
+    # rather than by design. A periodic guard comparing the elected server
+    # against the configured primary is the general answer and is not built.
+    #
+    # `mkIf resolved.enable` because winkel-pi has no resolved at all — it uses
+    # glibc against /etc/resolv.conf, which retries the list in order on every
+    # query and therefore cannot get stuck. That, not "it points at itself", is
+    # the real reason winkel-pi is immune.
+    systemd.services.adguard-resolved-reelect = lib.mkIf config.services.resolved.enable {
+      description = "Re-elect systemd-resolved's primary DNS server after AdGuard restarts";
+      # Runs whenever AdGuard starts, and restarts with it.
+      wantedBy = ["adguardhome.service"];
+      after = ["adguardhome.service"];
+      partOf = ["adguardhome.service"];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = pkgs.writeShellScript "adguard-resolved-reelect" ''
+          set -u
+          # ⚠️ Wait for AdGuard to *answer*, not merely for systemd to call the
+          # unit active. Restarting resolved too early just re-runs the race we
+          # are here to fix. The probe asks for a name AdGuard answers from its
+          # own rewrite table, so a success proves the rewrites are loaded too —
+          # not just that something is bound to the port.
+          for _ in $(seq 1 30); do
+            answer=$(${pkgs.dnsutils}/bin/dig +short +timeout=1 +tries=1 \
+              @${self.lanIPv4} ${
+            if cfg.splitHorizonDomain != null
+            then cfg.splitHorizonDomain
+            else "localhost"
+          } 2>/dev/null) || answer=""
+            ${
+            if cfg.splitHorizonDomain != null
+            then ''[ "$answer" = "${site.ingressVIP}" ] && break''
+            else ''[ -n "$answer" ] && break''
+          }
+            sleep 1
+          done
+
+          # try-restart, not restart: a no-op if resolved is not running, which
+          # keeps this harmless on a host where it is disabled later.
+          exec ${pkgs.systemd}/bin/systemctl try-restart systemd-resolved.service
+        '';
+      };
+    };
+
     networking.firewall = {
       # 53 on both protocols: TCP is not optional, it is where any answer
       # larger than the UDP limit goes.
