@@ -2572,12 +2572,12 @@ days late:
 - [x] `CertificateExpiringSoon` (<21 d), `CertificateNotReady` (1 h) and
       `PublicIngressDown` (15 m) — ✅ deployed and confirmed **loaded in the
       running Prometheus**, not merely present in the ConfigMap
-- [ ] ⚠️ **Alert delivery does not work**, so the rules above currently reach
-      nobody: Alertmanager still runs the chart's stub `default-receiver` with
-      no destination, and ntfy has `auth-default-access: deny-all` with **no
-      users at all**. Needs an ntfy user plus an `ntfy access` Job in the
-      `mosquitto.ts` pattern, and an Alertmanager `webhook_config` with basic
-      auth. Belongs to Phase 12, but the rules are worthless until it is done
+- [x] ⚠️ ~~**Alert delivery does not work**~~ → ✅ **fixed and verified
+      end-to-end 2026-08-07.** A named `alertmanager` ntfy user created by an
+      init container, write-only on the `alerts` topic, and an Alertmanager
+      `ntfy` receiver authenticating from a mounted credential file. Proven by
+      firing a synthetic alert and reading ntfy's logs — authenticated publish,
+      template-rendered body — not by reading config. See Phase 12
 
 ---
 
@@ -2668,14 +2668,34 @@ Add:
 > alert *rules* are deployed and confirmed loaded in the running Prometheus
 > (`CertificateExpiringSoon`, `CertificateNotReady`, `PublicIngressDown`),
 > because HTTP-01 renewal now fails silently and ~30 days after the change that
-> breaks it. **They reach nobody.** Alertmanager runs the chart's stub
-> `default-receiver` with no destination, and ntfy has `auth-default-access:
-> deny-all` with **no users at all** — only anonymous `*`. So "per-site alert
-> routing via ntfy" below is not a refinement of a working path; **there is no
-> path**. Needs an ntfy user plus an `ntfy access` Job in the `mosquitto.ts`
-> pattern, and an Alertmanager `webhook_config` with basic auth. Do this before
-> writing more rules — rules without delivery are worse than no rules, because
-> they look like coverage.
+> breaks it. ⚠️ **For most of a day they reached nobody**, which is the part
+> worth remembering: Alertmanager ran the chart's stub `default-receiver` — a
+> receiver with a name and **no destination at all** — while ntfy had
+> `auth-default-access: deny-all` and **no users whatsoever**, only anonymous
+> `*`. Alerts were grouped, deduplicated and dropped, and *nothing reported an
+> error*, because delivering to nowhere is not a failure. Rules loaded,
+> Alertmanager healthy, ntfy healthy, no errors anywhere — and zero coverage.
+>
+> ✅ **Fixed and verified end-to-end 2026-08-07.** An `init-users` container in
+> the ntfy pod (the `mosquitto.ts` `init-passwd` pattern, *not* a Job) creates a
+> named `alertmanager` user from a `RandomPassword` and grants it **write-only**
+> on the `alerts` topic; Alertmanager gained an `ntfy` receiver whose credential
+> is **mounted as a file**, because this subchart renders its config into a
+> plain **ConfigMap** where an inline password would be readable by anything in
+> the namespace. All three CLI calls are idempotent by construction since they
+> run on every pod start — `--ignore-exists` alone would let the password drift
+> from the Secret, so `change-pass` re-asserts it.
+>
+> ⚠️ **`?template=alertmanager` is a built-in ntfy template**, confirmed present
+> at tag **v2.27.0** (the running version) rather than assumed; without it ntfy
+> publishes Alertmanager's raw JSON as the message body. Verified by firing a
+> synthetic alert through Alertmanager's API and reading ntfy's own logs:
+> `POST /alerts?template=alertmanager`, `user_name: alertmanager` (so basic auth
+> worked), and `message_body_size: 315` — a few hundred bytes of rendered text
+> rather than the 1–2 KB of raw JSON, which is what proves the template applied.
+> ⚠️ **`deny-all` is load-bearing, not caution**: ntfy's Ingress carries no
+> Authentik middleware, so it answers to anything on either LAN. Fix a publish
+> failure by naming a user, never by granting `everyone` write access.
 
 - Node, ZFS and smartctl exporters on all four hosts (maxdata already has all
   three: 9100, 9134, 9116 — `hosts/nixos/maxdata/monitoring.nix:107-126`).
