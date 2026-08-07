@@ -29,7 +29,7 @@ One session per phase. Read this section first, update it last.
 | 4 | DNS | ✅ done | 2026-08-06 | **AdGuard native on brink-server (`192.168.1.2`) and winkel-pi (`192.168.178.3`)**, one per site, from a shared `modules/system/site-dns.nix`. Split-horizon, MagicDNS forwarding, blocking and **failover all verified on the wire** at both sites. Nothing was restored from Phase 1 — the backup is a stock config (4.2). **Both routers cut over the same day** and real clients are on the new resolvers at both sites, over **both address families** — a Winkel client appears in the query log at `fd06:f10a:ebec:178:1806:…`, so per-client visibility survived (4.5). Three traps found the hard way — inert rewrites, a DNS-intercepting UDM SE, and clients preferring the RA-advertised IPv6 resolver, which is why each resolver has a **ULA** (4.4) |
 | 5 | brink-server + pi relocation | ✅ done | 2026-08-06 | **5.1 and 5.2 are both done.** brink-server installed at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled, decrypt proven on the box. Pi **renamed `k3s-pi` → `winkel-pi`**, `hostId` `03030303` → `7a943cc4`, on static `192.168.178.3`, sops host key wired and **decrypt proven on the box** — all verified after a reboot. Both self-update from GitHub over read-only deploy keys. Nothing Phase-5-owned remained; its last open criterion was **Phase 4's** AdGuard, closed the same day. **Phase 6 is now the next step, and the first irreversible one** |
 | 6 | maxdata microVMs out | ✅ done | 2026-08-06 | ⚠️ **The irreversible step is taken.** All three microVMs destroyed and `/var/lib/microvms` deleted — **67 G**, gone. sops decrypt of `k3s.yaml` under maxdata's **host** key re-proven on the box *immediately* before deletion (`cc44af01…`, exit 0), which was the one check whose failure could not be undone. Deployed `build → dry-activate → dead-man → test → verify → boot → reboot`; **dry-activate showed networkd would only be *reloaded*, never restarted**, so 6.5's bridge hazard never fired and `20-vmbr0.netdev` was left byte-identical on purpose. maxdata moved off the deprecated `dns.servers` onto `sites.winkel` — the last host at either site not using its own site resolver — and the whole single-site model was deleted with the microVMs. 6.2's k3s-server/k3s-agent refactor was **deliberately not done** (see 6.2); ARC **deliberately not raised** (6.3). One real defect found and fixed: **systemd-resolved never re-elects**, so maxdata silently answered from the FritzBox — bypassing blocking *and* split-horizon — on every boot; fixed and **verified across a cold boot** (see the decision log). **Phase 7 is now the next step** |
-| 7 | Fresh cluster | 🔄 **up, soaking** | 2026-08-07 | **All 4 nodes `Ready`** over the overlay — `INTERNAL-IP` is the 100.64.0.x address on every one, so D3 holds in practice. Three etcd servers across three L3 domains plus winkel-pi as agent. **`flannel.1` came up at exactly 1230 on all four**, the predicted 1280−50. Cross-site pod-to-pod verified with a **byte-exact 20 MB TCP transfer**, not just ping. 7.1 closed and re-verified with the cluster live. Token rotated and the `K3S_TOKEN=` double-wrap removed. ⚠️ **Open: the 24 h etcd soak** (started ~09:00). Storage/local-path deliberately deferred to Phase 8 |
+| 7 | Fresh cluster | ✅ done | 2026-08-07 | **All 4 nodes `Ready`** over the overlay — `INTERNAL-IP` is the 100.64.0.x address on every one, so D3 holds in practice. Three etcd servers across three L3 domains plus winkel-pi as agent. **`flannel.1` came up at exactly 1230 on all four**, the predicted 1280−50. Cross-site pod-to-pod verified with a **byte-exact 20 MB TCP transfer**, not just ping. 7.1 closed and re-verified with the cluster live. Token rotated and the `K3S_TOKEN=` double-wrap removed. ⚠️ **24 h etcd soak WAIVED** (as 3.5 was) — closed on a snapshot instead: `/healthz` ok, 3 members `Ready`, exactly **1** election event. Baseline for later drift is 1, not 0. Storage/local-path deliberately deferred to Phase 8. **Phase 8 is now next** |
 | 8 | Storage and site affinity | not started | | |
 | 9 | Ingress and certificates | not started | | |
 | 10 | Workloads and bootstrap | not started | | |
@@ -222,7 +222,7 @@ Two things are deliberately *not* in the cluster:
 | 4 | DNS | additive | both sites resolve via local AdGuard, failover verified |
 | 5 | brink-server bring-up + pi relocation | additive | Winkel reachable without maxdata |
 | 6 | **maxdata: microVMs out** | ⚠️ **irreversible — taken 2026-08-06** | ✅ maxdata reachable, ZFS intact, 18 GB RAM reclaimed (ARC deliberately not raised) |
-| 7 | Fresh cluster | destructive | 4 nodes Ready, etcd stable 24 h, full-MTU cross-site |
+| 7 | Fresh cluster | ✅ done 2026-08-07 | ✅ 4 nodes Ready, full-MTU cross-site verified; 24 h etcd soak waived |
 | 8 | Storage and site affinity | — | every PVC pinned, every LB IP pinned |
 | 9 | Ingress and certificates | — | wildcard issued, real client IPs in logs |
 | 10 | Workloads and bootstrap | — | all apps up, HA re-commissioned, UniFi re-adopted |
@@ -2170,11 +2170,29 @@ per-interface on the overlay interface only.
 - [x] **4 nodes `Ready` with correct zone labels** — `brink`, `public`,
       `winkel`, `winkel` respectively; three servers with etcd, winkel-pi as the
       sole agent
-- [ ] etcd stable for 24 h with no leader elections (`etcdctl endpoint status`,
-      k3s logs) — **soak started 2026-08-07 ~09:00**. `/healthz` returns `ok`
-      and all three members are `Ready`; the ~10 election lines in the journal
-      are the bootstrap leases, so the count to compare against is *this* one,
-      not zero
+- [ ] ~~etcd stable for 24 h with no leader elections~~ — ⚠️ **WAIVED
+      2026-08-07**, as Phase 3.5's 24 h sampling was. Snapshot taken at close
+      instead: `/healthz` → `ok`, all three members `Ready`, and **exactly 1
+      election event** in the journal — the initial one, which is what a fresh
+      cluster should show.
+
+      **What waiving costs, stated plainly.** D4 called this gate "the empirical
+      test" for `heartbeat-interval=500` / `election-timeout=5000`. Those values
+      are not guesses — they sit **73×** above Phase 2's measured direct p99 of
+      6.8 ms and **14×** above the worst single echo in six hours — but a
+      sustained soak is the only thing that would catch a *rare* uplink stall
+      that the sampling window missed. Not running it means the tuning is
+      justified by measurement but unproven under time.
+
+      **How it would show up later, and what to do.** Spurious elections appear
+      as the count below rising:
+      ```sh
+      journalctl -u k3s -b | grep -icE 'lost leader|leader changed|elected leader'
+      ```
+      Baseline is **1**. A number climbing over days means the WAN tuning is
+      still too tight; raise `election-timeout` first. Worth a glance whenever
+      the cluster misbehaves, since a partition here presents as apiserver
+      flapping rather than as an obvious network fault.
 - [x] **Cross-site pod-to-pod at full MTU** — pod on brink-server ↔ pod on
       maxdata. Pod `eth0` MTU is **1230** end-to-end, ping 3/3 at **5.0–5.4 ms**
       (matching Phase 2's p50 of 5.8 ms), and a **20 MB TCP transfer arrived
