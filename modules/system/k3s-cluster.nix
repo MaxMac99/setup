@@ -73,6 +73,31 @@ in {
       description = "Name of the sops secret holding the cluster join token.";
     };
 
+    lanInterface = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "eno1";
+      description = ''
+        LAN interface on which this server also accepts the Kubernetes API.
+
+        Null means overlay-only, which is the default and is what 7.1
+        established: `k3s-base.nix` scopes 6443 to the overlay interface, so a
+        laptop on the same LAN as a node still cannot reach the API.
+
+        Setting this opens **6443 only** — not the kubelet or either etcd port —
+        on the named interface, and adds this host's `lanIPv4` to the API
+        server's TLS SANs. Both halves are required: without the SAN, kubectl
+        reaches the port and then fails certificate validation, because k3s
+        issues the serving cert for the node names and overlay addresses only.
+
+        ⚠️ **This exposes a cluster-admin API to every device on that LAN**,
+        including IoT devices. Access still requires a client certificate, so
+        it is not open, but it is a wider surface than the overlay-only default.
+        Deliberate trade: direct access from inside a site, overlay when
+        outside it.
+      '';
+    };
+
     extraFlags = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [];
@@ -123,6 +148,16 @@ in {
     # kubeconfig at all.
     environment.variables.KUBECONFIG = lib.mkIf isServer "/etc/rancher/k3s/k3s.yaml";
 
+    # In-site direct access to the API, opt-in per host via lanInterface.
+    #
+    # Deliberately **6443 only**. k3s-base.nix puts 6443, 10250, 2379 and 2380
+    # on the overlay interface; the kubelet and both etcd ports have no business
+    # on a LAN and stay overlay-only, so this widens exactly one port rather
+    # than re-opening the set 7.1 just closed.
+    networking.firewall.interfaces = lib.mkIf (isServer && cfg.lanInterface != null) {
+      ${cfg.lanInterface}.allowedTCPPorts = [6443];
+    };
+
     sops.secrets.${cfg.tokenSecret} = {
       sopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
       restartUnits = ["k3s.service"];
@@ -169,6 +204,15 @@ in {
           "--write-kubeconfig-mode=644"
           "--tls-san=${config.hostSpec.hostName}"
           "--tls-san=${self.overlayIPv4}"
+        ]
+        ++ lib.optionals (isServer && cfg.lanInterface != null && self.lanIPv4 != null) [
+          # Required for in-site access. Without it kubectl reaches 6443 on the
+          # LAN and then fails validation — k3s issues the serving cert for the
+          # node names and overlay addresses only, so the LAN address is absent
+          # and the error looks like a certificate problem rather than a
+          # missing SAN. Verified: the live cert's SANs are 100.64.0.1/.2/.5,
+          # 10.43.0.1, 127.0.0.1 and the node names, with no LAN address.
+          "--tls-san=${self.lanIPv4}"
 
           # D1: IPv4 only. The dual-stack CIDRs this replaces existed solely so
           # ionos could reach home under DS-Lite; the overlay does that now.

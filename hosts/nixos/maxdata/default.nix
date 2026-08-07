@@ -41,7 +41,17 @@
   # between them, now run natively on the host that already owns the storage.
   # That is the point of Phase 6: the ZFS pools, the NFS exports and the k3s
   # server are finally the same machine, with no virtiofs in between.
-  k3sCluster.enable = true;
+  k3sCluster = {
+    enable = true;
+    # Winkel's in-site API endpoint: https://192.168.178.2:6443.
+    #
+    # ⚠️ This is currently redundant — `trustedInterfaces = ["vmbr0"]` already
+    # accepts everything on this bridge, which is why maxdata was the only node
+    # whose API answered from a LAN. Declaring it explicitly is the point:
+    # Phase 8 removes that blanket trust, and without this line in-site access
+    # would disappear with it.
+    lanInterface = "vmbr0";
+  };
 
   # maxdata's first sops block. It was a declared recipient of both files since
   # before Phase 0 while consuming nothing, which is the drift Phase 0.5 spotted

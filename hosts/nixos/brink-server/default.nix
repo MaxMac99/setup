@@ -46,7 +46,13 @@ in {
   # this was enabled: brink-server had to become a recipient of secrets/k3s.yaml
   # first (a missing secret fails activation outright), and the decrypt was
   # proven on the box, not assumed from .sops.yaml.
-  k3sCluster.enable = true;
+  k3sCluster = {
+    enable = true;
+    # Brink's in-site API endpoint: a laptop on this LAN reaches the cluster at
+    # https://192.168.1.2:6443 without joining the overlay. The overlay is for
+    # when you are at neither site.
+    lanInterface = "eno1";
+  };
 
   # Brink's DNS resolver (networkConfig.sites.brink.adguard = this host's own
   # .2). ⚠️ brink-server is Brink's only always-on machine, so this is a single
