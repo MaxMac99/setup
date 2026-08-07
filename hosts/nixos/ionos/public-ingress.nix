@@ -13,17 +13,26 @@
 #   everything else        → the public Traefik, which serves cert-manager's
 #                            HTTP-01 solver Ingresses
 #
-# ⚠️ **:443 is deliberately not touched.** D16 specifies a `stream` +
-# `ssl_preread` SNI split there too, which is what public *service* access
-# needs. Certificates do not need it: HTTP-01 validates over port 80, and the
-# resulting Secret is served by each site's internal Traefik on the LAN. Since
-# Headscale is the overlay control plane — and Brink has no independent way in
-# if it breaks (D16) — it keeps its own 443 socket until Stage B is done
-# deliberately rather than as a side effect of wanting certificates.
+# **Stage B is now in too**, and :443 is split by SNI:
+#
+#   headscale.mvissing.de  → Headscale on loopback, PROXY header stripped first
+#   everything else        → the public Traefik's `websecure`, PROXY intact
 #
 # Port 80 cannot be split by SNI: plaintext HTTP has none. Hence an `http`
-# block matching on `Host`, which is also why Stage B needs a separate `stream`
-# block rather than an extension of this one.
+# block matching on `Host` *and* a separate `stream` block for 443 — the two
+# are not interchangeable and both are required.
+#
+# ⚠️ **Stage B moved a dependency that Stage A deliberately avoided.** Headscale
+# no longer holds a public socket, so the overlay control plane now depends on
+# this nginx being healthy. That was accepted, not overlooked: ionos answers
+# public SSH on :22 independently of nginx, so a broken split is fixable
+# without the overlay — which is what made the asymmetry in D16 (Brink has no
+# independent way in) tolerable. Verify :22 still works before touching this.
+#
+# ⚠️ Nothing is *published* publicly by landing this. The public Traefik is
+# default-closed: its ingress class is `traefik-public` and its CRD label
+# selector is `ingress=public`, so a name only becomes reachable when something
+# opts in explicitly. Stage B grants the capability, not the access.
 {
   config,
   ...
@@ -41,6 +50,33 @@
   # runs hostNetwork pinned to ionos, so the container port is a host port and
   # loopback reaches it.
   traefikWeb = "http://127.0.0.1:8000";
+
+  # Stage B — the three loopback sockets the :443 SNI split needs.
+  #
+  # ⚠️ All three are duplicated elsewhere and none of them is checked by
+  # anything:
+  #   8443 is the Traefik chart's container port for `websecure`
+  #        (infrastructure/traefik-public.ts)
+  #   8444 is `services.headscale.port` (./overlay-server.nix)
+  #   9444 is local to this file
+  traefikWebsecure = "127.0.0.1:8443";
+  headscaleControl = "127.0.0.1:8444";
+
+  # ⚠️ Exists only to *strip* the PROXY protocol header again.
+  #
+  # `proxy_protocol on` is a property of the `server` block, not of an upstream,
+  # so the :443 splitter necessarily speaks it to whichever backend it selects.
+  # Traefik wants that — it is the only way a passthrough proxy can tell it the
+  # real client IP, since TCP passthrough leaves no room for `X-Forwarded-For`.
+  # **Headscale does not implement PROXY protocol at all** (its documented
+  # reverse-proxy story is HTTP with `trusted_proxies`, which passthrough
+  # cannot use), and would treat the header as the first bytes of a TLS
+  # ClientHello and drop the connection.
+  #
+  # So the Headscale path takes one extra loopback hop whose only job is to
+  # parse the header and forward plain TCP. nginx preserves the original client
+  # address across that hop, which is why the ordering works at all.
+  headscaleStripProxy = "127.0.0.1:9444";
 
   # ⚠️ Explicit, because the NixOS module otherwise adds a :443 listener to
   # any vhost and that would collide with Headscale on startup.
@@ -66,8 +102,9 @@ in {
 
     virtualHosts = {
       # Headscale renews its own certificate and terminates its own TLS. This
-      # forwards only the challenge; the control API itself is still reached
-      # directly on :443 and does not pass through nginx.
+      # forwards only the ACME challenge. ⚠️ Since Stage B the control API
+      # *does* pass through nginx as well — as raw TCP through the `stream`
+      # block below, never through this `http` block.
       "${overlay.controlServerHost}" = {
         listen = onPort80;
         locations."/".proxyPass = headscaleAcme;
@@ -86,9 +123,58 @@ in {
         locations."/".proxyPass = traefikWeb;
       };
     };
+
+    # Stage B — the :443 SNI split.
+    #
+    # Plaintext HTTP has no SNI, which is why :80 above is an `http` block
+    # matching on `Host` and this is a separate `stream` block. Both are needed;
+    # neither replaces the other.
+    #
+    # ⚠️ **Passthrough, not termination.** nginx reads only the SNI field of the
+    # ClientHello and then copies bytes. It holds no certificate and no private
+    # key for any of these names: Headscale keeps its own ACME, and Traefik
+    # keeps cert-manager's per-hostname Secrets. That property is the whole
+    # reason D16 chose this over terminating here.
+    streamConfig = ''
+      map $ssl_preread_server_name $publicBackend {
+        ${overlay.controlServerHost}  ${headscaleStripProxy};
+        default                       ${traefikWebsecure};
+      }
+
+      server {
+        listen 0.0.0.0:443;
+        listen [::]:443;
+
+        ssl_preread on;
+        proxy_pass $publicBackend;
+
+        # Both backends receive the PROXY protocol header; the Headscale path
+        # has it stripped one hop later. See the `let` block above.
+        proxy_protocol on;
+
+        # ⚠️ Not tuning. Tailscale clients hold a long-poll control connection
+        # open, and nginx's stream default is a 10-minute *inactivity* timeout,
+        # which would tear down an idle-but-healthy control connection and make
+        # the overlay look flaky in a way that points at everything except this
+        # line.
+        proxy_timeout 1h;
+      }
+
+      server {
+        listen ${headscaleStripProxy} proxy_protocol;
+        proxy_pass ${headscaleControl};
+        proxy_timeout 1h;
+      }
+    '';
   };
 
   # No firewall change: 80 and 443 are already open (./default.nix). The ports
-  # behind this — 8000 and 8081 — are not, which is what keeps them private.
-  # The IONOS Cloud firewall is default-deny in front of that as a second layer.
+  # behind this — 8000, 8081, 8443, 8444 and 9444 — are not, which is what
+  # keeps them private. The IONOS Cloud firewall is default-deny in front of
+  # that as a second layer.
+  #
+  # ⚠️ 8443 is bound by Traefik on `*`, not on loopback, because the chart runs
+  # hostNetwork and does not offer a bind address. It is unreachable from the
+  # internet only because both firewalls drop it. Losing either one exposes an
+  # ingress that expects to be spoken to in PROXY protocol by a trusted peer.
 }

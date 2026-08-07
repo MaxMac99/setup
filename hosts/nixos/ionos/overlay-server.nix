@@ -18,17 +18,26 @@ in {
   services.headscale = {
     enable = true;
 
-    # Bind the public interface on 443 directly rather than proxying. Phase 2
-    # proved plain HTTP on an alternate port is a trap: after any control
-    # interruption the client escalates to HTTPS and then to 443, and if
-    # nothing answers there it wedges permanently (§2.1). 443 is free because
-    # the ingress it used to be DNAT'd to has been dead since before Phase 0 —
-    # see the removed rules in default.nix.
+    # ⚠️ **Stage B (D16): nginx owns the public :443 now and splits it by SNI**,
+    # so Headscale moved off the public socket onto loopback.
     #
-    # port < 1024 makes the module grant CAP_NET_BIND_SERVICE, which also
-    # covers the ACME listener on 80.
-    address = "0.0.0.0";
-    port = 443;
+    # Phase 2's finding is unchanged and is *why* the public :443 must still
+    # answer TLS for this hostname: after any control interruption the client
+    # escalates to HTTPS and then to 443, and if nothing answers there it wedges
+    # permanently (§2.1). The split is **TCP passthrough via `ssl_preread`**, not
+    # termination — Headscale still presents its own certificate and still runs
+    # its own ACME, so the escalation path and the trust chain are both exactly
+    # as they were. What changed is only which process accepts the socket.
+    #
+    # ⚠️ **8444, not 8443**: the public Traefik runs hostNetwork on this node and
+    # already binds `*:8443` for its `websecure` entrypoint. Picking 8443 here
+    # would leave whichever process started second unable to bind.
+    #
+    # ⚠️ The old comment noted that `port < 1024` earned the unit
+    # CAP_NET_BIND_SERVICE. That no longer applies and nothing needs it: the
+    # ACME listener is on 8081 and this socket is on 8444, both unprivileged.
+    address = "127.0.0.1";
+    port = 8444;
 
     settings = {
       server_url = overlay.controlServerUrl;
@@ -54,9 +63,12 @@ in {
       # 8081 rather than 8080 on purpose: the public Traefik runs hostNetwork
       # on this node and its dashboard port takes 8080.
       #
-      # `port = 443` below is deliberately untouched. Headscale still owns the
-      # public 443 socket directly, so nothing about the overlay's reachability
-      # depends on nginx being healthy. Splitting 443 by SNI is Stage B.
+      # ⚠️ **Stage B changed the risk here.** Headscale no longer owns a public
+      # socket at all, so the overlay's reachability *does* now depend on nginx
+      # being healthy — for both :80 and :443. That was the explicit cost of
+      # D16 Stage B, accepted because ionos remains reachable on public SSH
+      # (port 22) independently of nginx, so a broken split is recoverable
+      # without the overlay.
       tls_letsencrypt_listen = "127.0.0.1:8081";
 
       dns = {
