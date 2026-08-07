@@ -29,7 +29,7 @@ One session per phase. Read this section first, update it last.
 | 4 | DNS | ✅ done | 2026-08-06 | **AdGuard native on brink-server (`192.168.1.2`) and winkel-pi (`192.168.178.3`)**, one per site, from a shared `modules/system/site-dns.nix`. Split-horizon, MagicDNS forwarding, blocking and **failover all verified on the wire** at both sites. Nothing was restored from Phase 1 — the backup is a stock config (4.2). **Both routers cut over the same day** and real clients are on the new resolvers at both sites, over **both address families** — a Winkel client appears in the query log at `fd06:f10a:ebec:178:1806:…`, so per-client visibility survived (4.5). Three traps found the hard way — inert rewrites, a DNS-intercepting UDM SE, and clients preferring the RA-advertised IPv6 resolver, which is why each resolver has a **ULA** (4.4) |
 | 5 | brink-server + pi relocation | ✅ done | 2026-08-06 | **5.1 and 5.2 are both done.** brink-server installed at Brink on `192.168.1.2` — root-on-ZFS (`main`, native mountpoints), UEFI, no failed units, sops host key enrolled, decrypt proven on the box. Pi **renamed `k3s-pi` → `winkel-pi`**, `hostId` `03030303` → `7a943cc4`, on static `192.168.178.3`, sops host key wired and **decrypt proven on the box** — all verified after a reboot. Both self-update from GitHub over read-only deploy keys. Nothing Phase-5-owned remained; its last open criterion was **Phase 4's** AdGuard, closed the same day. **Phase 6 is now the next step, and the first irreversible one** |
 | 6 | maxdata microVMs out | ✅ done | 2026-08-06 | ⚠️ **The irreversible step is taken.** All three microVMs destroyed and `/var/lib/microvms` deleted — **67 G**, gone. sops decrypt of `k3s.yaml` under maxdata's **host** key re-proven on the box *immediately* before deletion (`cc44af01…`, exit 0), which was the one check whose failure could not be undone. Deployed `build → dry-activate → dead-man → test → verify → boot → reboot`; **dry-activate showed networkd would only be *reloaded*, never restarted**, so 6.5's bridge hazard never fired and `20-vmbr0.netdev` was left byte-identical on purpose. maxdata moved off the deprecated `dns.servers` onto `sites.winkel` — the last host at either site not using its own site resolver — and the whole single-site model was deleted with the microVMs. 6.2's k3s-server/k3s-agent refactor was **deliberately not done** (see 6.2); ARC **deliberately not raised** (6.3). One real defect found and fixed: **systemd-resolved never re-elects**, so maxdata silently answered from the FritzBox — bypassing blocking *and* split-horizon — on every boot; fixed and **verified across a cold boot** (see the decision log). **Phase 7 is now the next step** |
-| 7 | Fresh cluster | not started | | |
+| 7 | Fresh cluster | 🔄 **up, soaking** | 2026-08-07 | **All 4 nodes `Ready`** over the overlay — `INTERNAL-IP` is the 100.64.0.x address on every one, so D3 holds in practice. Three etcd servers across three L3 domains plus winkel-pi as agent. **`flannel.1` came up at exactly 1230 on all four**, the predicted 1280−50. Cross-site pod-to-pod verified with a **byte-exact 20 MB TCP transfer**, not just ping. 7.1 closed and re-verified with the cluster live. Token rotated and the `K3S_TOKEN=` double-wrap removed. ⚠️ **Open: the 24 h etcd soak** (started ~09:00). Storage/local-path deliberately deferred to Phase 8 |
 | 8 | Storage and site affinity | not started | | |
 | 9 | Ingress and certificates | not started | | |
 | 10 | Workloads and bootstrap | not started | | |
@@ -78,6 +78,9 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | **`tank/k8s/timemachine` is shadowed by a directory** | ⚠️ **Pre-existing, not caused by Phase 6 — but it means the 689 G of Time Machine data is not where it looks.** The *dataset* `tank/k8s/timemachine` holds **96 K** and has **never been mounted**; the 689 G lives in a plain directory of the same path inside the parent `tank/k8s` (692 G REFER), which is what NFS actually exports. Cause is exactly D13's argument against `mountpoint=legacy`: the child has no `fileSystems` entry in `hardware-configuration.nix`, so NixOS never mounts it and the parent's directory silently wins. Same shape as `tank/fast-backup/{k8s,vms}`, also legacy and also unmounted. Consequence: the Time Machine data inherits `tank/k8s`'s properties and **cannot be snapshotted or replicated independently**. It *is* covered by the recursive `tank@pre-multi-site`, so Phase 1's protection holds. Phases 8/11 own the fix | Phase 6, 2026-08-06 |
 | **ARC deliberately left at 8 GB** | 6.3 called for raising `zfs_arc_max` once the microVMs freed 18 GB. **Not done, by decision.** That 18 GB was a *fixed* reservation backing workloads that ran inside the guests, and the same workloads return as native pods from Phase 7 — spending it on ARC would only mean reclaiming it under memory pressure later, which ARC resists. It stays as k3s headroom: 8 GB ARC, ~23 GB for the OS and cluster. The three copies of the value (two in `default.nix`, one in `zfs.nix`) still agree; only the stale "18GB reserved for 3x 6GB microVMs" comment changed. **The exit criterion "ARC max raised and confirmed via `arc_summary`" is therefore withdrawn, not skipped** | Phase 6, 2026-08-06 |
 | **microVM RAM actually reclaimed** | `available` went **3.4 GB → 28 GB** across the phase (32 GB box). This is the "18 GB" the exit criteria mean — **RAM, not disk**; the 67 G of `/var/lib/microvms` is a separate reclaim with separate mechanics (above). Do not conflate them | Phase 6, 2026-08-06 |
+| **flannel MTU, confirmed on the real cluster** | ✅ **1230 on all four nodes**, exactly as predicted from `tailscale0`'s 1280 − 50. There is **no `--flannel-mtu` flag** in k3s v1.35.6; naming `--flannel-iface` is the only lever, and it works. Pod `eth0` is 1230 end-to-end and a **20 MB cross-site TCP transfer arrived byte-exact**. ⚠️ **Test with bulk TCP, never with ping**: D3's blackhole is TCP-with-DF stalling while ICMP succeeds, so a large ping passing proves only that fragmentation works. Also **busybox `ping` has no `-M do`** — the cliff test printed usage and exited 1, which reads like a failure and is not one | Phase 7, 2026-08-07 |
+| **A failed `git fetch` makes the ancestry check lie** | ⚠️ **Nearly acted on a meaningless activation plan.** On brink-server `sudo git -C /etc/nixos fetch` failed with *Host key verification failed* (root's `.ssh` is empty; `/etc/nixos` is owned by **max**, and fetching as max works). `git fetch` printing an error is easy to miss mid-script — and the next two commands then compared against a **stale** `origin/multi-site`: `merge-base --is-ancestor` cheerfully said "fast-forward safe" and `reset --hard origin/multi-site` reset to the *old* commit. `dry-activate` then built a tree with no `k3s-cluster.nix` in it and reported nothing would change, which looks exactly like a safe no-op. **Check `git fetch`'s exit status explicitly before trusting any ref comparison**, and confirm the artefact you expect is actually in the tree | Phase 7, 2026-08-07 |
+| **Deploy user differs per host** | maxdata and ionos: clone at `/home/max/setup`, updated as **max**. brink-server and winkel-pi: clone at `/etc/nixos`, **owned by max**, also updated as **max** — `sudo git` fails there for lack of a root `known_hosts`. So on every host the *fetch* runs as max and only `nixos-rebuild` runs as root. ⚠️ maxdata's `/etc/nixos` is a stale plain directory from Oct 2025 and is **not** its deploy source | Phase 7, 2026-08-07 |
 | ionos → home RTT (existing wg0) | ~13 ms | Phase 0, `ping` from ionos |
 | Winkel WAN IPv6 prefix | `2a00:6020:b481:e300::/56` — record only, never depend on it (D2) | FritzBox, 2026-08-05 |
 | UDM SE static routes | present and configurable — Phase 3 unblocked | UDM SE, 2026-08-05 |
@@ -2016,16 +2019,19 @@ Two verification lessons, both learned by getting them wrong:
 
 # Phase 7 — Fresh cluster
 
-**Config written and verified 2026-08-07; nothing deployed yet.**
-`modules/system/k3s-cluster.nix` derives every node's role, node IP and zone
-from `networkConfig.hosts`, and all four hosts evaluate. Rendered flags:
+✅ **Cluster is up — all four nodes `Ready` 2026-08-07.** Only the 24 h etcd
+soak remains. `modules/system/k3s-cluster.nix` derives every node's role, node
+IP and zone from `networkConfig.hosts`.
 
-| Host | role | `--node-ip` | zone | joins |
-|---|---|---|---|---|
-| ionos | server | `100.64.0.1` | `public` | `--cluster-init` |
-| brink-server | server | `100.64.0.2` | `brink` | `https://100.64.0.1:6443` |
-| maxdata | server | `100.64.0.5` | `winkel` | `https://100.64.0.1:6443` |
-| winkel-pi | **agent** | `100.64.0.3` | `winkel` | `https://100.64.0.1:6443` |
+| Host | role | `--node-ip` | zone | joins | `flannel.1` |
+|---|---|---|---|---|---|
+| ionos | server | `100.64.0.1` | `public` | `--cluster-init` | **1230** ✅ |
+| brink-server | server | `100.64.0.2` | `brink` | `https://100.64.0.1:6443` | **1230** ✅ |
+| maxdata | server | `100.64.0.5` | `winkel` | `https://100.64.0.1:6443` | **1230** ✅ |
+| winkel-pi | **agent** | `100.64.0.3` | `winkel` | `https://100.64.0.1:6443` | **1230** ✅ |
+
+`INTERNAL-IP` is the overlay address on every node, not a LAN one — D3 holds in
+practice, not just on paper. Three etcd members across three L3 domains.
 
 ⚠️ **One parameterised module, not `k3s-server.nix` + `k3s-agent.nix`.** 6.2
 asked for a split by role *and*, in the same sentence, to "parameterise node
@@ -2161,11 +2167,24 @@ per-interface on the overlay interface only.
 
 ## 7.2 Exit criteria
 
-- [ ] 4 nodes `Ready` with correct zone labels
+- [x] **4 nodes `Ready` with correct zone labels** — `brink`, `public`,
+      `winkel`, `winkel` respectively; three servers with etcd, winkel-pi as the
+      sole agent
 - [ ] etcd stable for 24 h with no leader elections (`etcdctl endpoint status`,
-      k3s logs)
-- [ ] Cross-site pod-to-pod at full MTU — verified with a 1400-byte payload, not
-      just ping
+      k3s logs) — **soak started 2026-08-07 ~09:00**. `/healthz` returns `ok`
+      and all three members are `Ready`; the ~10 election lines in the journal
+      are the bootstrap leases, so the count to compare against is *this* one,
+      not zero
+- [x] **Cross-site pod-to-pod at full MTU** — pod on brink-server ↔ pod on
+      maxdata. Pod `eth0` MTU is **1230** end-to-end, ping 3/3 at **5.0–5.4 ms**
+      (matching Phase 2's p50 of 5.8 ms), and a **20 MB TCP transfer arrived
+      byte-exact at 20 971 520**.
+      ⚠️ **The bulk transfer is the test that matters, not the ping.** D3's
+      failure mode is TCP with DF stalling while ICMP sails through, so a
+      1400-byte ping "succeeding" proves only that fragmentation works — it
+      cannot detect the blackhole. Note also **busybox `ping` has no `-M do`**,
+      so the intended cliff test silently printed usage and exited 1; the pod
+      MTU plus a byte-exact bulk transfer replace it
 - [x] Only 22/80/443 open on ionos from outside — ✅ **7.1 done 2026-08-07**,
       verified by an external probe before *and* after, plus the host firewall
       now scoping the k3s ports to `tailscale0`. Re-check after the cluster is
