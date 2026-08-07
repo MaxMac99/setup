@@ -31,7 +31,7 @@ One session per phase. Read this section first, update it last.
 | 6 | maxdata microVMs out | ✅ done | 2026-08-06 | ⚠️ **The irreversible step is taken.** All three microVMs destroyed and `/var/lib/microvms` deleted — **67 G**, gone. sops decrypt of `k3s.yaml` under maxdata's **host** key re-proven on the box *immediately* before deletion (`cc44af01…`, exit 0), which was the one check whose failure could not be undone. Deployed `build → dry-activate → dead-man → test → verify → boot → reboot`; **dry-activate showed networkd would only be *reloaded*, never restarted**, so 6.5's bridge hazard never fired and `20-vmbr0.netdev` was left byte-identical on purpose. maxdata moved off the deprecated `dns.servers` onto `sites.winkel` — the last host at either site not using its own site resolver — and the whole single-site model was deleted with the microVMs. 6.2's k3s-server/k3s-agent refactor was **deliberately not done** (see 6.2); ARC **deliberately not raised** (6.3). One real defect found and fixed: **systemd-resolved never re-elects**, so maxdata silently answered from the FritzBox — bypassing blocking *and* split-horizon — on every boot; fixed and **verified across a cold boot** (see the decision log). **Phase 7 is now the next step** |
 | 7 | Fresh cluster | ✅ done | 2026-08-07 | **All 4 nodes `Ready`** over the overlay — `INTERNAL-IP` is the 100.64.0.x address on every one, so D3 holds in practice. Three etcd servers across three L3 domains plus winkel-pi as agent. **`flannel.1` came up at exactly 1230 on all four**, the predicted 1280−50. Cross-site pod-to-pod verified with a **byte-exact 20 MB TCP transfer**, not just ping. 7.1 closed and re-verified with the cluster live. Token rotated and the `K3S_TOKEN=` double-wrap removed. ⚠️ **24 h etcd soak WAIVED** (as 3.5 was) — closed on a snapshot instead: `/healthz` ok, 3 members `Ready`, exactly **1** election event. Baseline for later drift is 1, not 0. Storage/local-path deliberately deferred to Phase 8. **Phase 8 is now next** |
 | 8 | Storage and site affinity | 🚧 in progress | 2026-08-07 | **Code complete, foundation deployed.** MetalLB split into `brink-pool`/`winkel-pool` with zone-selected `L2Advertisement`s and **`autoAssign: false`** on both, so an unpinned service now sits visibly Pending instead of winning an address by allocation order. **local-path-provisioner deployed in Pulumi** (v0.0.37) with a per-node `nodePathMap` covering only maxdata and brink-server, and a **PVC bind proven end-to-end on maxdata**. Every LB IP pinned, every local-path workload pinned to a *node* rather than a site, MongoDB and in-cluster AdGuard deleted, Time Machine out of `default`. 8.2 extended beyond its table: **Authentik now survives the loss of maxdata** — CNPG scaled to 2 instances with zone anti-affinity, a dedicated Redis at Brink, pods and media on brink-server. ⚠️ Not sufficient alone: Brink has no ingress until Phase 9. Four traps found, all of which present as something else — see the decision log. Open: HA/Mosquitto data copy to Brink, the `tank/k8s/timemachine` 689 G move, UDM SE DHCP confirmation, and a PVC bind proven at Brink. `trustedInterfaces` **moved to Phase 12** (its consumers do not exist yet) |
-| 9 | Ingress and certificates | not started | | |
+| 9 | Ingress and certificates | 🚧 in progress | 2026-08-07 | **Internal ingress and certificates are done; public HTTPS is not.** Phase 8's carried-over criterion is closed: the internal Traefik now serves **both** sites from one chart — `traefik` on `192.168.178.240` and `traefik-brink` on `192.168.1.240`, `replicas: 2` spread `DoNotSchedule` over the zone label, one pod per site, verified running on maxdata **and** brink-server. ⚠️ **`externalTrafficPolicy: Local` is what makes that correct rather than merely redundant** — MetalLB announces a VIP only from a node with a local ready endpoint, so each site announces its own and nothing silently crosses the WAN. **D16 Stage A deployed**: nginx on ionos owns **`:80` only** and splits by `Host`, Headscale keeps `:443` untouched; `traefik-public` runs in-cluster with `hostNetwork` on ionos, **default-closed** (`ingressClassName: traefik-public` + an `ingress=public` CRD label selector), so it serves **only ACME solver Ingresses** and every other public name returns 404 **by design**. **Production Let's Encrypt certificates on all 7 hostnames** via HTTP-01, each verified with `curl` *without* `-k`. 9.3 closed — `:9000` is off both LoadBalancers and reachable only via a ClusterIP. Cert-expiry and public-ingress **alert rules** deployed and confirmed loaded in the running Prometheus (Phase 12 brought forward, because HTTP-01 renewal fails silently). ⚠️ **Open, and the reason this is not done: Stage B.** `:443` is still Headscale's, so **no public name serves HTTPS** and off-LAN access needs the mesh; real client IPs are therefore also unverified (PROXY protocol arrives with Stage B). Alert **delivery** is non-functional (12.x), and the Authentik OAuth2 apps for Grafana/Paperless still reference the destroyed instance. Two traps cost most of the session — see the decision log |
 | 10 | Workloads and bootstrap | not started | | |
 | 11 | Backups that exist | not started | | |
 | 12 | Monitoring | not started | | |
@@ -96,6 +96,11 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | **The Mac reaches brink-server directly from Winkel** | Phase 3's static routes work for unmodified clients as designed: `192.168.1.2:22` answers from a Winkel LAN address in ~9 ms, via winkel-pi as subnet router. ⚠️ This was nearly recorded as a blocker, because **maxdata cannot** SSH to brink-server — root has no `known_hosts` and the attempt fails with *Host key verification failed*, which looks like unreachability and is only missing trust. Check from the machine you are actually on before concluding a host is unreachable | Phase 8, 2026-08-07 |
 | **`trustedInterfaces = ["vmbr0"]` moved to Phase 12** | `hosts/nixos/maxdata/networking.nix` deferred this to Phase 8 on the grounds that Phase 8 "wires NFS up against a real consumer". It does not: Paperless, Time Machine and Prometheus are all deployed in Phases 10/12, so removing the blanket trust now would be untestable — the situation Phase 6 deferred it to avoid. Established meanwhile: **Samba is safe** (`smb.nix` sets `openFirewall` for Samba and Avahi independently), **the exporters are not** (`node` 9100 and `smartctl` 9116 have no `openFirewall`; `zfs-prometheus-exporter` 9134 does), and **k3s is already covered** (`k3s-cluster.nix:157-159` opens 6443 on `lanInterface` explicitly, written for exactly this). ⚠️ Unsettled: Prometheus scrapes from a *pod*, so packets reach `192.168.178.2:9100` via `cni0`/`flannel.1`, not `vmbr0` — meaning the blanket trust may never have been what made scraping work, and adding the ports to `allowedTCPPorts` may not be sufficient either. Measure it once Prometheus exists | Phase 8, 2026-08-07 |
 | **NFS exports need no widening** | Both exports stay `192.168.178.0/24`. Paperless and Time Machine are the only remaining consumers and both pin to maxdata, so the mount is node-local and the source address is `192.168.178.2`. Moving Home Assistant and Mosquitto to local-path removed the one case that would have needed the overlay in the export list — a Brink pod arrives from `100.64.0.2`. The Time Machine export path is unchanged by the dataset fix; only what is mounted there changes | Phase 8, 2026-08-07 |
+| **`pulumi --target` breaks this stack — use `--exclude`** | ⚠️ **Cost most of a session and presents as a Kubernetes fault.** A targeted operation makes the engine stop work on non-targeted resources and tear the provider connection down **while other Charts still have `helm template` invokes in flight**. Those die with `grpc: the client connection is closing`, and the Chart SDK's error path re-registers children — surfacing as **`Duplicate resource URN`**. With eleven client-side-rendered charts there is always something in flight. ⚠️ **It is a race, so it names a different object every run** — `ServiceAccount::traefik/traefik`, `IngressClass::traefik`, `ClusterRole::traefik-traefik`, `Service::traefik/traefik-brink`, a Traefik CRD — and sometimes succeeds outright, which is exactly why it read as a chart, CRD or cluster-version problem. Six theories were pursued and disproven first: delete/create ordering, engine concurrency (`--parallel 1` changes nothing), URN collision via `resourcePrefix`/`fullnameOverride`, two charts sharing `chart: "traefik"` (reproduced with `traefik-public` removed from the program entirely), TypeScript 7, and TTY vs non-TTY. **What isolated it was a plain `pulumi preview` passing while a targeted `pulumi up` failed** — the one variable never tested. `pulumi preview --target '**prometheus**'` then reproduced it 2 runs out of 2; `--exclude` was clean 2 out of 2 on the same tree. ⚠️ **`--exclude-dependents` is not the escape hatch either**: it silently swept Authentik into an exclusion aimed at unrelated apps and reported `309 unchanged`, leaving `authentik-server` and `authentik-worker` **absent from state** — which is how they came to need recreating at all | Phase 9, 2026-08-07 |
+| **`ts-node@10` cannot run `typescript@7`** | ⚠️ **An unattended Renovate major that surfaced three days later looking like a cluster fault.** `typescript@7` fails at ts-node startup with `TypeError: Cannot read properties of undefined (reading 'fileExists')` — *before* any of the Pulumi program evaluates, so the only symptom is that `pulumi` cannot load the stack at all, with nothing pointing at TypeScript. Pinned back to `^6` in `package.json`; Renovate must not take this major until ts-node supports it. Same class as the stale-kubeconfig trap: the error names the wrong layer | Phase 9, 2026-08-07 |
+| **Per-site VIPs require `externalTrafficPolicy: Local`** | One Traefik chart now emits two Services — `traefik` (`192.168.178.240`) and `traefik-brink` (`192.168.1.240`, via `additionalServices`) — backed by `replicas: 2` spread `DoNotSchedule` across `topology.kubernetes.io/zone`, so each site holds exactly one pod. ⚠️ **`Local` is a correctness requirement, not tuning**: MetalLB announces an address only from a node holding a *local* ready endpoint, so each VIP is announced only at its own site. Under `Cluster` both sites announce both, and Brink's traffic is silently forwarded across the WAN overlay to a Winkel pod — working, so nothing surfaces but latency. The paired hazard is that a site with **no** ready pod gets no announcement and no ingress at all, which is why the spread is `DoNotSchedule`: a Pending replica is visible, both-replicas-at-Winkel is not. ⚠️ `additionalServices.brink.single = true` is required — HTTP/3 puts a UDP port on `websecure`, and without it the chart emits a second `traefik-brink-udp` Service that asks `brink-pool` for its own address and sits Pending forever under `autoAssign: false` | Phase 9, 2026-08-07 |
+| **Forward auth must address the outpost's in-cluster Service** | ⚠️ The Traefik middleware pointed at `https://auth.mvissing.de/outpost.goauthentik.io/auth/traefik`, which hairpins out to the MetalLB VIP and back in. It fails **intermittently**, with `remote error: tls: internal error` — so it reads as a certificate problem. The correct address is `http://authentik-outpost.authentik.svc.cluster.local:9000/…`, per authentik's own documentation: plain HTTP inside the cluster, no VIP, no TLS. ⚠️ Related, and the reason the outpost needed rebuilding: in the authentik UI an outpost's **Integration must be `----` (none)**, *not* "Local Kubernetes Cluster". The latter makes authentik deploy its **own** competing outpost, outside Pulumi's knowledge and invisible to it | Phase 9, 2026-08-07 |
+| **Home Assistant's `http:` config lives in `.storage`, not YAML** | ⚠️ HA 2026.8 migrated `http` out of `configuration.yaml` into `/config/.storage/http`, and once `yaml_migration_done: true` is set the **YAML block is ignored permanently** — it stays in the file reading as authoritative while doing nothing. Configure at **Settings → System → Network** and nowhere else. ⚠️ Changes made there are a **5-minute trial** (`AUTO_REVERT_DELAY`, `config.py:81`): a pending config auto-reverts unless promoted, so a setting can appear applied, work, and then silently undo itself. ⚠️ `trusted_proxies` must contain **both `10.42.0.0/16` and `100.64.0.0/24`** — HA runs `hostNetwork`, so a request forwarded from a Traefik pod on another node arrives masqueraded to the **sending node's overlay address** (measured: maxdata arrived as `100.64.0.5`), never from the pod CIDR. The inert YAML block was deleted and replaced with a comment pointing at the store | Phase 9, 2026-08-07 |
 | ionos → home RTT (existing wg0) | ~13 ms | Phase 0, `ping` from ionos |
 | Winkel WAN IPv6 prefix | `2a00:6020:b481:e300::/56` — record only, never depend on it (D2) | FritzBox, 2026-08-05 |
 | UDM SE static routes | present and configurable — Phase 3 unblocked | UDM SE, 2026-08-05 |
@@ -212,16 +217,16 @@ Two things are deliberately *not* in the cluster:
 | **D4** | Tune etcd for WAN: `heartbeat-interval=500`, `election-timeout=5000` — **confirmed by measurement** | Three members across two consumer uplinks plus a VPS. Defaults (100 ms heartbeat / 1000 ms election) cause spurious leader elections. Phase 2 measured p99 6.8 ms on the direct path and 23–25 ms relayed via ionos, so these values sit 73× and 735× above p99, and 14× above the worst single echo seen in six hours. Adopted as measured rather than assumed. Phase 7's "etcd stable 24 h, no leader elections" gate is the empirical test. |
 | **D5** | One MetalLB L2 pool per site; every LB IP pinned | L2 mode requires a shared segment, which no longer holds. Today Traefik, `adguard-dns` and UniFi are unpinned and will drift on rebuild. UDM SE DHCP defaults to `.6–.254` and must be shrunk to free a pool. |
 | **D6** | No cross-site replicated storage | Longhorn/Ceph over consumer uplinks is a reliability trap. Every `local-path` PVC gets an explicit site pin. `databases/postgresql.ts:291` (`// can run on any k3s node since /mnt/k8s-fast is shared via virtiofs`) becomes false the moment maxdata is a real node. |
-| **D7** | hostNetwork Traefik on ionos | Today `iptables DNAT` + `MASQUERADE -o wg0` (`hosts/nixos/ionos/default.nix:63-77`) hides every public client IP from Traefik. |
-| **D8** | ~~cert-manager DNS-01 via IONOS webhook~~ → **keep HTTP-01. DNS-01 is dropped.** | **Revised 2026-08-07. Do not go looking for an IONOS DNS API token: there will not be one.** The original decision needed the community `cert-manager-webhook-ionos` plus an API key from the IONOS Developer portal, and that credential is declined. It is not a loss, because **D7 removes the reason D8 existed.** HTTP-01 fails today only because ionos's DNAT points at `192.168.178.10`, an address no pool contains any more; once D7 puts Traefik on ionos itself — real public IPv4/IPv6, 22/80/443 already permitted in the IONOS Cloud firewall (Phase 3) — port 80 reaches a live Traefik and HTTP-01 validates for every name. Phase 4 established the **public zone already wildcards onto ionos**, so every `*.mvissing.de` name resolves publicly to the validating host. The wildcard was only ever a volume optimisation, and ~10 hostnames sits far inside Let's Encrypt's 50-certs-per-week-per-registered-domain limit. Net effect: Phase 9 loses a chart, a secret and a moving part. ⚠️ **Two things this makes load-bearing.** First, the ACME solver Ingress must be served by the **ionos** Traefik — cert-manager creates a temporary Ingress per challenge, and if a site-local Traefik claims it the challenge is unreachable from the internet, so the solver needs an explicit `ingressClass` rather than the default. Second, renewal now depends on **:80 reachability** rather than a DNS record, so anything that breaks public ingress silently breaks renewal ~30 days later. If a wildcard is ever genuinely wanted without an IONOS credential, the fallbacks are `acme-dns` (one hand-made CNAME per name in the IONOS web UI, then a small DNS server on ionos) or moving the zone's nameservers to a free API-capable provider such as deSEC — neither is needed for Phase 9. Note `CLAUDE.md:51` claims DNS-01 and is simply wrong; the code is and stays HTTP-01 (`infrastructure/cert-manager.ts:72-80`). |
+| **D7** | hostNetwork Traefik on ionos | Today `iptables DNAT` + `MASQUERADE -o wg0` (`hosts/nixos/ionos/default.nix:63-77`) hides every public client IP from Traefik. ⚠️ **Half-delivered as of 2026-08-07.** The pod exists — `traefik-public` runs with `hostNetwork` on ionos and the DNAT rules are gone — but **the client-IP half is not delivered**, because D16 Stage A has nginx proxying `:80` in front of it without PROXY protocol, and `:443` never reaches it at all. So the criterion "real client IPs in Traefik logs" belongs to **Stage B**, not to the pod's existence. Do not tick it off the deployment. ⚠️ Note this is `hostNetwork` **without a Service** — the chart is asked for no LoadBalancer, since ionos has no L2 segment for MetalLB to ARP on. Its metrics moved to **9101**: node-exporter already owns 9100 on the host network, and on `hostNetwork` that is a real collision rather than a namespaced one. |
+| **D8** | ~~cert-manager DNS-01 via IONOS webhook~~ → **keep HTTP-01. DNS-01 is dropped.** | **Revised 2026-08-07. Do not go looking for an IONOS DNS API token: there will not be one.** The original decision needed the community `cert-manager-webhook-ionos` plus an API key from the IONOS Developer portal, and that credential is declined. It is not a loss, because **D7 removes the reason D8 existed.** HTTP-01 fails today only because ionos's DNAT points at `192.168.178.10`, an address no pool contains any more; once D7 puts Traefik on ionos itself — real public IPv4/IPv6, 22/80/443 already permitted in the IONOS Cloud firewall (Phase 3) — port 80 reaches a live Traefik and HTTP-01 validates for every name. Phase 4 established the **public zone already wildcards onto ionos**, so every `*.mvissing.de` name resolves publicly to the validating host. The wildcard was only ever a volume optimisation, and ~10 hostnames sits far inside Let's Encrypt's 50-certs-per-week-per-registered-domain limit. Net effect: Phase 9 loses a chart, a secret and a moving part. ⚠️ **Two things this makes load-bearing.** First, the ACME solver Ingress must be served by the **ionos** Traefik — cert-manager creates a temporary Ingress per challenge, and if a site-local Traefik claims it the challenge is unreachable from the internet, so the solver needs an explicit `ingressClass` rather than the default. Second, renewal now depends on **:80 reachability** rather than a DNS record, so anything that breaks public ingress silently breaks renewal ~30 days later. If a wildcard is ever genuinely wanted without an IONOS credential, the fallbacks are `acme-dns` (one hand-made CNAME per name in the IONOS web UI, then a small DNS server on ionos) or moving the zone's nameservers to a free API-capable provider such as deSEC — neither is needed for Phase 9. ~~Note `CLAUDE.md:51` claims DNS-01 and is simply wrong~~ — corrected 2026-08-07; that repo's `CLAUDE.md` now documents HTTP-01, the production issuer and the solver's `ingressClassName`. ✅ **Closed the same day**: `activeClusterIssuer = "letsencrypt-prod"` and all seven hostnames hold production certificates, issued through D16 Stage A. |
 | **D9** | AdGuard native on brink-server + pi | Per above. Overlay DNS layered on top for node names. Split-horizon for `*.mvissing.de`. |
 | **D10** | Pi lives at Winkel | Brink already has an always-on x86 node. Winkel's only machine is the unattended one — with the pi there, a `nixos-rebuild` on maxdata does not simultaneously kill Winkel's DNS, subnet router and your only route in. Cost: Brink becomes single-node for site infra. |
 | **D11** | sops-nix is the single mechanism for infrastructure secrets. 1Password holds human and family credentials, and is the SSH agent — it is deliberately *outside* the secret path | **Revised 2026-08-05.** Originally "1Password is the vault; sops-nix stays the on-host delivery." The offline rule that motivated the split — *if a host needs a secret before the network is up, it must decrypt offline* — turned out to exclude every boot-critical secret from 1Password anyway, leaving one laptop token as the sole candidate for opnix. That does not justify a flake input, a service account and a token file per host. sops-nix already does this offline, in git, with per-host scoping. See Phase 2b.1 for the full reasoning, including why host age identities can never live in the vault. |
 | **D12** | The pi is built with `nixos-raspberrypi.lib.nixosSystem`, and so tracks *that* flake's nixpkgs rather than the fleet's | **Added 2026-08-06.** The pi's configuration did not evaluate at all: nixos-raspberrypi's kernel overlay and nixpkgs' own `hardware/device-tree.nix` are version-coupled, and building the host from our nixpkgs while injecting their overlays fails with `attribute 'buildDTBs' missing`. Updating the input does not help — latest `main` fails identically. Their `lib.nixosSystem` is the documented drop-in that defaults to the matching nixpkgs. Consequence: the pi runs NixOS 26.05 while the fleet runs 26.11, and `nix flake update nixpkgs` does not move it — only the `nixos-raspberrypi` input does. `lib` must travel with it, because it passes through `specialArgs` where it overrides the module system's own and a foreign `lib` recurses through `_module.args`. See `flake.nix` `rpiHosts`. |
 | **D13** | brink-server's single ZFS pool is named **`main`**, uses **native mountpoints** (`-o zfsutil`) rather than `mountpoint=legacy`, and compresses with **zstd** | **Added 2026-08-06, revised the same day during the install.** The first draft named the pool `fast` to match maxdata, arguing it made `/fast/k8s/local-path-provisioner` mean the same thing on both k3s servers. That argument was too strong — local-path's `nodePathMap` is per-node, so the paths never had to match — and `fast` only earns its name on maxdata by contrast with `tank`. On a single-pool box it says nothing, so `main`. **The mountpoint half matters more.** `mountpoint=legacy` makes NixOS the only thing able to mount a dataset, so every dataset created later needs a matching `fileSystems` entry or it silently never mounts — which is exactly how maxdata acquired the SMB datasets that Phase 0.1 found "appear nowhere in `hardware-configuration.nix`". Native mountpoints make `zfs list` authoritative and reduce relocating a dataset to `zfs set mountpoint=`, with no rebuild. Cost: NixOS must mount with `-o zfsutil`, because plain `mount -t zfs` refuses any dataset whose mountpoint is not `legacy`. Only boot-critical datasets are declared; data datasets are left to `zfs-mount.service` on purpose. Compression: zstd gives materially better ratios at negligible CPU cost on a 10th-gen i5, and one unmirrored disk makes capacity worth more than the last few percent of throughput. Replication is unaffected — compression is per-dataset and re-applied on receive. |
 | **D14** | brink-server uses **systemd-networkd**, not scripted networking | **Added 2026-08-06.** On a scripted-networking host `nixos-rebuild test`/`switch` stops `dhcpcd` — deleting every address and route — without starting `network-setup.service`, leaving the interface bare. That cost two recoveries on the pi (6.5), once as total silence and once, worse, as an applied address with **no default route**: LAN-reachable and apparently healthy while every outbound connection failed. brink-server is Brink's subnet router and primary DNS; it is precisely the host that must not be losable to a routine rebuild. networkd also handles RAs itself, so it needs no `accept_ra=2` sysctl to keep IPv6 once Phase 3 turns on forwarding. |
-| **D15** | Roaming clients resolve through a **third AdGuard on ionos**, overlay-only and with **no split-horizon rewrites** | **Added 2026-08-07.** Measured first: a host on the overlay at neither site has **no ad-blocking and no split-horizon at all**. Verified from ionos — `192.168.1.2:53` unreachable (clients run `--accept-routes=false` per 3.6.1, so they never install the subnet route) and `100.64.0.2:53` unreachable (AdGuard deliberately does *not* bind the overlay address, because it starts before `tailscale0` exists and would crash-loop). ionos resolved via `212.227.123.16`, its provider's DNS. **Why a third instance rather than pushing a site resolver:** tailnet DNS is global, but the two site AdGuards answer *differently by design* — brink rewrites `*.mvissing.de` → `192.168.1.240`, winkel → `192.168.178.240`. Pointing the tailnet at one of them gives every roaming *and* on-site client the wrong site's ingress VIP. **Why no rewrites on ionos:** a client that is on neither LAN *should* resolve `paperless.mvissing.de` to the public ingress, which is what public DNS already returns — so the correct roaming view is simply "blocking, no rewrites". ⚠️ **`bind_hosts = ["0.0.0.0"]` is safe here and only here**: nothing holds `:53` on ionos and `systemd-resolved` is `not-found`, so there is no stub-resolver collision — unlike brink-server, where that forced the explicit LAN bind. This also removes any ordering dependency on `tailscale0`, which gets its address ~6 s *after* `network-online.target`. ⚠️ **The load-bearing half is the firewall, not the bind**: `site-dns.nix` opens 53 **globally**, and copying that to a publicly-reachable VPS creates an open resolver. 53 must be scoped to `tailscale0` alone, exactly as 7.1 scoped the k3s ports | Phase 8 planning, 2026-08-07 |
-| **D16** | ionos's `80`/`443` are owned by a **native SNI router**, not by Traefik or Headscale directly | **Added 2026-08-07.** Found while answering "how do I reach services without the overlay": public DNS already wildcards `*.mvissing.de` → `212.132.82.102`, but **Headscale currently holds both 80 and 443 on ionos** (80 for its own ACME HTTP-01), and the old DNAT to the dead `192.168.178.10` is gone. So 9.1's `hostNetwork` Traefik has a port conflict the phase never mentions. Resolution: a native `nginx stream` + `ssl_preread` owns 80/443 and routes by SNI — `headscale.mvissing.de` to local Headscale, everything else to in-cluster Traefik. **TCP passthrough, not termination**, so Headscale keeps its own ACME, Traefik keeps the cert-manager wildcard, and every `IngressRoute` stays in Pulumi. Real client IPs survive via **PROXY protocol** into a Traefik entrypoint, which is what D7 wanted from hostNetwork anyway. ⚠️ **Port 80 needs a `Host` rule, not SNI** — plaintext HTTP has no SNI — so nginx needs an `http` block for 80 beside the `stream` block for 443. **Why not simply put Headscale behind Traefik**, which is simpler and gives cleaner URLs: it would make the overlay control plane depend on the thing it bootstraps, which the Layering rule forbids by name. The failure is narrow but real — a broken cluster plus a node reboot leaves that node unable to rejoin the overlay and therefore the cluster. Winkel has an independent way in (the FritzBox WireGuard); **Brink has none**. Rejected for that asymmetry, not for elegance | Phase 8 planning, 2026-08-07 |
+| **D15** | Roaming clients resolve through a **third AdGuard on ionos**, overlay-only and with **no split-horizon rewrites** | **Added 2026-08-07.** Measured first: a host on the overlay at neither site has **no ad-blocking and no split-horizon at all**. Verified from ionos — `192.168.1.2:53` unreachable (clients run `--accept-routes=false` per 3.6.1, so they never install the subnet route) and `100.64.0.2:53` unreachable (AdGuard deliberately does *not* bind the overlay address, because it starts before `tailscale0` exists and would crash-loop). ionos resolved via `212.227.123.16`, its provider's DNS. **Why a third instance rather than pushing a site resolver:** tailnet DNS is global, but the two site AdGuards answer *differently by design* — brink rewrites `*.mvissing.de` → `192.168.1.240`, winkel → `192.168.178.240`. Pointing the tailnet at one of them gives every roaming *and* on-site client the wrong site's ingress VIP. **Why no rewrites on ionos:** a client that is on neither LAN *should* resolve `paperless.mvissing.de` to the public ingress, which is what public DNS already returns — so the correct roaming view is simply "blocking, no rewrites". ⚠️ **`bind_hosts = ["0.0.0.0"]` is safe here and only here**: nothing holds `:53` on ionos and `systemd-resolved` is `not-found`, so there is no stub-resolver collision — unlike brink-server, where that forced the explicit LAN bind. This also removes any ordering dependency on `tailscale0`, which gets its address ~6 s *after* `network-online.target`. ⚠️ **The load-bearing half is the firewall, not the bind**: `site-dns.nix` opens 53 **globally**, and copying that to a publicly-reachable VPS creates an open resolver. 53 must be scoped to `tailscale0` alone, exactly as 7.1 scoped the k3s ports. *(Phase 8 planning, 2026-08-07.)* |
+| **D16** | ionos's `80`/`443` are owned by a **native SNI router**, not by Traefik or Headscale directly | **Added 2026-08-07.** Found while answering "how do I reach services without the overlay": public DNS already wildcards `*.mvissing.de` → `212.132.82.102`, but **Headscale currently holds both 80 and 443 on ionos** (80 for its own ACME HTTP-01), and the old DNAT to the dead `192.168.178.10` is gone. So 9.1's `hostNetwork` Traefik has a port conflict the phase never mentions. Resolution: a native `nginx stream` + `ssl_preread` owns 80/443 and routes by SNI — `headscale.mvissing.de` to local Headscale, everything else to in-cluster Traefik. **TCP passthrough, not termination**, so Headscale keeps its own ACME, Traefik keeps the cert-manager wildcard, and every `IngressRoute` stays in Pulumi. Real client IPs survive via **PROXY protocol** into a Traefik entrypoint, which is what D7 wanted from hostNetwork anyway. ⚠️ **Port 80 needs a `Host` rule, not SNI** — plaintext HTTP has no SNI — so nginx needs an `http` block for 80 beside the `stream` block for 443. **Why not simply put Headscale behind Traefik**, which is simpler and gives cleaner URLs: it would make the overlay control plane depend on the thing it bootstraps, which the Layering rule forbids by name. The failure is narrow but real — a broken cluster plus a node reboot leaves that node unable to rejoin the overlay and therefore the cluster. Winkel has an independent way in (the FritzBox WireGuard); **Brink has none**. Rejected for that asymmetry, not for elegance. ⚠️ **Revised 2026-08-07 — split into two stages, and only Stage A is deployed.** **Stage A (done):** `hosts/nixos/ionos/public-ingress.nix` runs an nginx **`http` block on `:80` only**, matching on `Host` — `headscale.mvissing.de` → `127.0.0.1:8081`, everything else → `traefik-public` on `:8000`. Headscale keeps `*:443` untouched, so the port conflict is **deferred, not resolved**. That is enough for **HTTP-01**, which is all D8 needs, and it made production certificates issuable the same day without restarting the overlay control plane. **Stage B (not done):** the `stream` + `ssl_preread` half on `:443` plus PROXY protocol into a Traefik entrypoint. Until it lands there is **no public HTTPS whatsoever** — measured: `openssl s_client -connect 212.132.82.102:443 -servername home.mvissing.de` is answered with Headscale's own `CN=headscale.mvissing.de`, and a plain `curl https://` to that address fails to connect at all. Off-LAN access needs a mesh client. ⚠️ **The staging is deliberate: Stage B is the risky half and Stage A is not.** Taking `:443` means restarting the thing every node depends on to reach the cluster, and mis-trusting PROXY protocol silently reports nginx's address as every client's IP — the precise symptom D7 exists to remove, and indistinguishable from the DNAT problem it replaced. ⚠️ **Two corrections to the text above.** "Traefik keeps the cert-manager **wildcard**" is void: D8 was revised the same day to per-hostname certificates, so there is no wildcard. And the public-side Traefik is **not** a native process beside nginx — it is an in-cluster pod with `hostNetwork` on ionos (`infrastructure/traefik-public.ts`), **default-closed** via `ingressClassName: traefik-public` and an `ingress=public` CRD label selector. Consequence worth knowing before debugging: a public `:80` request for any name except Headscale's returns **404 by design**, because the only Ingresses that class ever admits are cert-manager's own solvers. *(Phase 8 planning, 2026-08-07; staged and Stage A deployed Phase 9, 2026-08-07.)* |
 
 ---
 
@@ -241,7 +246,7 @@ Two things are deliberately *not* in the cluster:
 | 6 | **maxdata: microVMs out** | ⚠️ **irreversible — taken 2026-08-06** | ✅ maxdata reachable, ZFS intact, 18 GB RAM reclaimed (ARC deliberately not raised) |
 | 7 | Fresh cluster | ✅ done 2026-08-07 | ✅ 4 nodes Ready, full-MTU cross-site verified; 24 h etcd soak waived |
 | 8 | Storage and site affinity | 🚧 in progress 2026-08-07 | every PVC pinned, every LB IP pinned — **plus** a provisioner that can serve them, and Authentik off maxdata |
-| 9 | Ingress and certificates | — | wildcard issued, real client IPs in logs |
+| 9 | Ingress and certificates | 🚧 in progress 2026-08-07 | ~~wildcard issued~~ → per-hostname production certs (D8 revised), **both sites serving their own VIP**, public HTTPS, real client IPs in logs |
 | 10 | Workloads and bootstrap | — | all apps up, HA re-commissioned, UniFi re-adopted |
 | 11 | Backups that actually exist | — | restore tested from a real backup |
 | 12 | Monitoring | — | dead-man's switch fires on simulated outage |
@@ -2340,7 +2345,38 @@ remaining code deploys with its workloads in Phase 10, after the restores.
 
 # Phase 9 — Ingress and certificates
 
-## 9.1 Traefik on ionos
+## 9.1 Traefik on ionos — Stage A done, Stage B outstanding
+
+> **Built 2026-08-07.** `hosts/nixos/ionos/public-ingress.nix` (new) runs nginx
+> on **`:80` only**, splitting by `Host`: `headscale.mvissing.de` →
+> `127.0.0.1:8081`, everything else → `traefik-public` on `:8000`. Headscale
+> keeps `*:443`. `infrastructure/traefik-public.ts` (new, Pulumi) runs Traefik
+> with `hostNetwork` on ionos — `zone=public` selector plus a toleration for the
+> `edge=true:NoSchedule` taint, **no Service**, metrics on **9101** because
+> node-exporter owns 9100 on the host network, and `skipCRDRendering: true` so
+> it does not re-declare the CRDs the internal chart owns.
+>
+> Verified live: nginx owns `0.0.0.0:80` and `[::]:80`; headscale owns `*:443`
+> and `127.0.0.1:8081`; traefik-public owns `*:8000`; all units active, 4 nodes
+> `Ready`. From off-net, `headscale.mvissing.de:80` → 302 and
+> `grafana.mvissing.de:80` → 404 — the 404 is **correct**, see below.
+>
+> ⚠️ **`traefik-public` is default-closed and that is the point.**
+> `ingressClassName: traefik-public` plus an `ingress=public` CRD label selector
+> mean nothing is published on the internet by accident. Today the only
+> Ingresses it ever admits are **cert-manager's ACME solvers**, so every other
+> public name returns 404 by design. Publishing an app there is an explicit act,
+> not a side effect of creating an `IngressRoute`.
+>
+> ⚠️ **Stage B — `:443` — is not done, and two exit criteria depend on it.**
+> There is no public HTTPS at all: `openssl s_client -servername
+> home.mvissing.de` against `212.132.82.102:443` returns Headscale's own
+> `CN=headscale.mvissing.de`, and `curl https://` to that address does not
+> connect. Off-LAN access needs a mesh client until this lands. Real client IPs
+> are unverified for the same reason — they arrive with PROXY protocol, which is
+> Stage B.
+
+The original plan follows.
 
 Replace ionos's DNAT block (`hosts/nixos/ionos/default.nix:57-90`) with a
 `hostNetwork` Traefik pinned to ionos, terminating TLS there. This preserves real
@@ -2385,7 +2421,48 @@ hostname reaches ionos today and is answered by Headscale, which serves only its
 own API. Ingress is not "unconfigured", it is **shadowed** — the names resolve
 and the TLS handshake succeeds against the wrong service.
 
-## 9.2 cert-manager — stay on HTTP-01
+## 9.1b Internal ingress at both sites ✅ done 2026-08-07
+
+Carried over from Phase 8, and the criterion that made Phase 8's
+"Authentik survives maxdata" work actually deliver. One chart
+(`infrastructure/traefik.ts`) now emits **two** LoadBalancer Services:
+
+| Service | Address | Site |
+|---|---|---|
+| `traefik` | `192.168.178.240` | Winkel |
+| `traefik-brink` | `192.168.1.240` (via `additionalServices`) | Brink |
+
+Backed by `replicas: 2` with a **`DoNotSchedule`** topology spread over
+`topology.kubernetes.io/zone` — verified one pod on `maxdata`, one on
+`brink-server`. See the decision log for why `externalTrafficPolicy: Local` is a
+correctness requirement rather than tuning, and why `single: true` is needed on
+the Brink Service.
+
+Before this, both sites' AdGuard rewrote `*.mvissing.de` to their own
+`ingressVIP` while only Winkel's answered, so **every hostname at Brink resolved
+to a dead address** — including Authentik and Home Assistant, which were already
+running on brink-server.
+
+## 9.2 cert-manager — stay on HTTP-01 ✅ done 2026-08-07
+
+> **Production certificates issued on all seven hostnames** — home, auth,
+> grafana, ntfy, prometheus, traefik, homepage — with `activeClusterIssuer =
+> "letsencrypt-prod"`. Each verified with `curl` **without `-k`**
+> (`ssl_verify=0`, `Verify return code: 0 (ok)`), not merely by reading
+> `Certificate ... Ready`. Both solvers set `ingressClassName:
+> publicIngressClass`, which is what routes the challenge to ionos.
+>
+> ⚠️ **Nothing was restored from Phase 1.** The block below says to restore
+> `cert-secrets.yaml` before creating any Ingress; the certificates were issued
+> fresh instead, and the rate-limit concern it guards against did not
+> materialise at seven names. Staging was used first, as instructed.
+>
+> ⚠️ **The renewal fragility is now real, not theoretical**, which is why the
+> `CertificateExpiringSoon` alert was written the same day (12.x, brought
+> forward): renewal depends on public `:80`, so anything that breaks
+> `public-ingress.nix` or `traefik-public` breaks renewal **~30 days later**,
+> long after the change that caused it, and with nothing visibly wrong
+> meanwhile.
 
 ⚠️ **This section used to say "switch to DNS-01 via the community
 `cert-manager-webhook-ionos`". D8 was revised on 2026-08-07 and that is no
@@ -2417,29 +2494,70 @@ kubectl apply -f ~/backup/cert-secrets.yaml
 cmctl status certificate <name>
 ```
 
-## 9.3 Fix the exposed Traefik API
+## 9.3 Fix the exposed Traefik API ✅ done 2026-08-07
 
-`infrastructure/traefik.ts:57` sets `api.insecure: true` and `:78` sets
-`expose.default: true` on entrypoint `traefik` (port 9000). The unauthenticated
-Traefik API is therefore reachable on the LoadBalancer IP at `:9000`, bypassing
-the Authentik-protected `traefik.mvissing.de` route entirely. Either drop
-`api.insecure` or stop exposing 9000 in the Service.
+`infrastructure/traefik.ts` set `api.insecure: true` **and** `expose.default:
+true` on entrypoint `traefik` (port 9000), putting the unauthenticated Traefik
+API on the LoadBalancer address — readable by anyone on either LAN, and
+bypassing the Authentik-protected `traefik.mvissing.de` route entirely. Anyone
+on the network could read the full routing table and every service's internal
+address without logging in.
+
+**Resolved by the second option, not the first.** `expose.default` is now
+`false`, so 9000 is absent from both LoadBalancer Services; the port stays open
+on the pod and is reached only through a **ClusterIP** Service (`traefik-api`),
+which is what the Homepage widget uses. Verified on the live cluster:
+
+```
+traefik         LoadBalancer   192.168.178.240   80,443,443
+traefik-brink   LoadBalancer   192.168.1.240     80,443,443
+traefik-api     ClusterIP      <none>            9000
+```
+
+⚠️ **`api.insecure: true` is still set, deliberately.** The API is
+unauthenticated, so this is safe only for as long as nothing exposes 9000
+outside the cluster. Anything that re-adds `traefik` to a Service's `expose`
+map — including `expose.brink` — silently reopens it, on the *other* site's VIP
+this time. Note also that `ports.<name>.expose` is keyed by **Service name**,
+not a boolean, so `expose: true` is not the shape to check for.
 
 ## 9.4 Exit criteria
 
-- [ ] ~~Wildcard `*.mvissing.de` issued~~ → **per-hostname certificates issued
+- [x] ~~Wildcard `*.mvissing.de` issued~~ → **per-hostname certificates issued
       from production Let's Encrypt via HTTP-01** (D8 revised — no wildcard, no
-      DNS-01, no IONOS credential)
-- [ ] Real client IPs visible in Traefik access logs
-- [ ] `:9000` no longer reachable from the LAN
-- [ ] All hostnames resolve and serve valid TLS from both sites and off-net
-- [ ] **Brink has a working ingress on `192.168.1.240`** — carried over from
-      Phase 8. Both sites' AdGuard already rewrite `*.mvissing.de` to their own
-      `ingressVIP`, so Brink resolves every hostname to an address nothing
-      serves. Until this is closed, Phase 8's Authentik-survives-maxdata work
-      does not actually deliver: a Brink client still cannot reach Home
-      Assistant or Authentik by name while maxdata is down, even though both
-      are running on brink-server
+      DNS-01, no IONOS credential). ✅ All 7 names, each verified with `curl`
+      without `-k`
+- [x] **Brink has a working ingress on `192.168.1.240`** — carried over from
+      Phase 8. ✅ `traefik-brink` serves it, one pod per site. Until this was
+      closed, Phase 8's Authentik-survives-maxdata work did not actually
+      deliver: a Brink client could not reach Home Assistant or Authentik by
+      name while maxdata was down, even though both were running on
+      brink-server
+- [x] `:9000` no longer reachable from the LAN — ✅ 9.3, ClusterIP only
+- [x] All hostnames resolve and serve valid TLS **from both sites** — ✅ each
+      site's AdGuard rewrite now lands on a VIP that answers
+- [ ] ⚠️ **The same, off-net** — **blocked on D16 Stage B.** `:443` is
+      Headscale's, so no public name serves HTTPS; off-LAN access needs a mesh
+      client. Split out from the line above because the on-LAN half is done and
+      the off-net half has not started
+- [ ] Real client IPs visible in Traefik access logs — **blocked on Stage B**
+      (PROXY protocol). Not delivered by `traefik-public` merely existing; see
+      D7. ⚠️ Verify against a real external client, never from ionos itself
+- [ ] **D16 Stage B**: `nginx stream` + `ssl_preread` takes `:443`, Headscale
+      moves behind it by SNI, PROXY protocol into a trusted Traefik entrypoint
+
+Brought forward from Phase 12, because HTTP-01 renewal fails silently and ~30
+days late:
+
+- [x] `CertificateExpiringSoon` (<21 d), `CertificateNotReady` (1 h) and
+      `PublicIngressDown` (15 m) — ✅ deployed and confirmed **loaded in the
+      running Prometheus**, not merely present in the ConfigMap
+- [ ] ⚠️ **Alert delivery does not work**, so the rules above currently reach
+      nobody: Alertmanager still runs the chart's stub `default-receiver` with
+      no destination, and ntfy has `auth-default-access: deny-all` with **no
+      users at all**. Needs an ntfy user plus an `ntfy access` Job in the
+      `mosquitto.ts` pattern, and an Alertmanager `webhook_config` with basic
+      auth. Belongs to Phase 12, but the rules are worthless until it is done
 
 ---
 
@@ -2525,6 +2643,19 @@ Add:
 ---
 
 # Phase 12 — Monitoring
+
+> ⚠️ **Partly started early, in Phase 9 — and it exposed the real gap.** Three
+> alert *rules* are deployed and confirmed loaded in the running Prometheus
+> (`CertificateExpiringSoon`, `CertificateNotReady`, `PublicIngressDown`),
+> because HTTP-01 renewal now fails silently and ~30 days after the change that
+> breaks it. **They reach nobody.** Alertmanager runs the chart's stub
+> `default-receiver` with no destination, and ntfy has `auth-default-access:
+> deny-all` with **no users at all** — only anonymous `*`. So "per-site alert
+> routing via ntfy" below is not a refinement of a working path; **there is no
+> path**. Needs an ntfy user plus an `ntfy access` Job in the `mosquitto.ts`
+> pattern, and an Alertmanager `webhook_config` with basic auth. Do this before
+> writing more rules — rules without delivery are worse than no rules, because
+> they look like coverage.
 
 - Node, ZFS and smartctl exporters on all four hosts (maxdata already has all
   three: 9100, 9134, 9116 — `hosts/nixos/maxdata/monitoring.nix:107-126`).
@@ -2634,6 +2765,31 @@ Add:
   back — functional, but it discards Phase 4's split-horizon. iOS Tailscale's
   on-demand rules can disconnect on the home SSIDs, which keeps both
   behaviours correct; the Mac is unaffected since it only joins when away.
+- **Off-LAN access to services — no path today.** *(Opened 2026-08-07.)* D16
+  Stage A gave ionos `:80` for ACME only; `:443` is still Headscale's, so
+  **every `*.mvissing.de` name is unreachable from outside both LANs** unless
+  the client is on the mesh. Two ways out, and they are not exclusive: enrol the
+  phone as a mesh client (immediate, no cluster change, and the same enrolment
+  the roaming-DNS item above needs), or build **Stage B** (public HTTPS for
+  everyone, at the cost of moving Headscale behind an SNI router). ⚠️ Doing
+  Stage B *first* is the riskier order — it restarts the overlay control plane,
+  and a mesh client on the phone is the fallback you would want already in place
+  when that goes wrong.
+- **Authentik OAuth2 applications must be recreated by hand.** *(Opened
+  2026-08-07.)* The Phase 7 rebuild destroyed the old Authentik, but
+  `Pulumi.default.yaml` still holds `grafana-oauth-client-id`,
+  `paperless-authentik-client-id` and `-secret` from the **destroyed** instance.
+  They are syntactically valid and completely dead, so Grafana and Paperless
+  will fail to authenticate in a way that looks like a misconfiguration rather
+  than a stale credential. UI work only you can do; also on the list are the
+  initial-setup flow and renaming `akadmin`. Forward auth itself is unaffected —
+  that is the outpost, which is working.
+- **ionos memory headroom.** *(Opened 2026-08-07.)* 1851 MB RAM with
+  `k3s-server` at ~792 MB, no swap, and `zramSwap` deliberately disabled — which
+  is why it cannot run `nixos-rebuild` locally and everything is built on
+  maxdata and activated remotely (`--target-host max@100.64.0.1
+  --elevate=sudo`; note `--use-remote-sudo` is deprecated). Now that it also
+  runs nginx and a Traefik pod, revisit whether `zramSwap` is worth enabling.
 - **Resolve Pulumi's secrets provider.** *(From Phase 2b work item 4, parked
   here 2026-08-06 — real, but not boot-critical and not a migration blocker.)*
   `Pulumi.default.yaml` has `encryptionsalt` and 16 `secure:` entries, so
