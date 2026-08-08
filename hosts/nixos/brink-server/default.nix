@@ -121,6 +121,39 @@ in {
       # modules/system/site-dns.nix, which merges into these lists rather than
       # replacing them. Phase 7 adds k3s.
       allowedTCPPorts = [22];
+
+      # ⚠️ Trusting the LAN interface is a requirement of Music Assistant, not
+      # a convenience — and it is a deliberate widening, so read this before
+      # removing it.
+      #
+      # Music Assistant streams audio to players from its own HTTP server, so
+      # the *players* connect inbound to this host. AirPlay, Chromecast, DLNA
+      # and Sonos additionally open **random** TCP and UDP ports in both
+      # directions, which is why upstream states that running it behind a
+      # restrictive firewall is unsupported: there is no port list that would
+      # be correct. Opening only 8095/8097 would appear to work and then fail
+      # intermittently on whichever protocol negotiated a random port —
+      # presenting as a broken speaker rather than as a firewall.
+      #
+      # Scoped to `eno1`, so this is the Brink LAN only. The WAN side is behind
+      # the UDM SE and unaffected, and `tailscale0` keeps its own explicit
+      # rules.
+      #
+      # ⚠️ What this newly exposes to the Brink LAN, measured rather than
+      # assumed: kubelet `10250` (authenticated, client-cert required),
+      # node-exporter and MetalLB metrics `9100/9140/9141/7472`, rpcbind `111`,
+      # two NodePorts, matter-server `5580`, and Home Assistant `8123`.
+      # ⚠️ It does **not** expose etcd: `2379`/`2380` bind only to `127.0.0.1`
+      # and the overlay address `100.64.0.2`, never to `192.168.1.2`, so no
+      # packet arriving on `eno1` can reach them. That was checked on the box
+      # before this was written, because it was the one thing that would have
+      # made this unacceptable.
+      #
+      # ⚠️ Tension worth knowing: Phase 12 has an open item to *remove*
+      # maxdata's equivalent blanket trust (`trustedInterfaces = ["vmbr0"]`).
+      # This adds a second one. If that cleanup happens, this host needs a
+      # different answer for Music Assistant, not simply the same deletion.
+      trustedInterfaces = ["eno1"];
     };
   };
 
