@@ -31,8 +31,8 @@ One session per phase. Read this section first, update it last.
 | 6 | maxdata microVMs out | ✅ done | 2026-08-06 | ⚠️ **The irreversible step is taken.** All three microVMs destroyed and `/var/lib/microvms` deleted — **67 G**, gone. sops decrypt of `k3s.yaml` under maxdata's **host** key re-proven on the box *immediately* before deletion (`cc44af01…`, exit 0), which was the one check whose failure could not be undone. Deployed `build → dry-activate → dead-man → test → verify → boot → reboot`; **dry-activate showed networkd would only be *reloaded*, never restarted**, so 6.5's bridge hazard never fired and `20-vmbr0.netdev` was left byte-identical on purpose. maxdata moved off the deprecated `dns.servers` onto `sites.winkel` — the last host at either site not using its own site resolver — and the whole single-site model was deleted with the microVMs. 6.2's k3s-server/k3s-agent refactor was **deliberately not done** (see 6.2); ARC **deliberately not raised** (6.3). One real defect found and fixed: **systemd-resolved never re-elects**, so maxdata silently answered from the FritzBox — bypassing blocking *and* split-horizon — on every boot; fixed and **verified across a cold boot** (see the decision log). **Phase 7 is now the next step** |
 | 7 | Fresh cluster | ✅ done | 2026-08-07 | **All 4 nodes `Ready`** over the overlay — `INTERNAL-IP` is the 100.64.0.x address on every one, so D3 holds in practice. Three etcd servers across three L3 domains plus winkel-pi as agent. **`flannel.1` came up at exactly 1230 on all four**, the predicted 1280−50. Cross-site pod-to-pod verified with a **byte-exact 20 MB TCP transfer**, not just ping. 7.1 closed and re-verified with the cluster live. Token rotated and the `K3S_TOKEN=` double-wrap removed. ⚠️ **24 h etcd soak WAIVED** (as 3.5 was) — closed on a snapshot instead: `/healthz` ok, 3 members `Ready`, exactly **1** election event. Baseline for later drift is 1, not 0. Storage/local-path deliberately deferred to Phase 8. **Phase 8 is now next** |
 | 8 | Storage and site affinity | ✅ done | 2026-08-07 | **Code complete, foundation deployed.** MetalLB split into `brink-pool`/`winkel-pool` with zone-selected `L2Advertisement`s and **`autoAssign: false`** on both, so an unpinned service now sits visibly Pending instead of winning an address by allocation order. **local-path-provisioner deployed in Pulumi** (v0.0.37) with a per-node `nodePathMap` covering only maxdata and brink-server, and a **PVC bind proven end-to-end on maxdata**. Every LB IP pinned, every local-path workload pinned to a *node* rather than a site, MongoDB and in-cluster AdGuard deleted, Time Machine out of `default`. 8.2 extended beyond its table: **Authentik now survives the loss of maxdata** — CNPG scaled to 2 instances with zone anti-affinity, a dedicated Redis at Brink, pods and media on brink-server. ⚠️ Not sufficient alone: Brink has no ingress until Phase 9. Four traps found, all of which present as something else — see the decision log. **Two more closed 2026-08-07:** a PVC bind at Brink (seven volumes bound there, via the Authentik work), and the HA/Mosquitto data copy — which **fired rather than being done**: HA came up on an empty volume and ran its new-install wizard, and the decision was to keep the fresh install and **archive** the 792-entity original rather than restore it. And the `tank/k8s/timemachine` shadowing is **fixed** — the dataset is declared and mounts, though the 689 G was **discarded rather than moved**, which then needed `zfs destroy tank/k8s@pre-multi-site` to actually reclaim (the delete alone just moved the blocks onto the snapshot). `tank` went 5.74 T → **6.42 T** free. **UDM SE DHCP confirmed `.6–.200`**, clear of `brink-pool`'s `.240-250` — so **every criterion is closed and the phase is done**. ⚠️ Note how three of the four closed: one was already true and merely unverified, one **fired** and was then withdrawn by decision, and one was resolved by *discarding* the data rather than migrating it. Only the DHCP check closed as written. `trustedInterfaces` **moved to Phase 12** (its consumers do not exist yet) |
-| 9 | Ingress and certificates | 🚧 in progress | 2026-08-07 | **Internal ingress and certificates are done; public HTTPS is not.** Phase 8's carried-over criterion is closed: the internal Traefik now serves **both** sites from one chart — `traefik` on `192.168.178.240` and `traefik-brink` on `192.168.1.240`, `replicas: 2` spread `DoNotSchedule` over the zone label, one pod per site, verified running on maxdata **and** brink-server. ⚠️ **`externalTrafficPolicy: Local` is what makes that correct rather than merely redundant** — MetalLB announces a VIP only from a node with a local ready endpoint, so each site announces its own and nothing silently crosses the WAN. **D16 Stage A deployed**: nginx on ionos owns **`:80` only** and splits by `Host`, Headscale keeps `:443` untouched; `traefik-public` runs in-cluster with `hostNetwork` on ionos, **default-closed** (`ingressClassName: traefik-public` + an `ingress=public` CRD label selector), so it serves **only ACME solver Ingresses** and every other public name returns 404 **by design**. **Production Let's Encrypt certificates on all 7 hostnames** via HTTP-01, each verified with `curl` *without* `-k`. 9.3 closed — `:9000` is off both LoadBalancers and reachable only via a ClusterIP. Cert-expiry and public-ingress **alert rules** deployed and confirmed loaded in the running Prometheus (Phase 12 brought forward, because HTTP-01 renewal fails silently). ✅ **D16 Stage B landed the same evening**: nginx owns `:443` and splits by SNI, Headscale moved to `127.0.0.1:8444`, Traefik's `websecure` trusts PROXY protocol, and **real client IPs are confirmed in the access log from a genuine external client** — so D7 is fully delivered. Alert **delivery** was also fixed and verified end-to-end (12.x). ⚠️ **What remains is not plumbing but a decision: nothing is published.** `traefik-public` is default-closed, so every public name completes TLS against `TRAEFIK DEFAULT CERT` and returns 404 until an Ingress opts in — which apps face the internet is a security choice, not a config gap. Off-LAN access still needs a mesh client meanwhile. Also open: Authentik's OAuth2 apps for Grafana/Paperless still reference the destroyed instance. ⚠️ **The session's worst moment was self-inflicted**: `nixos-rebuild dry-build` run *on* ionos took the host down (sshd, k3s, nginx and Headscale all lost) and needed a panel power-cycle, against advice sitting in this very document. Several traps besides — see the decision log. ✅ **Later on 2026-08-07, roaming DNS (D15 steps 1–2) landed and three DNS defects were found and closed, none of them the work that was set out to be done.** (a) The **apex** `mvissing.de` — Homepage, the dashboard — resolved to the public edge at *both* sites and had done since the rebuild, because the split-horizon rewrite is `*.mvissing.de` and `*.x` does not match `x`. (b) Fixing that did **not** work, because the public zone is `*.mvissing.de CNAME mvissing.de`, so the Headscale pass-through returned the apex's public records and poisoned every downstream cache; closed by giving `headscale.mvissing.de` explicit A/AAAA records instead of letting it fall through the wildcard. (c) **brink-server had been resolving through the UDM SE**, bypassing ad-blocking *and* split-horizon, since an earlier routine deploy — the Phase 6 `systemd-resolved` defect, whose "only maxdata can hit this" note is **wrong** and now corrected; fixed with a re-election unit bound to `adguardhome.service`, and proven by reproducing the failure rather than by observing its absence. ⚠️ **All three were silent, and (a) and (c) were found by accident while checking something else.** ⚠️ Also worth carrying forward: an "off-net" open-resolver test run from Brink produced a **false security alarm**, because the UDM SE answers routed `:53` for any destination — including a public IP, and over TCP as well as UDP |
-| 10 | Workloads and bootstrap | not started | | |
+| 9 | Ingress and certificates | ✅ done | 2026-08-07 | ⚠️ **Closed 2026-08-08 with one item deliberately left open**: nothing is published to the internet. That is a *decision* — which applications should face the internet at all — not unfinished plumbing, and it is tracked under Open items rather than holding the phase. Everything else below landed. **Internal ingress and certificates are done; public HTTPS is not.** Phase 8's carried-over criterion is closed: the internal Traefik now serves **both** sites from one chart — `traefik` on `192.168.178.240` and `traefik-brink` on `192.168.1.240`, `replicas: 2` spread `DoNotSchedule` over the zone label, one pod per site, verified running on maxdata **and** brink-server. ⚠️ **`externalTrafficPolicy: Local` is what makes that correct rather than merely redundant** — MetalLB announces a VIP only from a node with a local ready endpoint, so each site announces its own and nothing silently crosses the WAN. **D16 Stage A deployed**: nginx on ionos owns **`:80` only** and splits by `Host`, Headscale keeps `:443` untouched; `traefik-public` runs in-cluster with `hostNetwork` on ionos, **default-closed** (`ingressClassName: traefik-public` + an `ingress=public` CRD label selector), so it serves **only ACME solver Ingresses** and every other public name returns 404 **by design**. **Production Let's Encrypt certificates on all 7 hostnames** via HTTP-01, each verified with `curl` *without* `-k`. 9.3 closed — `:9000` is off both LoadBalancers and reachable only via a ClusterIP. Cert-expiry and public-ingress **alert rules** deployed and confirmed loaded in the running Prometheus (Phase 12 brought forward, because HTTP-01 renewal fails silently). ✅ **D16 Stage B landed the same evening**: nginx owns `:443` and splits by SNI, Headscale moved to `127.0.0.1:8444`, Traefik's `websecure` trusts PROXY protocol, and **real client IPs are confirmed in the access log from a genuine external client** — so D7 is fully delivered. Alert **delivery** was also fixed and verified end-to-end (12.x). ⚠️ **What remains is not plumbing but a decision: nothing is published.** `traefik-public` is default-closed, so every public name completes TLS against `TRAEFIK DEFAULT CERT` and returns 404 until an Ingress opts in — which apps face the internet is a security choice, not a config gap. Off-LAN access still needs a mesh client meanwhile. Also open: Authentik's OAuth2 apps for Grafana/Paperless still reference the destroyed instance. ⚠️ **The session's worst moment was self-inflicted**: `nixos-rebuild dry-build` run *on* ionos took the host down (sshd, k3s, nginx and Headscale all lost) and needed a panel power-cycle, against advice sitting in this very document. Several traps besides — see the decision log. ✅ **Later on 2026-08-07, roaming DNS (D15 steps 1–2) landed and three DNS defects were found and closed, none of them the work that was set out to be done.** (a) The **apex** `mvissing.de` — Homepage, the dashboard — resolved to the public edge at *both* sites and had done since the rebuild, because the split-horizon rewrite is `*.mvissing.de` and `*.x` does not match `x`. (b) Fixing that did **not** work, because the public zone is `*.mvissing.de CNAME mvissing.de`, so the Headscale pass-through returned the apex's public records and poisoned every downstream cache; closed by giving `headscale.mvissing.de` explicit A/AAAA records instead of letting it fall through the wildcard. (c) **brink-server had been resolving through the UDM SE**, bypassing ad-blocking *and* split-horizon, since an earlier routine deploy — the Phase 6 `systemd-resolved` defect, whose "only maxdata can hit this" note is **wrong** and now corrected; fixed with a re-election unit bound to `adguardhome.service`, and proven by reproducing the failure rather than by observing its absence. ⚠️ **All three were silent, and (a) and (c) were found by accident while checking something else.** ⚠️ Also worth carrying forward: an "off-net" open-resolver test run from Brink produced a **false security alarm**, because the UDM SE answers routed `:53` for any destination — including a public IP, and over TCP as well as UDP |
+| 10 | Workloads and bootstrap | 🚧 in progress | 2026-08-08 | **Paperless is fully restored and live; UniFi is deployed but not restored.** ⚠️ **The phase was much smaller than its own text implied** — steps 1–7, 9 and 10 were already running as a side effect of Phases 8/9, leaving only Paperless, UniFi and two decisions. ⚠️ **Three of the four artefacts the phase named do not exist as described**: `postgres-all.sql` is really five gzipped per-database dumps, the backup set is split across the Mac and maxdata with **neither complete**, and the UniFi export is a UniFi **OS** backup rather than a Network `.unf`. Its `pulumi up --target` instruction is also actively wrong and was superseded by the `--exclude` finding. **Paperless:** 730 documents restored into CNPG, media found **already in place** (NFS on `tank` was never touched by the rebuild) and reconciled against the dump file-by-file — **0 missing, 724 pre-existing orphans**; migrations reported *"No migrations to apply"*, confirming the dump matched the deployed image exactly; index rebuilt 730/730 and **search returns 157 real hits**; `dms.mvissing.de` serves a production certificate verified with `curl` **without `-k`**. The Authentik OAuth2 provider was created through **`ak shell`**, copying the working Grafana one, because `authentikApiToken` is dead like the OAuth pairs. ⚠️⚠️ **The find that mattered: `sub` is installation-scoped**, so the restored `socialaccount` rows were dead and the first SSO login would have created a new user owning **none** of the 730 documents — with no way back, since regular login is disabled and every restored password is Django-*unusable*. A working login onto an empty archive: Phase 8's Home Assistant wizard, one app later. Fixed **before** first start by reading the new subject out of Authentik rather than deriving it. **UniFi:** workload serving on `192.168.178.243`, both PVCs bound on maxdata; the `.unifi` restore and re-adoption are UI work. Also closed: the `nfs` StorageClass "gap" was **not a gap** (see the log — an NFS provisioner was nearly added to fix nothing), and the six-secrets criterion is **withdrawn**, having been written against a premise §1.3 disproved in Phase 1. Open: the browser SSO login, UniFi restore, Home Assistant commissioning |
 | 11 | Backups that exist | not started | | |
 | 12 | Monitoring | not started | | |
 | 13 | Cleanup | not started | | |
@@ -105,6 +105,11 @@ Values later phases depend on. Fill in as they are measured, not assumed.
 | **Home Assistant's `http:` config lives in `.storage`, not YAML** | ⚠️ HA 2026.8 migrated `http` out of `configuration.yaml` into `/config/.storage/http`, and once `yaml_migration_done: true` is set the **YAML block is ignored permanently** — it stays in the file reading as authoritative while doing nothing. Configure at **Settings → System → Network** and nowhere else. ⚠️ Changes made there are a **5-minute trial** (`AUTO_REVERT_DELAY`, `config.py:81`): a pending config auto-reverts unless promoted, so a setting can appear applied, work, and then silently undo itself. ⚠️ `trusted_proxies` must contain **both `10.42.0.0/16` and `100.64.0.0/24`** — HA runs `hostNetwork`, so a request forwarded from a Traefik pod on another node arrives masqueraded to the **sending node's overlay address** (measured: maxdata arrived as `100.64.0.5`), never from the pod CIDR. The inert YAML block was deleted and replaced with a comment pointing at the store | Phase 9, 2026-08-07 |
 | **The apex was unreachable at both sites, and the wildcard CNAME then defeated the fix** | ⚠️ **Two defects stacked, and the second is the interesting one.** (1) Homepage's Ingress is on the **apex** `mvissing.de` (`apps/homepage.ts:149`), but AdGuard's split-horizon rewrite is `*.mvissing.de`, and `*.x` does not match `x`. So the estate's most prominent name resolved to ionos at both sites, where the default-closed public edge answers **404 behind `CN=TRAEFIK DEFAULT CERT`**. The internal Traefik had been serving it correctly the whole time — measured from a Brink client: `dig mvissing.de` → `212.132.82.102` while `grafana.mvissing.de` → `192.168.1.240`, and forcing the apex to the VIP gave a clean 302 with a valid certificate. Phase 4 had excluded the apex *deliberately*, to reserve it for "a real public website"; no such site exists and the dashboard does, so the exclusion reserved nothing and broke something. Fixed by giving the apex its own rewrite entry. (2) ⚠️⚠️ **That fix then silently did not work, and the reason is the zone's shape.** The public zone is `*.mvissing.de CNAME mvissing.de` — **every** name is a CNAME to the apex, which holds the only address records. `headscale.mvissing.de` is therefore a CNAME to the apex *and* is a **pass-through** name, so AdGuard returns the upstream chain verbatim, including `mvissing.de A 212.132.82.102`. Every caching resolver downstream files that under `mvissing.de` and the rewrite is gone. **tailscaled resolves that name continuously**, so this was the steady state, not an edge case. Proven by sequence on maxdata: flush → apex = `192.168.178.240`, `curl` 302 → resolve `headscale.mvissing.de` → apex = `2a02:2479:5c:a00::1, 212.132.82.102` **from cache in 338 µs** → `curl` fails. ✅ **Fixed in the IONOS panel by giving `headscale.mvissing.de` explicit A and AAAA records** rather than letting it fall through the wildcard, so its chain no longer names the apex. Verified afterwards on all four resolution stacks — resolved on brink-server and maxdata, glibc on winkel-pi, and macOS — each with a *warm* cache after a Headscale lookup, which is the only test that distinguishes the two states. ⚠️ **Residual fragility, undefended:** any *future* pass-through name that resolves through the wildcard CNAME re-introduces this, silently. The mesh pass-throughs do **not**, and it is worth knowing why — they route to the `[/mesh.mvissing.de/]100.100.100.100` domain-specific upstream and are answered by MagicDNS, which never mentions the apex. ⚠️ **The structural alternative was rejected, not overlooked**: moving Homepage to a subdomain and leaving the apex public is the shape that stops fighting the zone's design, and remains the better answer if this recurs | Phase 9, 2026-08-07 |
 | **Verifying a resolver change means a warm cache, not a fresh one** | ⚠️ **The apex fix was called "verified" once on evidence that could not have detected the failure.** The first check queried the resolver directly (correct at both sites, `enabled: true` in `AdGuardHome.yaml`) and then curled from one client that happened not to have resolved Headscale yet. Both readings were true and neither was the client experience. The same shape as Phase 4's inert rewrites and Phase 8's `__NIXOS_SET_ENVIRONMENT_DONE`: *the state being inspected was not the state in effect.* **Rule: for anything touching DNS, verify from a client with a cache warmed by ordinary traffic — and specifically after resolving the names the host resolves anyway.** `dig @<resolver>` proves what the resolver holds and nothing about what a client will use | Phase 9, 2026-08-07 |
+| **A statically-bound PV needs no StorageClass object** | ⚠️ **Recorded because it was nearly "fixed".** `kubectl get sc` lists only `local-path`, and `apps/paperless.ts:123` asks for `storageClassName: "nfs"` — which reads as a PVC that will sit Pending until an NFS provisioner exists, and an NFS provisioner was very nearly added to supply it. It is not: for a **static** bind, `storageClassName` is a *matching key* between PV and PVC, not a reference to a StorageClass object, and `volumeName` on the PVC does the binding. The proof was already in the cluster and only had to be read — `timemachine-pvc` has been `Bound` for hours under `nfs-storage`, a class that likewise does not exist. Confirmed on deploy: `paperless-media Bound paperless-media 300Gi RWX nfs`. ⚠️ Note there is **no default StorageClass**, so a PVC that *omits* `storageClassName` genuinely does stay Pending — which is why the two cases look alike. ⚠️ Cosmetic debt: two invented class names (`nfs`, `nfs-storage`) for one mechanism | Phase 10, 2026-08-08 |
+| **Paperless media survived the rebuild — and the archive was reconciled file by file** | NFS lives on `tank`; Phase 7 rebuilt only the cluster, so `/tank/k8s/nfs/paperless-media` was never touched. **Restoring `nfs-paperless-media.tar.gz` was unnecessary** and would only have re-added orphans. ⚠️ **The counts disagree, and the disagreement is the interesting part**: 730 rows in `documents_document` against **1454 files** in `originals/`. Resolved by extracting the `filename` column from the dump and diffing it against `find` output on maxdata — **0 documents missing a file**, 724 files with no document. Those are orphans from deletions over the archive's life (pks run 1–1456 with large gaps, only 36 of the 730 rows below pk 745), i.e. **pre-existing, not caused by the migration**, and roughly half of the 3.4 G. Phase 11/13 reclaim. ⚠️ **The lesson is the method, not the number**: comparing `du` against the tarball size would have shown 3.4 G vs 3.5 G and read as a clean match, while a missing half would have looked identical. Compare the *sets*, not the sizes | Phase 10, 2026-08-08 |
+| **Authentik's OIDC `sub` is installation-scoped, so every restored social login is dead** | ⚠️ **The trap that would have locked the archive away behind a working login.** `id_token.py:90` — under the default `sub_mode=hashed_user_id`, `sub = user.uid`, and `core/models.py:607` defines that as `sha256(f"{id}-{get_unique_identifier()}")`, where the identifier is the **installation's**. So the two `socialaccount_socialaccount` rows in the Paperless dump carry subjects from the destroyed instance and can never match. With `PAPERLESS_SOCIAL_AUTO_SIGNUP=True` the first SSO login would have created a **new** user owning none of the 730 documents — and `PAPERLESS_DISABLE_REGULAR_LOGIN=True` removes the way back, with **every** `auth_user` row carrying a Django *unusable* password (leading `!`), `max` included. Paperless would have come up, authenticated cleanly, and shown an empty document list: the Home Assistant wizard failure of Phase 8, one app later. ⚠️ **Fixed by *reading* the new subject rather than deriving it** — `User.objects.get(username='Max').uid` in `ak shell` — and `UPDATE`-ing the restored row before first start, so the link is correct on the first login instead of being repaired after it. All 730 documents are `owner_id = 4`, so there was exactly one row that mattered. ⚠️ Michael's row is **still stale** and left so deliberately: no Authentik account exists for him, and it fails the same safe way whenever one does. ⚠️ Generalise: **an app-level dump carries identity bindings to the identity provider it was taken against.** Anything restored beside a rebuilt Authentik has this, not just Paperless | Phase 10, 2026-08-08 |
+| **`authentikApiToken` is dead, like the OAuth pairs — use `ak shell`** | The token in `Pulumi.default.yaml` belongs to the destroyed instance; the REST API answers `{"detail": "Token invalid/expired"}`. Rather than mint one by hand, the Paperless provider and application were created through `kubectl exec -i -n authentik deploy/authentik-server -- ak shell`, **copying the working Grafana provider** rather than specifying one from scratch. ⚠️ The model is `ClientType`, **not** `ClientTypes` — and the resulting `ImportError` traceback was invisible because the invocation grepped for a result marker, so the run read as a silent no-op. ⚠️ Authentik's `generate_key()` emits shell metacharacters and, here, a **trailing backslash**; regenerated as `generate_id(128)`. ⚠️ **`ak shell` is noisy** — ~60 lines of JSON bootstrap logging precede any output, so filter on a marker, but print the traceback | Phase 10, 2026-08-08 |
+| **The hairpin to `auth.mvissing.de` is fine for per-login calls** | Phase 9 found forward auth failing intermittently with `tls: internal error` when it addressed the public hostname instead of the outpost's ClusterIP, which raised the question for `apps/paperless.ts:60`, whose OIDC discovery URL is that same hostname. **Measured rather than assumed**: 3/3 successful fetches of the discovery document from a pod on maxdata, returning `issuer: https://auth.mvissing.de/application/o/paperless/`. The distinction is frequency and not correctness — Grafana has used the same public URL for its server-side token exchange throughout. ⚠️ It also cannot be changed: the issuer must match what the browser is redirected to, so an in-cluster address would break the flow rather than harden it | Phase 10, 2026-08-08 |
 | ionos → home RTT (existing wg0) | ~13 ms | Phase 0, `ping` from ionos |
 | Winkel WAN IPv6 prefix | `2a00:6020:b481:e300::/56` — record only, never depend on it (D2) | FritzBox, 2026-08-05 |
 | UDM SE static routes | present and configurable — Phase 3 unblocked | UDM SE, 2026-08-05 |
@@ -550,9 +555,14 @@ Encrypt account and its rate-limit standing.
 - [x] Off-box tarballs of the irreplaceable local-path and NFS data
 - [x] Bootstrap secrets verified recoverable (all 16 decrypt)
 - [x] Recursive snapshots taken on both pools
-- [ ] **UniFi `.unf` export** via the controller UI (`apps/unifi.ts:290-294`).
-      The raw `unifi-data` + `unifi-mongo` tarballs exist, but `.unf` is the
-      supported restore path for re-adoption
+- [x] **UniFi export** via the controller UI (`apps/unifi.ts:290-294`) — ✅
+      **located 2026-08-08**, closing the "confirm where it is stored" note in
+      the status table. It is
+      `~/backup/pre-multi-site/unifi_os_backup_1785936700081_….unifi` on the
+      Mac, 95 K, taken 2026-08-05 15:31. ⚠️ Note the extension: it is a UniFi
+      **OS** backup, not a Network `.unf` — the old instance was already UOS, so
+      it restores into UOS 5.1.21 directly. The raw `unifi-data` +
+      `unifi-mongo` tarballs remain as the fallback
 - [x] **Restore rehearsal passed** (2026-08-05). All four dumps loaded into a
       scratch `postgres:18` container with **zero errors**, and the content is
       real, not just schema:
@@ -2619,28 +2629,130 @@ Layered redeploy in dependency order, adapted from
 9. Monitoring — Prometheus, Loki, Tempo, Grafana, Alloy, unpoller
 10. Infrastructure extras — GitHub ARC
 
-Stage with `pulumi up --target`.
+⚠️ **Steps 1–7, 9 and 10 were already deployed before this phase opened**, as a
+side effect of Phases 8 and 9. What Phase 10 actually consisted of was
+Paperless, UniFi, and the two closing decisions below.
 
-Restores:
+⚠️ **~~Stage with `pulumi up --target`.~~ Do not — `--target` breaks this
+stack** and presents as a Kubernetes fault. Use `--exclude`. See the decision
+log; this instruction predates that finding and was wrong when Phase 10 was
+reached.
 
-- Postgres: `bootstrap.initdb`, then `kubectl exec ... psql < postgres-all.sql`.
-  Do **not** use `bootstrap.recovery` — there is no object store to recover from.
-- UniFi: upload the `.unf` via the web UI, then re-adopt switches and APs at
-  Winkel.
+Restores — ⚠️ **three of the four artefacts named in the original plan do not
+exist in the form described:**
+
+- Postgres: ~~`kubectl exec ... psql < postgres-all.sql`~~ — **there is no
+  `postgres-all.sql`.** The real artefacts are per-database and gzipped:
+  `pg-globals`, `pg-authentik`, `pg-paperless`, `pg-grafana`, `pg-app`. Do
+  **not** use `bootstrap.recovery`, and do **not** load `pg-globals` on the
+  rebuilt cluster — CNPG already created the roles and owns their passwords
+  from the `postgres-<db>` secrets, so the globals dump would reassert the old
+  ones. The working procedure is in 10.2.
+- Paperless media: **nothing to restore.** See the decision log — it survived
+  the rebuild in place.
+- UniFi: upload the backup via the web UI, then re-adopt switches and APs at
+  Winkel. ⚠️ The file is `unifi_os_backup_1785936700081_….unifi` on the Mac at
+  `~/backup/pre-multi-site/` — a **UniFi OS** backup, not a Network `.unf`; the
+  old instance was already UOS, so it restores directly. Raw fallbacks are
+  `localpath-unifi-data.tar.gz` (1.4 G, **maxdata only**) and
+  `localpath-unifi-mongo.tar.gz` (204 M, both machines).
 - Home Assistant: **fresh install on brink-server.** Re-commission Matter and HomeKit
   devices at Brink. Add IP-addressable integrations (Shelly, WLED, Hue,
   ESPHome, UniFi) by discovery on the Brink segment.
 
-The six manual secrets from Phase 1.1 are re-created here in order — items 1–3
-require Authentik to be up first, which is why step 7 is a hard gate.
+⚠️ **The backup set is split across two machines and neither is complete.** The
+Mac has `~/backup/pre-multi-site/` (the pg dumps, `cert-secrets.yaml`,
+`acme-account-keys.yaml`, the old stack export, `unifi-mongo`, `paperless-data`,
+the `.unifi` file); maxdata has `/tank/backups/pre-multi-site/`, and it **alone**
+holds `localpath-unifi-data.tar.gz` and `nfs-paperless-media.tar.gz`.
 
-## 10.1 Exit criteria
+The six manual secrets from Phase 1.1 are ~~re-created here~~ — **see 1.3, which
+already withdrew this.** All sixteen live encrypted in `Pulumi.default.yaml`;
+the real dependency is the passphrase, which is in sops with four recipients.
 
-- [ ] All applications reachable and authenticating via Authentik
-- [ ] Paperless documents present and searchable after `document_index reindex`
-- [ ] UniFi devices adopted at Winkel
+## 10.2 Paperless — the procedure that worked ✅ 2026-08-08
+
+Order is load-bearing. Paperless migrates an empty database on first start, so
+a `pulumi up` before the dump lands leaves a schema the dump then collides with,
+table for table.
+
+1. **Restore into the CNPG database first.** The `Database` CR had already
+   created `paperless` (0 tables). The dump is `pg_dump --create` style, so its
+   preamble must go:
+
+   ```sh
+   gzip -dc pg-paperless.sql.gz \
+     | sed '1,/^\\connect paperless$/d' \
+     | kubectl exec -i -n database postgres-1 -c postgres -- \
+         psql -U postgres -d paperless -v ON_ERROR_STOP=1
+   ```
+
+   `ON_ERROR_STOP=1` is safe here — verified beforehand that the file contains
+   no `CREATE EXTENSION`, `CREATE SCHEMA`, `GRANT` or `REVOKE`, so there are no
+   expected-benign errors and anything it reports is real. Ownership needs no
+   repair: the dump's own 75 `OWNER TO paperless` statements covered all 74
+   tables (`wrong_owner 0`).
+2. **Create the Authentik OAuth2 provider and application** — 10.3.
+3. `pulumi config set --secret paperless-authentik-client-id` / `-secret`.
+4. `pulumi up --exclude '**unifi**'`.
+5. `document_index reindex` and `document_create_classifier`.
+
+⚠️ **Do not restore `localpath-paperless-data.tar.gz`.** It is 149 M of stale
+Whoosh index and classifier, both regenerable in under a minute by step 5.
+
+Verified by effect, not by status: `paperless_documents 730` scraped from the
+metrics sidecar; a search for `rechnung` returning **157 hits with real document
+text**; `df` inside the pod showing the NFS media mount; migrations reporting
+**"No migrations to apply"**, which confirms the dump matched the deployed
+image's schema exactly; and `curl` to `https://dms.mvissing.de` **without `-k`**
+against a production Let's Encrypt certificate.
+
+## 10.3 Authentik OAuth2 — created through `ak shell`, not the UI
+
+⚠️ **`authentikApiToken` in `Pulumi.default.yaml` is dead**, from the destroyed
+instance, exactly like the two OAuth pairs — the REST API answers
+`{"detail": "Token invalid/expired"}`. Rather than mint a new token by hand, the
+provider and application were created through Authentik's own management shell,
+which is the same backend the UI drives:
+
+```sh
+cat <<'PY' | kubectl exec -i -n authentik deploy/authentik-server -- ak shell
+...
+PY
+```
+
+The new provider **copies the working Grafana one** rather than being specified
+from scratch — same authorization and invalidation flows, same signing key, same
+three scope mappings, `client_type=confidential`, `sub_mode=hashed_user_id`.
+Slug **must** be `paperless`: `apps/paperless.ts:60` hardcodes the discovery URL.
+
+⚠️ Two traps, both found the hard way:
+
+- The model is `ClientType`, **not** `ClientTypes`. The failed import produced a
+  traceback that a `grep` for the result marker hid completely, so the run
+  looked like it silently did nothing.
+- Authentik's `generate_key()` produces a secret full of shell metacharacters
+  and, in this case, a **trailing backslash**. It was regenerated as
+  `generate_id(128)` — 128 alphanumeric characters, ~762 bits, and no quoting
+  hazard in `pulumi config set` or in the JSON `apps/paperless.ts` embeds.
+
+## 10.4 Exit criteria
+
+- [x] All applications reachable and authenticating via Authentik
+      — Paperless serves `dms.mvissing.de` on a production certificate and
+      renders the Authentik provider on its login page. ⚠️ The **browser login
+      itself is unverified** and is the one thing only you can close.
+- [x] Paperless documents present and searchable after `document_index reindex`
+      — 730 documents, 730/730 indexed, 157 real hits for `rechnung`
+- [ ] UniFi devices adopted at Winkel — **workload deployed and serving**
+      (`192.168.178.243`, UI 200, inform port open, both PVCs bound on maxdata);
+      the `.unifi` restore and re-adoption are UI work
 - [ ] Home Assistant discovering Brink devices; Matter devices commissioned
-- [ ] All six bootstrap secrets stored in sops
+- [x] ~~All six bootstrap secrets stored in sops~~ — **withdrawn, not skipped.**
+      §1.3 established in Phase 1 that all sixteen already live encrypted in
+      git and that the real dependency is the Pulumi passphrase, which is in
+      sops with four recipients. This criterion was written against a premise
+      Phase 1 had already disproved. Same disposition as Phase 6's ARC item.
 
 ---
 
@@ -2845,15 +2957,17 @@ Add:
   **no public exposure**, and it is step 3 of the roaming-DNS item above. The
   obvious shape is to publish nothing by default and add names individually,
   starting with whichever one actually motivated the requirement.
-- **Authentik OAuth2 applications must be recreated by hand.** *(Opened
-  2026-08-07.)* The Phase 7 rebuild destroyed the old Authentik, but
-  `Pulumi.default.yaml` still holds `grafana-oauth-client-id`,
-  `paperless-authentik-client-id` and `-secret` from the **destroyed** instance.
-  They are syntactically valid and completely dead, so Grafana and Paperless
-  will fail to authenticate in a way that looks like a misconfiguration rather
-  than a stale credential. UI work only you can do; also on the list are the
-  initial-setup flow and renaming `akadmin`. Forward auth itself is unaffected —
-  that is the outpost, which is working.
+- **~~Authentik OAuth2 applications must be recreated by hand~~ — ✅ done
+  2026-08-08, and "by hand" turned out to be avoidable.** *(Opened
+  2026-08-07.)* Grafana was recreated through the UI on the 7th; **Paperless was
+  created through `ak shell`**, copying the working Grafana provider rather
+  than being respecified — see 10.3 and the decision log. ⚠️ **The stale
+  credential ran deeper than this item recorded**: `authentikApiToken` is dead
+  too, so the REST API was not an option either, and the *identity bindings
+  inside the Paperless dump* were dead in the same way and far more dangerous —
+  they fail as a working login onto an empty archive rather than as an
+  authentication error. Still open here: the initial-setup flow and renaming
+  `akadmin`. Forward auth was never affected — that is the outpost.
 - **ionos memory headroom.** *(Opened 2026-08-07.)* 1851 MB RAM with
   `k3s-server` at ~792 MB, no swap, and `zramSwap` deliberately disabled — which
   is why it cannot run `nixos-rebuild` locally and everything is built on
