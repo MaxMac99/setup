@@ -183,6 +183,28 @@ in {
           # site VIP — and intermittently, depending on which server answered.
           # The router is the correct fallback because it is the one resolver
           # that is up whenever the LAN is.
+          #
+          # ⚠️ This list means *failover* to systemd-resolved and *load
+          # balancing* to CoreDNS, and that difference cost an outage
+          # (Phase 10, 2026-08-08). resolved elects one server and sticks —
+          # so the router is reached only when AdGuard is genuinely down, which
+          # is the leaky-but-bounded behaviour these comments assume. CoreDNS's
+          # `forward` plugin defaults to `policy random`, so k3s — which
+          # inherits this list via `forward . /etc/resolv.conf` — used it as a
+          # coin flip on every cache miss, and roughly half of all in-cluster
+          # `*.mvissing.de` lookups resolved to the public edge. That edge is
+          # default-closed, so it answers with a self-signed certificate and
+          # every server-side HTTPS call from a pod failed verification.
+          #
+          # The fix belongs in the cluster, not here: `infrastructure/coredns.ts`
+          # in `homelab-k8s` pins `mvissing.de` to the two site AdGuards with
+          # `policy sequential`, which is CoreDNS's actual failover. The router
+          # stays in this list because for a *host* it was never the problem —
+          # and brink-server is the only node at Brink, so removing its last
+          # fallback would cost more than it buys.
+          #
+          # ⚠️ Anything else that consumes this list should be checked for the
+          # same assumption before it is trusted.
           dnsServers = ["192.168.1.2" "192.168.1.1"];
           # brink-server's own LAN address. modules/system/site-dns.nix
           # asserts this equals hosts.brink-server.lanIPv4, so the UDM SE's
