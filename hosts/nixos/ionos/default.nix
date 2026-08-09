@@ -32,14 +32,33 @@
     authKeySecret = "overlay_authkey";
   };
 
-  # The tailnet's resolver (D15). Blocking only, no split-horizon rewrites —
-  # see modules/system/roaming-dns.nix for why neither site's resolver could
-  # do this job, and why 53 is scoped to the overlay interface rather than
-  # opened globally as it is at the sites.
+  # The tailnet's resolver (D15) — see modules/system/roaming-dns.nix for why
+  # neither site's resolver could do this job, and why 53 is scoped to the
+  # overlay interface rather than opened globally as it is at the sites.
   #
   # ⚠️ Paired with `dns.nameservers.global` in ./overlay-server.nix, which is
   # what actually points clients here. The module asserts the two agree.
-  roamingDns.enable = true;
+  roamingDns = {
+    enable = true;
+
+    # ⚠️ **This reverses D15's "no rewrites", and the target is Brink on
+    # purpose.** Full reasoning is on the option itself; the short version is
+    # that D15 sent roaming clients to the public edge on the premise that the
+    # edge would serve them, and Phase 9 closed without publishing anything —
+    # so that address returns 404 behind `TRAEFIK DEFAULT CERT` for every name.
+    #
+    # Brink rather than Winkel because Authentik and Home Assistant both run on
+    # brink-server, so a roaming login stays inside one site instead of
+    # crossing the WAN overlay twice.
+    #
+    # ⚠️ **Requires `--accept-routes=true` on roaming clients** — this is a LAN
+    # address behind brink-server's subnet router, so without the route the name
+    # resolves and then times out, which reads as the service being down. That
+    # is the opposite of the fleet default and correct only for devices that are
+    # never sitting on an advertised subnet while on the mesh; see
+    # modules/system/overlay-client.nix and 3.6.1.
+    splitHorizonTarget = config.networkConfig.sites.brink.ingressVIP;
+  };
 
   # Disable swap completely to avoid kswapd0 CPU issues
   zramSwap.enable = false;

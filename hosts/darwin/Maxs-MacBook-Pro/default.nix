@@ -40,21 +40,42 @@
     # does not need it — the `brink` and `winkel` kubeconfig contexts reach the
     # API directly over each site's LAN.
     #
-    # ⚠️ Registration is manual and the flags are not optional:
+    # ⚠️ Registration is manual and the flags are not optional. **Both flipped
+    # on 2026-08-09** — this used to be `--accept-routes=false
+    # --accept-dns=false`:
     #
     #   tailscale up --login-server=https://headscale.mvissing.de \
-    #                --accept-routes=false --accept-dns=false
+    #                --accept-routes --accept-dns
     #
-    # `--accept-routes=false` because this machine *moves between the sites
-    # whose subnets are advertised on the mesh*, and 3.6.1 is exactly that
-    # failure: an accepted route covering the subnet you are sitting on
-    # outranks your own LAN route and takes the LAN away. It is also
-    # unnecessary — each router already has a static route to the other site.
+    # A roaming client needs *both* to reach anything, and neither alone is
+    # enough — which is why the estate looked like it had one DNS bug rather
+    # than two independent faults:
     #
-    # `--accept-dns=false` because Phase 4 put DNS on the site's own AdGuard,
-    # and the overlay must not rewrite the resolver as a side effect of
-    # joining. nix-darwin's `overrideLocalDns` already defaults to false; this
-    # is the client-side half of the same decision.
+    #   --accept-dns   so `*.mvissing.de` resolves to a site ingress VIP at all.
+    #                  ionos's roaming AdGuard now rewrites to Brink's
+    #                  192.168.1.240 (modules/system/roaming-dns.nix); without
+    #                  this flag the machine uses whatever the café hands it,
+    #                  which returns the public edge and 404.
+    #   --accept-routes  so that VIP is *reachable*. It is a LAN address behind
+    #                  brink-server's subnet router; without the route the name
+    #                  resolves and then times out, which reads as an outage.
+    #
+    # ⚠️ **`--accept-routes` is genuinely dangerous on this machine and the
+    # mitigation is client-side, not a flag.** 3.6.1 is exactly this failure: an
+    # accepted route covering the subnet you are *sitting on* outranks your own
+    # LAN route and takes the LAN away — it cost maxdata its network. This
+    # laptop moves between both advertised sites, so it must never be on the
+    # mesh while on either LAN. Enforce that with the Tailscale app's
+    # **on-demand rules: connect except on the Brink and Winkel SSIDs**, which
+    # is also what preserves Phase 4's split-horizon at home.
+    #
+    # ⚠️ macOS route precedence is *not* Linux's `ip rule` priority 5270, so the
+    # 3.6.1 failure may present differently or not at all here. Untested on
+    # purpose — the on-demand rule means we never find out, and that is the
+    # point. Do not remove it on the grounds that "it seemed fine once".
+    #
+    # In-site access still does not need any of this: the `brink` and `winkel`
+    # kubeconfig contexts reach the API directly over each site's LAN.
     "modules/apps/tailscale.nix"
     "modules/apps/opencode"
     "modules/apps/1password.nix"

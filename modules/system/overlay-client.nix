@@ -105,9 +105,25 @@ in {
           # accepted route for a prefix the node itself advertises — which is
           # exactly why brink-server was unaffected while maxdata was not.
           #
-          # Non-routers lose nothing that matters: every overlay peer stays
-          # reachable at its 100.64.0.0/10 address, and reaching the *far
+          # Non-routers lose nothing that matters *here*: every overlay peer
+          # stays reachable at its 100.64.0.0/10 address, and reaching the *far
           # site's LAN* is the subnet router's job by construction (3.1).
+          #
+          # ⚠️ **That last sentence was over-generalised, and correcting it is
+          # what unblocked off-LAN access on 2026-08-09.** It is true of the
+          # hosts this module configures — all four are NixOS machines that sit
+          # permanently at one site — and it was then read as an estate-wide
+          # rule, including in `hosts/darwin/Maxs-MacBook-Pro/default.nix`. For a
+          # **roaming** client it is false: it has no LAN of its own to reach a
+          # VIP over, so `--accept-routes=false` leaves every MetalLB address in
+          # the estate unreachable. Combined with the roaming resolver having no
+          # rewrites (D15), that produced two independent faults which each
+          # masked the other — the name resolved to a public edge that 404s,
+          # and the address that would have worked was unroutable.
+          #
+          # The phone and the Mac therefore run `--accept-routes=true`, with the
+          # 3.6.1 hazard held off by on-demand rules rather than by the flag.
+          # **Nothing configured by this module should follow them.**
           "--accept-routes"
         ];
     };

@@ -54,6 +54,95 @@ in {
         http://127.0.0.1:3000.
       '';
     };
+
+    splitHorizonDomain = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = "mvissing.de";
+      description = ''
+        Domain whose names are rewritten to `splitHorizonTarget`. Inert unless
+        that option is also set, so this alone changes nothing.
+      '';
+    };
+
+    splitHorizonTarget = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "192.168.1.240";
+      description = ''
+        Ingress VIP that `*.<splitHorizonDomain>` and the apex resolve to for
+        roaming clients. **Null means no rewrites at all**, which is what D15
+        originally specified and remains this module's default.
+
+        ⚠️ **Setting this reverses D15, and the reason the reversal is correct
+        is worth recording, because the original reasoning still reads as
+        sound.** D15 argued: *"a client at neither site should resolve
+        `paperless.mvissing.de` to the public ingress, which is exactly what
+        public DNS already returns"* — so the roaming view is "blocking, no
+        rewrites", implemented as an empty list.
+
+        That premise was **conditional on Phase 9 publishing something, and
+        Phase 9 closed with nothing published.** `traefik-public` is
+        default-closed: an Ingress must name `ingressClassName: traefik-public`
+        or an IngressRoute carry `ingress=public`, and as of 2026-08-09 nothing
+        in `homelab-k8s` does either. So the public address the roaming resolver
+        hands out completes TLS against `CN=TRAEFIK DEFAULT CERT` and returns
+        **404 for every name**. The decision was not wrong when written; its
+        precondition failed and nothing re-examined it. D15 even records the
+        consequence — *"off-LAN access to apps therefore still comes from being
+        on the overlay and using the site VIPs"* — without noticing that no
+        client can reach a site VIP either, because they all run
+        `--accept-routes=false`. Two faults, each individually invisible.
+
+        ⚠️ **This only works for clients that accept subnet routes.** The target
+        is a LAN address behind a subnet router (`192.168.1.240` is announced by
+        MetalLB at Brink), so a client with `--accept-routes=false` resolves the
+        name correctly and then cannot reach it — a *worse* failure than today's
+        404, because it looks like the service is down. See
+        `modules/system/overlay-client.nix` for why every NixOS host keeps
+        `--accept-routes=false`, and why roaming clients are the exception.
+
+        ⚠️ **Pick the target site deliberately.** Both site Traefiks serve every
+        Ingress in the cluster, so either VIP works — but the one named here is
+        the site whose Traefik terminates TLS for roaming clients, and the far
+        site's apps are then reached across the WAN overlay twice. Brink holds
+        Authentik and Home Assistant, so Brink keeps the login path local.
+      '';
+    };
+
+    passthroughNames = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [
+        # ⚠️ **Load-bearing, and more so here than in ./site-dns.nix.** There,
+        # swallowing the control server costs a site its overlay. Here it is
+        # circular: a roaming client would resolve Headscale to a LAN VIP that
+        # is only reachable *over the overlay it is trying to establish*, so the
+        # client can never recover on its own.
+        net.overlay.controlServerHost
+
+        # MagicDNS. Rewrites are applied before upstream selection, so without
+        # these the wildcard swallows node names that the
+        # `[/mesh.mvissing.de/]100.100.100.100` upstream would answer correctly.
+        net.overlay.magicDnsBaseDomain
+        "*.${net.overlay.magicDnsBaseDomain}"
+      ];
+      description = ''
+        Names under `splitHorizonDomain` that must keep resolving normally.
+
+        Same mechanism as `./site-dns.nix`: an `answer` of `A`/`AAAA` means
+        "keep the upstream's records of that type", and a more specific rewrite
+        beats a less specific one, so these win over the wildcard.
+
+        ⚠️ **Check the public zone's shape before adding a name here.** That zone
+        is `*.mvissing.de CNAME mvissing.de`, so a pass-through name normally
+        returns the apex's public A record in its chain — which every downstream
+        cache then files under `mvissing.de`, destroying the apex rewrite for
+        everyone. Phase 9 hit exactly this and fixed it by giving
+        `headscale.mvissing.de` **explicit A/AAAA records** in the IONOS panel
+        (re-verified 2026-08-09: `A 212.132.82.102`, `AAAA 2a02:2479:5c:a00::1`,
+        no CNAME). The `mesh.*` names are safe for a different reason — they are
+        answered by MagicDNS, which never mentions the apex.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -173,27 +262,56 @@ in {
           protection_enabled = true;
           filtering_enabled = true;
 
-          # ⚠️ **No rewrites, and that is the design rather than an omission.**
+          # Split-horizon for roaming clients — **off unless
+          # `splitHorizonTarget` is set**, which keeps D15's original "blocking,
+          # no rewrites" as this module's default. See that option for why the
+          # reversal is correct and what it costs.
           #
-          # The two site resolvers rewrite `*.mvissing.de` to their *own* site's
-          # ingress VIP — brink to 192.168.1.240, winkel to 192.168.178.240 —
-          # which is why neither of them could serve the tailnet: tailnet DNS is
-          # global, so whichever was chosen would hand every client at the other
-          # site the wrong VIP.
+          # The shape differs from ./site-dns.nix in one way worth noting: that
+          # module derives the answer from `site.ingressVIP`, i.e. *this* site's
+          # Traefik. A roaming client is at no site, so there is nothing to
+          # derive from and the target has to be named explicitly by the host.
           #
-          # A client at neither site *should* resolve `paperless.mvissing.de` to
-          # the public ingress, which is exactly what public DNS already returns.
-          # So the correct roaming view is "blocking, no rewrites", and the right
-          # implementation of it is an empty list.
-          #
-          # ⚠️ Consequence worth knowing before debugging: a roaming client
-          # reaches apps through ionos's public edge, which is **default-closed**
-          # — every app name currently answers 404 behind `TRAEFIK DEFAULT CERT`.
-          # Off-LAN access to apps therefore still comes from being *on* the
-          # overlay and using the site VIPs, not from this resolver. This makes
-          # ad-blocking work while roaming; it does not publish anything.
+          # ⚠️ `enabled = true` on every entry is not a default and not
+          # optional. AdGuard's rewrite schema has an `enabled` field, and an
+          # entry omitting it is migrated to `enabled: false` — the rules land
+          # in AdGuardHome.yaml, read exactly right, and do nothing. Phase 4
+          # caught this only because the resolver was verified before anything
+          # was pointed at it.
           rewrites_enabled = true;
-          rewrites = [];
+          rewrites = lib.optionals (cfg.splitHorizonDomain != null && cfg.splitHorizonTarget != null) (
+            [
+              {
+                domain = "*.${cfg.splitHorizonDomain}";
+                answer = cfg.splitHorizonTarget;
+                enabled = true;
+              }
+              # ⚠️ The apex needs its own entry — `*.x` does not match `x`.
+              # Homepage lives at the bare `mvissing.de`, and Phase 9 spent a
+              # session on precisely this omission at the site resolvers.
+              {
+                domain = cfg.splitHorizonDomain;
+                answer = cfg.splitHorizonTarget;
+                enabled = true;
+              }
+            ]
+            # Two entries per pass-through name: the special answer `A`
+            # preserves only A records and `AAAA` only AAAA, so one without the
+            # other silently blackholes the opposite family.
+            ++ lib.concatMap (name: [
+              {
+                domain = name;
+                answer = "A";
+                enabled = true;
+              }
+              {
+                domain = name;
+                answer = "AAAA";
+                enabled = true;
+              }
+            ])
+            cfg.passthroughNames
+          );
         };
 
         # Shared with ./site-dns.nix so the three instances cannot drift into
