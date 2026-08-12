@@ -251,7 +251,12 @@ Nix management.
 Built:
 
 - Global skills — `conventional-commits`, `rust-workflow`, `refinement-loop`,
-  `architecture`, `docs-first`
+  `architecture`, `docs-first`, plus vendored `i-have-adhd` (pinned from
+  `ayghri/i-have-adhd`, on demand via `/i-have-adhd`)
+- Global rules — `global/context.md` → `~/.config/opencode/AGENTS.md`, the
+  always-on short form of the `i-have-adhd` output rules. Applies to every
+  session on both Macs. ⚠️ It also suppresses `~/.claude/CLAUDE.md`, which
+  opencode would otherwise use as the global rules file
 - Global agents — `analyst-architecture`, `reviewer-{architecture,quality,
   tests,business,security}`, `codebase-locator`, `codebase-pattern-finder`
 - Global commands — `commit`, `review-all`, `diagram`

@@ -66,6 +66,17 @@
     hash = "sha256-RH2B03gj4kzw1j5LORezgUZPPu8mW+mWb+Kl2U7WUbY=";
   };
 
+  # The output-shaping ruleset. Its short form is always on via ./global/context.md;
+  # this pin only adds the long form, behind an explicit /i-have-adhd. Upstream's
+  # own installers (`npx skills add`, `claude plugin marketplace`) all mutate the
+  # config directory in place, so the skill is vendored instead.
+  adhdSkill = pkgs.fetchFromGitHub {
+    owner = "ayghri";
+    repo = "i-have-adhd";
+    rev = "2ed064090711586e0c97a2fbbf15465fe8f1808b";
+    hash = "sha256-/h4HxkUbtRGoqgyFvjJrd++XmOd1KSVku5dR2/f9b/s=";
+  };
+
   # Per-directory profiles, selected by the wrapper below. The settings file is
   # generated outside the profile directory on purpose: anything named
   # opencode.json *inside* OPENCODE_CONFIG_DIR is loaded at a precedence that
@@ -234,7 +245,20 @@ in {
       # and skills live in profiles/*/ instead.
       commands = ./global/commands;
       agents = ./global/agents;
-      skills = ./global/skills;
+
+      # The option takes either a directory *or* an attrset, never both, so
+      # pulling in one out-of-tree skill means enumerating the in-tree ones too.
+      # readDir keeps that a one-place change when a skill is added.
+      skills =
+        lib.mapAttrs (name: _: ./global/skills + "/${name}")
+        (lib.filterAttrs (_: t: t == "directory") (builtins.readDir ./global/skills))
+        // {i-have-adhd = "${adhdSkill}/skills/i-have-adhd";};
+
+      # Output shaping, applied to every session on both Macs and in every repo.
+      # ⚠️ Writing ~/.config/opencode/AGENTS.md SUPPRESSES ~/.claude/CLAUDE.md:
+      # opencode takes the first match per category, so a global Claude-side
+      # rules file added later would be ignored with no error. None exists today.
+      context = ./global/context.md;
 
       tui = {
         theme = "tokyonight";
