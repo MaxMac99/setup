@@ -470,7 +470,7 @@ in {
     cluster = {
       dualStack = lib.mkOption {
         type = lib.types.bool;
-        default = false;
+        default = true;
         description = ''
           Whether the cluster runs dual-stack IPv4+IPv6 (D17, reversing D1).
 
