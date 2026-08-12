@@ -183,6 +183,7 @@ in {
             "*" = "ask";
 
             # Inspection
+            "which *" = "allow";
             "ls *" = "allow";
             "cat *" = "allow";
             "head *" = "allow";
