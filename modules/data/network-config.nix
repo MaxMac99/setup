@@ -503,12 +503,35 @@ in {
       };
       podCidrV6 = lib.mkOption {
         type = lib.types.str;
-        default = "fd06:f10a:ebec:42::/56";
+        default = "fd06:f10a:ebec:4200::/56";
         description = ''
           Pod CIDR, IPv6. Carved from the estate ULA `fd06:f10a:ebec::/48`
           rather than resurrecting D1's `fd01::/48`, so the whole estate stays
           inside one randomly-generated /48 and the `:42:`/`:43:` subnet ids
           echo the v4 `10.42`/`10.43` they sit beside.
+
+          ⚠️⚠️ **This was `fd06:f10a:ebec:42::/56` and that value was broken in
+          a way nothing here caught — fixed 2026-08-12, mid-rebuild, after the
+          first node had already allocated from it.** A /56 mask ends *inside*
+          the fourth hextet, so `…:0042::/56` is not the "42 block": it
+          normalises to **`fd06:f10a:ebec::/56`**, spanning `…:0000::` to
+          `…:00ff::`. The `:42:` label is in the host part and is silently
+          discarded. Consequences, both real and both measured with
+          `ipaddress`:
+
+            - it **contained the service CIDR** `…:43::/112`, since 0x0043 is
+              inside 0x0000–0x00ff; and
+            - it **contained Brink's site ULA** `…:1::/64`. Node CIDRs are
+              handed out sequentially from the base, so the *second* node to
+              join takes `fd06:f10a:ebec:1::/64` — byte-for-byte
+              brink-server's own LAN prefix. ionos took `…:0000::/64` and the
+              collision was one join away.
+
+          `…:4200::/56` is /56-aligned, so the visible `42` survives the mask,
+          and it overlaps neither site ULA nor the service CIDR. ⚠️ **Check
+          alignment with a tool, not by reading the literal** — a v6 prefix
+          that "looks like" it names a subnet may not, and nothing in the k3s
+          flags, the flannel config or the assertions rejects an unaligned one.
 
           /56 with the default `node-cidr-mask-size-ipv6` of 64 gives 256 node
           subnets, against four nodes.
