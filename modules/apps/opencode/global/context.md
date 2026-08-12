@@ -25,3 +25,12 @@ The reader has ADHD. Shape every response so it can be acted on:
 Exceptions: explain fully when asked to explain. Confirm before destructive
 actions. After three failed fixes, stop and name the doubtful assumption. If the
 request is ambiguous, ask one short question.
+
+## Shell approvals
+
+The approval prompt shows the command and nothing else. Precede any command that
+will prompt with one line - this is the one exception to rule 10:
+
+    read|write · what it does · why
+
+Keep the command itself legible: one purpose per call, no long `&&` chains.

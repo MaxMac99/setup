@@ -178,6 +178,14 @@ in {
         #
         # `gh api` is deliberately absent: `gh api repos/O/R/issues -f title=x`
         # implies POST, so any `gh api repos/*` allow would auto-approve writes.
+        #
+        # This list is what makes ./global/context.md's "Shell approvals" rule
+        # cheap: the reads below never reach a prompt, so anything that does
+        # prompt is by construction not a known-safe read and is worth a line of
+        # explanation. Adding an allow here silently removes that explanation.
+        # ⚠️ The permission dialog renders only the command - its metadata is
+        # {command, directories, patterns}, with no field a plugin or config can
+        # write - which is why the explanation has to precede the call instead.
         permission = {
           bash = {
             "*" = "ask";
@@ -194,6 +202,20 @@ in {
             "find *" = "allow";
             "rg *" = "allow";
             "jq *" = "allow";
+            "file *" = "allow";
+            "stat *" = "allow";
+            "readlink *" = "allow";
+            "basename *" = "allow";
+            "dirname *" = "allow";
+            "diff *" = "allow";
+            "tree *" = "allow";
+            "du *" = "allow";
+            "df *" = "allow";
+            "strings *" = "allow";
+            "cut *" = "allow";
+            "uniq *" = "allow";
+            "pwd" = "allow";
+            "uname*" = "allow";
 
             # Git, read-only plus staging
             "git status*" = "allow";
@@ -204,6 +226,14 @@ in {
             "git remote -v" = "allow";
             "git worktree list*" = "allow";
             "git add*" = "allow";
+            "git blame*" = "allow";
+            "git rev-parse*" = "allow";
+            "git merge-base*" = "allow";
+            "git describe*" = "allow";
+            "git ls-files*" = "allow";
+            "git shortlog*" = "allow";
+            "git stash list*" = "allow";
+            "git config --get*" = "allow";
 
             # Rust
             "cargo check*" = "allow";
@@ -220,20 +250,45 @@ in {
             "nix eval*" = "allow";
             "nix flake check*" = "allow";
             "nix flake metadata*" = "allow";
+            "nix flake show*" = "allow";
             "nix fmt -- --check*" = "allow";
+            "nix path-info*" = "allow";
+            "nix derivation show*" = "allow";
+            "nix search*" = "allow";
+            "nix why-depends*" = "allow";
 
-            # Infra, read-only
+            # Infra, read-only. `kubectl config view` and `pulumi stack output`
+            # are deliberately absent: both take a flag (`--raw`,
+            # `--show-secrets`) that prints the kubeconfig's client key or a
+            # stack's secrets straight into the transcript, and a trailing `*`
+            # cannot exclude a flag.
             "kubectl get*" = "allow";
             "kubectl describe*" = "allow";
             "kubectl logs*" = "allow";
+            "kubectl top*" = "allow";
+            "kubectl explain*" = "allow";
+            "kubectl api-resources*" = "allow";
+            "kubectl config get-contexts*" = "allow";
+            "kubectl config current-context*" = "allow";
             "pulumi preview*" = "allow";
+            "pulumi stack ls*" = "allow";
+            "pulumi about*" = "allow";
+            "pulumi whoami*" = "allow";
 
             # GitHub, read-only
             "gh pr view*" = "allow";
             "gh pr diff*" = "allow";
             "gh pr list*" = "allow";
+            "gh pr checks*" = "allow";
             "gh issue view*" = "allow";
             "gh issue list*" = "allow";
+            "gh run view*" = "allow";
+            "gh run list*" = "allow";
+            "gh repo view*" = "allow";
+            "gh release view*" = "allow";
+            "gh release list*" = "allow";
+            "gh workflow list*" = "allow";
+            "gh search*" = "allow";
 
             # Irreversible or outward-facing: never without a human.
             "git push --force*" = "deny";
