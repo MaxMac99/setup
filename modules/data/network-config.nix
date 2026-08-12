@@ -272,6 +272,8 @@ in {
           site = "brink";
           lanIPv4 = "192.168.1.2";
           overlayIPv4 = "100.64.0.2";
+          # Read off the live tailnet with `tailscale ip -6`, 2026-08-12.
+          overlayIPv6 = "fd7a:115c:a1e0::2";
           k3sRole = "server";
           subnetRouter = true; # Brink's only always-on host
         };
@@ -279,6 +281,10 @@ in {
           site = "winkel";
           lanIPv4 = "192.168.178.2";
           overlayIPv4 = "100.64.0.5";
+          # Read off the live tailnet with `tailscale ip -6`, 2026-08-12.
+          # ⚠️ `.5`, not `.4` — the iPhone holds `100.64.0.4`. The sequence is
+          # enrolment order, which is exactly why these are read and not derived.
+          overlayIPv6 = "fd7a:115c:a1e0::5";
           k3sRole = "server";
           # Deliberately not a subnet router (3.1): the pi is, so a rebuild of
           # maxdata cannot take Winkel's routing down with it.
@@ -287,6 +293,8 @@ in {
           site = "winkel";
           lanIPv4 = "192.168.178.3";
           overlayIPv4 = "100.64.0.3";
+          # Read off the live tailnet with `tailscale ip -6`, 2026-08-12.
+          overlayIPv6 = "fd7a:115c:a1e0::3";
           k3sRole = "agent";
           subnetRouter = true; # D10 — the unattended-site anchor
         };
@@ -295,6 +303,8 @@ in {
           publicIPv4 = "212.132.82.102";
           publicIPv6 = "2a02:2479:5c:a00::1";
           overlayIPv4 = "100.64.0.1";
+          # Read off the live tailnet with `tailscale ip -6`, 2026-08-12.
+          overlayIPv6 = "fd7a:115c:a1e0::1";
           k3sRole = "server";
         };
       };
@@ -408,7 +418,7 @@ in {
       };
       mtu = lib.mkOption {
         type = lib.types.int;
-        default = 1280;
+        default = 1380;
         description = ''
           Overlay MTU, imposed on `tailscale0` by
           `modules/system/overlay-client.nix` and consumed by
@@ -422,9 +432,27 @@ in {
           enforced at both ends, which also means changing it now genuinely
           moves the cluster's MTU.
 
-          1280 is Tailscale's `safeTUNMTU`, not a measurement of the path. It
-          is also exactly the IPv6 minimum link MTU, which is what makes it
-          unusable for dual-stack: see `cluster.dualStack` for the arithmetic.
+          The old default of 1280 was Tailscale's `safeTUNMTU`, not a
+          measurement of the path. It is also exactly the IPv6 minimum link
+          MTU, which is what made it unusable for dual-stack — see
+          `cluster.dualStack` for the arithmetic.
+
+          **1380 is measured (14.1, 2026-08-12), and the number is chosen by
+          the *fallback* path rather than the fast one.** All 12 directed pairs
+          carried 1400 at 0% loss, with a byte-exact 20 MB transfer on each of
+          the three paths the cluster can actually take. The binding constraint
+          is not the steady-state IPv6 path but the IPv4 one through Brink's
+          DS-Lite CGNAT, which appears the moment native IPv6 is unavailable:
+
+            1400 + 32 WG + 8 UDP + 20 IPv4        = 1460
+                 + 40 DS-Lite v4-in-v6 to the AFTR = 1500  ← the physical MTU exactly
+
+          That passed, with **zero bytes spare**. 1380 keeps 20 bytes of margin
+          on *both* underlay families (1460 over IPv4+DS-Lite, 1440 over IPv6)
+          and still puts flannel at 1310, clear of the 1280 IPv6 floor. ⚠️ Do
+          not raise this to 1400 for the extra headroom it appears to give:
+          that headroom exists only on the path that works, and the path that
+          matters is the one that appears during an incident.
         '';
       };
     };
