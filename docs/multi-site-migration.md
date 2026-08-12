@@ -3305,6 +3305,46 @@ CIDRs are restated in it. Both it and `--cluster-cidr` derive from
 `networkConfig.cluster`, which makes drift impossible *within this repo* — do not
 inline a literal into either.
 
+### 14.5b Pre-rebuild capture — taken 2026-08-12
+
+`/tank/backups/pre-dualstack-2026-08-12/` on maxdata, 436 M. ⚠️ **With Phase 11
+deliberately deferred, this is the only copy of anything**, so it was verified
+by reading contents back out rather than by trusting exit status.
+
+- **Postgres** — `postgres-globals.sql` plus per-database `-Fc` dumps from the
+  primary (`postgres-1`). Verified: **730 `documents_document`**, 5 `auth_user`,
+  2 `socialaccount` read out of the paperless archive, matching live exactly.
+  ⚠️ `pg-homeassistant.dump` and `pg-app.dump` are ~900 bytes and that is
+  **correct, not a failure** — the `homeassistant` database has **0 public
+  tables**. HA does not use Postgres; its state is SQLite at
+  `/config/home-assistant_v2.db`. Worth knowing before someone "restores" it.
+- **`ha-config.tar.gz` (108 M)** — the config volume, which had **no backup at
+  all** before today, `pre-multi-site/` having never included Home Assistant.
+  That is what cost the original 792-entity install in Phase 8. Taken with
+  SQLite's **online backup API** (`sqlite3.Connection.backup`) from inside the
+  pod, so it is consistent **without stopping the smart home**, and the live
+  `home-assistant_v2.db{,-shm,-wal}` are excluded in favour of the snapshot.
+  Verified at **857 entities / 105 devices** read out of the archive.
+- **Volumes** — `unifi-data` (115 M) and `unifi-mongo` (29 M), which carry the
+  device auth keys that made re-adoption work at all; `paperless-data` (142 M),
+  `grafana` (21 M), `musicassistant` (32 M), and the small ones. Note
+  `vol-authentik-media.tar.gz` is **104 bytes** — genuinely empty, matching
+  Phase 1's 102-byte tarball.
+- **Pulumi** — `Pulumi.default.yaml` (the 16 `secure:` entries), `Pulumi.yaml`,
+  and a 17 MB `pulumi stack export`.
+
+**Deliberately not captured:** Prometheus, Loki, Tempo and Alertmanager (~250 Gi,
+regenerable by the migration's own strategy), the Redis caches, and the NFS tier
+— which lives on `tank` and which Phase 10 established the rebuild never touches.
+
+⚠️ **`df /tank` lies, and it lied here first.** `tank` has `mountpoint=none`, so
+`/tank` is a bare directory on the **root** dataset while the children mount
+beneath it via `legacy` mountpoints. `df -h /tank` therefore reports
+`fast/root … /` and reads exactly like the shadowing failure D13 warns about for
+`/var/lib/k8s` and `/fast/k8s`. **Check the actual subdirectory**: `df -h
+/tank/backups/...` correctly reports `tank/backups 6.5T … 1%`, i.e. RAIDZ1 as
+intended.
+
 ### 14.5a ⚠️ Do not deploy the MTU change ahead of the rebuild
 
 **`overlay.mtu` was raised 1280 → 1380 on 2026-08-12, and deploying that on its
