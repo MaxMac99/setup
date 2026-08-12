@@ -27,14 +27,49 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }: let
   cfg = config.k3sCluster;
   net = config.networkConfig;
+  cluster = net.cluster;
   self = net.hosts.${config.hostSpec.hostName};
   first = net.hosts.${cfg.firstServer};
 
   isServer = self.k3sRole == "server";
+  dual = cluster.dualStack;
+
+  # The MTU flannel must hand to pod veths and to its own VXLAN devices.
+  #
+  # Not `overlay.mtu − 50`, which is what flannel would derive on its own, and
+  # the 20-byte difference is the whole reason this is pinned. The VTEPs are
+  # `fd7a:` addresses, so the outer header is IPv6 (40 bytes) rather than IPv4
+  # (20), and flannel's `encapOverhead` constant is hardcoded to 50 with no
+  # notion of the address family it is encapsulating in. Left alone it hands
+  # out an MTU 20 bytes larger than tailscale0 can carry, and the packets that
+  # fall in that gap are exactly the full-size ones — D3's blackhole, where
+  # ping succeeds and bulk transfer dies.
+  flannelMTU = net.overlay.mtu - 70;
+
+  # ⚠️ Supplying this replaces k3s's *entire* generated net-conf.json, so the
+  # pod CIDRs have to be restated here — and if these disagree with the
+  # `--cluster-cidr` flag below, flannel and the controller-manager allocate
+  # from different ranges and pods come up unroutable. Both derive from
+  # `networkConfig.cluster`, which is what makes that impossible by
+  # construction; do not inline a literal into either one.
+  #
+  # `Backend.MTU` is pre-subtraction: flannel takes this value and subtracts 50
+  # to get the device and pod MTU, so it is written as flannelMTU + 50.
+  flannelConf = pkgs.writeText "flannel-net-conf.json" (builtins.toJSON {
+    Network = cluster.podCidrV4;
+    IPv6Network = cluster.podCidrV6;
+    EnableIPv4 = true;
+    EnableIPv6 = true;
+    Backend = {
+      Type = "vxlan";
+      MTU = flannelMTU + 50;
+    };
+  });
 in {
   imports = [(lib.custom.relativeToRoot "modules/system/k3s-base.nix")];
 
@@ -133,6 +168,21 @@ in {
         assertion = first.overlayIPv4 != null;
         message = "k3sCluster: firstServer ${cfg.firstServer} has no overlayIPv4 to join through.";
       }
+      {
+        assertion = dual -> self.overlayIPv6 != null;
+        message = "k3sCluster: cluster.dualStack is on but ${config.hostSpec.hostName} has no overlayIPv6. Read it off the live tailnet (`tailscale ip -6`, or `headscale nodes list` on ionos) and record it in networkConfig.hosts — do not guess it from the v4 assignment.";
+      }
+      {
+        # The whole dual-stack design rests on this one inequality, so it is
+        # checked rather than trusted. flannel-v6.1 is created at
+        # `flannelMTU`, and the kernel refuses to put an IPv6 address on any
+        # device below IPV6_MIN_MTU = 1280 — it returns -EINVAL, or tears
+        # existing IPv6 down on a live MTU change. Flannel then fails at
+        # `EnsureV6AddressOnLink` and the v6 half of the cluster never comes
+        # up, while the v4 half works perfectly and hides it.
+        assertion = dual -> flannelMTU >= 1280;
+        message = "k3sCluster: cluster.dualStack needs networkConfig.overlay.mtu >= 1350 (it is ${toString net.overlay.mtu}), which puts flannel-v6.1 at ${toString flannelMTU} — below the kernel's IPv6 minimum of 1280, so it cannot hold an address.";
+      }
     ];
 
     # Point kubectl at the cluster. Without this it falls back to its built-in
@@ -163,6 +213,21 @@ in {
       restartUnits = ["k3s.service"];
     };
 
+    # ⚠️ Ordering, not a preference. Flannel reads the external interface's MTU
+    # **once, at startup**, and derives every device and pod MTU from what it
+    # sees. If k3s wins the race against overlay-mtu.service it reads 1280,
+    # sizes flannel-v6.1 at 1230, and the kernel then refuses that device an
+    # IPv6 address — a dual-stack cluster that comes up single-stack, with the
+    # working v4 half masking the failure.
+    #
+    # Cross-module by unit name: the unit is defined in overlay-client.nix,
+    # which this module does not import. That coupling is deliberate but
+    # invisible, so it is named here rather than assumed.
+    systemd.services.k3s = {
+      after = ["overlay-mtu.service"];
+      wants = ["overlay-mtu.service"];
+    };
+
     services.k3s = {
       role = lib.mkForce self.k3sRole;
       tokenFile = config.sops.secrets.${cfg.tokenSecret}.path;
@@ -178,24 +243,53 @@ in {
           # Two of them are behind CGNAT at different sites and ionos has no
           # LAN at all, so a LAN node-ip is not merely suboptimal, it is
           # unroutable from most of the cluster.
-          "--node-ip=${self.overlayIPv4}"
-
-          # ⚠️ This is how the MTU gets pinned — there is **no `--flannel-mtu`
-          # flag**, verified against k3s v1.35.6 (`k3s server --help` matches
-          # zero MTU options). Flannel derives its MTU from this interface
-          # minus the backend's overhead, so naming the interface is the only
-          # lever, and naming the *wrong* one is D3's blackhole: large payloads
-          # vanish while ping still succeeds.
           #
-          # tailscale0 measures **1280** on all four nodes, so flannel.1 must
-          # come up at **1230** (VXLAN −50). That is a prediction to check, not
-          # an assumption — the old cluster is the control: it rode wg0 at MTU
-          # 1420 and its flannel.1 was 1370, exactly 1420 − 50.
+          # D17 lists both families here, and **IPv4 stays first deliberately**.
+          # The kubelet always treats the first address as the primary family,
+          # and k3s warns explicitly that a v6-primary cluster needs every
+          # member's node-ip set with the v6 address leading. Keeping v4 primary
+          # means every existing Service, every `100.64.0.x` reference in
+          # homelab-k8s and Home Assistant's `trusted_proxies` keep meaning what
+          # they mean today; IPv6 is additive rather than a reinterpretation.
+          "--node-ip=${
+            if dual
+            then "${self.overlayIPv4},${self.overlayIPv6}"
+            else self.overlayIPv4
+          }"
+
+          # Which interface flannel encapsulates over. There is **no
+          # `--flannel-mtu` flag**, verified against k3s v1.35.6 (`k3s server
+          # --help` matches zero MTU options), so under single-stack this is
+          # also the only MTU lever: flannel takes this interface's MTU minus
+          # the backend overhead. Naming the *wrong* interface is D3's
+          # blackhole — large payloads vanish while ping still succeeds.
+          #
+          # Single-stack: tailscale0 at 1280 gives flannel.1 at 1230 (VXLAN
+          # −50), confirmed live on all four nodes, and cross-checked against
+          # the old cluster which rode wg0 at 1420 with flannel.1 at 1370.
+          #
+          # Dual-stack: inheritance is no longer good enough and the MTU is
+          # pinned explicitly below — see `flannelMTU`.
           "--flannel-iface=${config.services.tailscale.interfaceName}"
 
           # D5/D6 schedule by site; `public` rather than the old `external`,
           # to match the networkConfig.sites keys.
           "--node-label=topology.kubernetes.io/zone=${self.site}"
+        ]
+        ++ lib.optionals dual [
+          # ⚠️ **Both of these are marked experimental/agent-scoped by k3s and
+          # neither has been confirmed against the version this fleet runs.**
+          # An unrecognised flag makes k3s refuse to start rather than warn, so
+          # confirm both appear in `k3s server --help` *and* `k3s agent --help`
+          # before deploying — winkel-pi is the only agent, and it is also the
+          # host where a failed rebuild has twice cost a recovery.
+          "--flannel-conf=${flannelConf}"
+
+          # Required, not optional: the pod CIDR is a ULA, so without
+          # masquerading pods egress to the v6 internet using an address no
+          # return path exists for. Replies are dropped upstream and the
+          # failure looks like a dead destination rather than a NAT gap.
+          "--flannel-ipv6-masq"
         ]
         ++ lib.optionals isServer [
           "--disable=servicelb" # MetalLB owns LoadBalancer (D5)
@@ -204,6 +298,48 @@ in {
           "--write-kubeconfig-mode=644"
           "--tls-san=${config.hostSpec.hostName}"
           "--tls-san=${self.overlayIPv4}"
+
+          # ⚠️ These four sat inside the `lanInterface != null` guard below
+          # until 2026-08-12, which meant **ionos — the cluster-init server —
+          # received none of them**. It has no LAN interface, so the guard was
+          # false on the one node whose flags bootstrap the cluster.
+          #
+          # It was invisible because the CIDRs happen to equal k3s's own
+          # defaults, so only the D4 etcd tuning was actually missing. The
+          # cluster CIDRs are a property of *the cluster*, not of whether a
+          # given server also answers on its LAN, and the etcd tuning is about
+          # the WAN paths between servers — which is exactly what ionos is at
+          # the far end of. Nothing here has anything to do with lanInterface.
+          "--cluster-cidr=${
+            if dual
+            then "${cluster.podCidrV4},${cluster.podCidrV6}"
+            else cluster.podCidrV4
+          }"
+          "--service-cidr=${
+            if dual
+            then "${cluster.serviceCidrV4},${cluster.serviceCidrV6}"
+            else cluster.serviceCidrV4
+          }"
+
+          # D4, from measurement rather than folklore: Phase 2 sampled p99
+          # 6.8 ms direct and 23–25 ms relayed over 347 samples per direction.
+          # 500/5000 sits 73× and 735× above that p99. Defaults (100/1000)
+          # cause spurious leader elections across two consumer uplinks.
+          "--etcd-arg=heartbeat-interval=500"
+          "--etcd-arg=election-timeout=5000"
+        ]
+        ++ lib.optionals (isServer && dual) [
+          # Same reasoning as the v4 SAN above: without it, anything reaching
+          # the API over the node's overlay v6 address fails certificate
+          # validation rather than failing to connect, which reads as a broken
+          # cluster rather than a missing name.
+          "--tls-san=${self.overlayIPv6}"
+
+          # k3s documents this as needing to track the cluster-cidr mask but
+          # gives no flag spelling, so it goes through the controller-manager
+          # passthrough. /56 pod CIDR split into /64s per node — 256 subnets
+          # against four nodes, matching the v4 side's generosity.
+          "--kube-controller-manager-arg=node-cidr-mask-size-ipv6=64"
         ]
         ++ lib.optionals (isServer && cfg.lanInterface != null && self.lanIPv4 != null) [
           # Required for in-site access. Without it kubectl reaches 6443 on the
@@ -213,18 +349,6 @@ in {
           # missing SAN. Verified: the live cert's SANs are 100.64.0.1/.2/.5,
           # 10.43.0.1, 127.0.0.1 and the node names, with no LAN address.
           "--tls-san=${self.lanIPv4}"
-
-          # D1: IPv4 only. The dual-stack CIDRs this replaces existed solely so
-          # ionos could reach home under DS-Lite; the overlay does that now.
-          "--cluster-cidr=10.42.0.0/16"
-          "--service-cidr=10.43.0.0/16"
-
-          # D4, from measurement rather than folklore: Phase 2 sampled p99
-          # 6.8 ms direct and 23–25 ms relayed over 347 samples per direction.
-          # 500/5000 sits 73× and 735× above that p99. Defaults (100/1000)
-          # cause spurious leader elections across two consumer uplinks.
-          "--etcd-arg=heartbeat-interval=500"
-          "--etcd-arg=election-timeout=5000"
         ]
         ++ lib.optionals cfg.clusterInit ["--cluster-init"]
         ++ cfg.extraFlags

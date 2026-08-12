@@ -44,6 +44,15 @@ in {
 
       prefixes.v4 = overlay.prefixV4;
 
+      # ⚠️ Stated rather than inherited. Headscale has been allocating IPv6
+      # from the nixpkgs module's default since Phase 3 — every node has had an
+      # `fd7a:` address all along — and nothing in this repo asked for it,
+      # recorded it, or referenced it. D17 makes those addresses load-bearing
+      # as the v6 half of every node's `--node-ip`, and an address plan the
+      # cluster depends on must not be a default that a nixpkgs bump can move
+      # underneath it.
+      prefixes.v6 = overlay.prefixV6;
+
       # Headscale terminates TLS itself. HTTP-01 needs no DNS API credential,
       # which is the cheap path now that port 80 is free — the alternative is
       # an IONOS DNS token, and that is Phase 9's problem (D8), not a

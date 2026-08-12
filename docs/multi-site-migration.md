@@ -36,6 +36,7 @@ One session per phase. Read this section first, update it last.
 | 11 | Backups that exist | not started | | |
 | 12 | Monitoring | not started | | |
 | 13 | Cleanup | not started | | |
+| 14 | Dual-stack cluster (D17) | 🚧 code landed, **not deployed** | 2026-08-12 | ⚠️ **Gated on 14.1, which may kill it.** Code is complete and inert — `cluster.dualStack` defaults `false`, so all four hosts evaluate to today's exact flag set. What landed: the address plan (`overlay.prefixV6`, `hosts.*.overlayIPv6`, `cluster.{podCidr,serviceCidr}{V4,V6}`), the dual-stack k3s flags, `overlay-mtu.service` imposing `overlay.mtu` on `tailscale0`, an explicit flannel MTU via `--flannel-conf`, and two assertions that fail the build rather than the cluster. **Also fixed en route, and this one is live**: `--cluster-cidr`, `--service-cidr` and both D4 `--etcd-arg`s sat inside the `lanInterface != null` guard, so **ionos — the cluster-init server — received none of them**. Invisible because the CIDRs equal k3s's defaults; the etcd tuning was genuinely absent on the one node at the far end of both WAN paths. **Three things must happen before this can be deployed**: measure the real path MTU (14.1), read the four `overlayIPv6` addresses off the live tailnet, and confirm `--flannel-conf` / `--flannel-ipv6-masq` exist in this k3s version — an unrecognised flag stops k3s rather than warning |
 
 ## Decision log
 
@@ -241,6 +242,7 @@ Two things are deliberately *not* in the cluster:
 | **D14** | brink-server uses **systemd-networkd**, not scripted networking | **Added 2026-08-06.** On a scripted-networking host `nixos-rebuild test`/`switch` stops `dhcpcd` — deleting every address and route — without starting `network-setup.service`, leaving the interface bare. That cost two recoveries on the pi (6.5), once as total silence and once, worse, as an applied address with **no default route**: LAN-reachable and apparently healthy while every outbound connection failed. brink-server is Brink's subnet router and primary DNS; it is precisely the host that must not be losable to a routine rebuild. networkd also handles RAs itself, so it needs no `accept_ra=2` sysctl to keep IPv6 once Phase 3 turns on forwarding. |
 | **D15** | Roaming clients resolve through a **third AdGuard on ionos**, overlay-only and with **no split-horizon rewrites** | **Added 2026-08-07.** Measured first: a host on the overlay at neither site has **no ad-blocking and no split-horizon at all**. Verified from ionos — `192.168.1.2:53` unreachable (clients run `--accept-routes=false` per 3.6.1, so they never install the subnet route) and `100.64.0.2:53` unreachable (AdGuard deliberately does *not* bind the overlay address, because it starts before `tailscale0` exists and would crash-loop). ionos resolved via `212.227.123.16`, its provider's DNS. **Why a third instance rather than pushing a site resolver:** tailnet DNS is global, but the two site AdGuards answer *differently by design* — brink rewrites `*.mvissing.de` → `192.168.1.240`, winkel → `192.168.178.240`. Pointing the tailnet at one of them gives every roaming *and* on-site client the wrong site's ingress VIP. **Why no rewrites on ionos:** a client that is on neither LAN *should* resolve `paperless.mvissing.de` to the public ingress, which is what public DNS already returns — so the correct roaming view is simply "blocking, no rewrites". ⚠️ **`bind_hosts = ["0.0.0.0"]` is safe here and only here**: nothing holds `:53` on ionos and `systemd-resolved` is `not-found`, so there is no stub-resolver collision — unlike brink-server, where that forced the explicit LAN bind. This also removes any ordering dependency on `tailscale0`, which gets its address ~6 s *after* `network-online.target`. ⚠️ **The load-bearing half is the firewall, not the bind**: `site-dns.nix` opens 53 **globally**, and copying that to a publicly-reachable VPS creates an open resolver. 53 must be scoped to `tailscale0` alone, exactly as 7.1 scoped the k3s ports. *(Phase 8 planning, 2026-08-07.)* ✅ **Steps 1 and 2 built and verified 2026-08-07; only step 3, the phone, remains.** `modules/system/roaming-dns.nix` (new) runs the third AdGuard on ionos, and `hosts/nixos/ionos/overlay-server.nix` pushes it with `nameservers.global = ["100.64.0.1"]` + `override_local_dns = true`. ⚠️ **Written as a separate module rather than a flag on `site-dns.nix`, and the firewall is the whole reason** — that module opens 53 in `networking.firewall.allowedUDPPorts`, i.e. every interface, which on a public VPS is an open resolver. A shared module with a mode flag puts that outcome one wrong default away; a separate file means the global open never exists in this code path. The two share only the blocklists, factored into `modules/data/adguard-filters.nix` so three instances cannot drift into blocking different things — a drift that would be invisible, since the roaming resolver's entire purpose *is* blocking. ⚠️ **`ratelimit` departs from `site-dns.nix` deliberately and D15 did not consider it.** The sites set `ratelimit = 0`, justified by being unreachable from the internet under CGNAT; that justification does not carry to a socket bound `0.0.0.0` on a public VPS, where an unrated open resolver is precisely what gets a VPS nullrouted if a firewall is ever wrong. Set to `ratelimit = 100` with **`ratelimit_subnet_len_ipv4 = 32`** — the site module's real complaint was never the limit but the bucket, and the overlay is /24-shaped too, so the default would put every roaming client in one allowance. Both keys confirmed present in the rendered `AdGuardHome.yaml` after first start, since an unknown key is dropped by `yaml-merge` in silence. ✅ **Verified after deploy:** across the overlay from brink-server — blocking (`doubleclick.net` → `0.0.0.0`), **no** rewrite (`grafana.mvissing.de` → the public chain, which is the correct roaming view), mesh names resolving; Headscale's rendered config carries the push; all four k3s nodes `Ready` after the Headscale restart; and **no server followed the push** — brink-server on `192.168.1.2`, maxdata on `192.168.178.3`, winkel-pi on itself, split-horizon intact at both sites, which is the `--accept-dns=false` safety argument holding in practice rather than in principle. ⚠️ **The "is it an open resolver" test is the one that cannot be run from Brink** and it produced a false alarm before it produced an answer — see the UDM SE entry above. The valid proof is `dig @212.132.82.102 <name>.mesh.mvissing.de` **from winkel-pi**, which returned `connection timed out`. |
 | **D16** | ionos's `80`/`443` are owned by a **native SNI router**, not by Traefik or Headscale directly | **Added 2026-08-07.** Found while answering "how do I reach services without the overlay": public DNS already wildcards `*.mvissing.de` → `212.132.82.102`, but **Headscale currently holds both 80 and 443 on ionos** (80 for its own ACME HTTP-01), and the old DNAT to the dead `192.168.178.10` is gone. So 9.1's `hostNetwork` Traefik has a port conflict the phase never mentions. Resolution: a native `nginx stream` + `ssl_preread` owns 80/443 and routes by SNI — `headscale.mvissing.de` to local Headscale, everything else to in-cluster Traefik. **TCP passthrough, not termination**, so Headscale keeps its own ACME, Traefik keeps the cert-manager wildcard, and every `IngressRoute` stays in Pulumi. Real client IPs survive via **PROXY protocol** into a Traefik entrypoint, which is what D7 wanted from hostNetwork anyway. ⚠️ **Port 80 needs a `Host` rule, not SNI** — plaintext HTTP has no SNI — so nginx needs an `http` block for 80 beside the `stream` block for 443. **Why not simply put Headscale behind Traefik**, which is simpler and gives cleaner URLs: it would make the overlay control plane depend on the thing it bootstraps, which the Layering rule forbids by name. The failure is narrow but real — a broken cluster plus a node reboot leaves that node unable to rejoin the overlay and therefore the cluster. Winkel has an independent way in (the FritzBox WireGuard); **Brink has none**. Rejected for that asymmetry, not for elegance. ⚠️ **Revised 2026-08-07 — split into two stages, and only Stage A is deployed.** **Stage A (done):** `hosts/nixos/ionos/public-ingress.nix` runs an nginx **`http` block on `:80` only**, matching on `Host` — `headscale.mvissing.de` → `127.0.0.1:8081`, everything else → `traefik-public` on `:8000`. Headscale keeps `*:443` untouched, so the port conflict is **deferred, not resolved**. That is enough for **HTTP-01**, which is all D8 needs, and it made production certificates issuable the same day without restarting the overlay control plane. **Stage B: ✅ done 2026-08-07.** nginx owns `0.0.0.0:443` and `[::]:443` with a `stream` block, splits on `$ssl_preread_server_name`, and speaks PROXY protocol downstream; Headscale moved to **`127.0.0.1:8444`** and Traefik's `websecure` (`*:8443`) sets `proxyProtocol.trustedIPs`. ⚠️ **Headscale does not implement PROXY protocol** — its documented reverse-proxy story is HTTP with `trusted_proxies`, which passthrough cannot use — and `proxy_protocol on` is a property of the `server` block rather than of an upstream, so the splitter necessarily speaks it to whichever backend it picks. Hence a third socket, `127.0.0.1:9444`, whose only job is to parse the header and forward plain TCP to Headscale; nginx preserves the original client address across that hop. Verified: SNI `headscale.mvissing.de` still returns **Headscale's own** Let's Encrypt certificate (proving passthrough, not termination — nginx holds no key), SNI `grafana.mvissing.de` reaches Traefik and completes a TLS handshake, which it could only do after correctly consuming the PROXY header. **Real client IPs confirmed**: a request from `94.31.94.151` logged `"ClientAddr":"94.31.94.151:7725"` on the `:443` path — *better* than the `:80` path, which shows `127.0.0.1` in `ClientAddr` and the real address only in `ClientHost`, because PROXY protocol works at the connection level rather than via a header. ⚠️ **The staging is deliberate: Stage B is the risky half and Stage A is not.** Taking `:443` means restarting the thing every node depends on to reach the cluster, and mis-trusting PROXY protocol silently reports nginx's address as every client's IP — the precise symptom D7 exists to remove, and indistinguishable from the DNAT problem it replaced. ⚠️ **Two corrections to the text above.** "Traefik keeps the cert-manager **wildcard**" is void: D8 was revised the same day to per-hostname certificates, so there is no wildcard. And the public-side Traefik is **not** a native process beside nginx — it is an in-cluster pod with `hostNetwork` on ionos (`infrastructure/traefik-public.ts`), **default-closed** via `ingressClassName: traefik-public` and an `ingress=public` CRD label selector. Consequence worth knowing before debugging: a public `:80` request for any name except Headscale's returns **404 by design**, because the only Ingresses that class ever admits are cert-manager's own solvers. *(Phase 8 planning, 2026-08-07; staged and Stage A deployed Phase 9, 2026-08-07.)* |
+| **D17** | **Reverse D1: the cluster runs dual-stack IPv4+IPv6**, with the v6 node addresses taken from the **overlay** (`fd7a:115c:a1e0::/48`) and the pod/service CIDRs carved from the **estate ULA** (`fd06:f10a:ebec:42::/56`, `:43::/112`) | **Added 2026-08-12.** D1 dropped dual-stack because the CIDRs it removed existed *only* as a DS-Lite workaround, and that reasoning still stands — this is not a restoration of `fd01::`/`fd02::`, and it is not motivated by reachability between sites, which the overlay solves. The driver is **pod egress to IPv6-only destinations**, plus parity. ⚠️ **Two of the four goals that prompted this need no cluster change at all and were checked first**: public IPv6 ingress already works (ionos's nginx listens `[::]:80`/`[::]:443` and Headscale binds `[::]`), and v6-preferring LAN clients are reachable via a `hostNetwork` proxy on the site's own node. NAT64/DNS64 was evaluated as an escape from the rebuild and **does not apply** — it solves v6-only *client* → v4 *server*, which is the opposite direction; v4 pods reaching v6-only servers needs NAT46/SIIT with per-destination EAMT mappings. ⚠️ **The load-bearing constraint is MTU, and it is arithmetic rather than tuning.** Flannel sizes *both* VXLAN devices at `extIface.MTU − 50` from a constant that is blind to the outer header's address family (`vxlan/device.go`, `encapOverhead = 50`), while the Linux kernel refuses IPv6 on any device below `IPV6_MIN_MTU` = 1280 (`addrconf.c` — `-EINVAL` on add, `addrconf_ifdown()` on `NETDEV_CHANGEMTU`). At today's 1280 overlay, `flannel-v6.1` would be created at 1230 and **could not hold an address**: the v6 half of the cluster would never come up while the v4 half worked and hid it. So `tailscale0` must be raised to ≥1350, and because the VTEPs are `fd7a:` addresses the true overhead is 70 rather than 50, flannel over-claims by 20 bytes at *every* underlay MTU — hence the flannel MTU is pinned explicitly at `overlay.mtu − 70` via `--flannel-conf` rather than inherited. ⚠️ **Tailscale offers no supported way to set that MTU.** 1280 is `safeTUNMTU`, a constant and not a path measurement; `TS_DEBUG_MTU` is documented as a debug knob "used once at TUN creation and ignored thereafter"; `ShouldPMTUD()` returns false unconditionally and Tailscale emits no Packet-Too-Big even when probing. The MTU is therefore imposed by `overlay-mtu.service`, bound to the *device* rather than ordered after `tailscaled.service` because the interface is created asynchronously — and `k3s.service` is ordered after it, since flannel reads the interface MTU **once, at startup**. That unit is the fragile joint in the whole design: if it silently fails, the cluster comes up single-stack and looks healthy. ⚠️ **Not flippable on a running cluster** — k3s requires dual-stack at creation and rejects it on an existing IPv4-only cluster, so `cluster.dualStack` is a rebuild instruction, not a switch. MetalLB v6 pools inherit the same constraint, because a Service cannot have `ipFamilies: [IPv6]` unless the apiserver's service CIDR includes a v6 range. ULA rather than the site GUAs keeps D2 intact, at the cost of needing `--flannel-ipv6-masq` for egress. |
 
 ---
 
@@ -265,6 +267,7 @@ Two things are deliberately *not* in the cluster:
 | 11 | Backups that actually exist | — | restore tested from a real backup |
 | 12 | Monitoring | — | dead-man's switch fires on simulated outage |
 | 13 | Cleanup | — | docs match reality |
+| 14 | Dual-stack cluster (D17) | ⚠️ **cluster rebuild — not reversible in place** | overlay MTU measured ≥1350 on every leg, pods hold a v6 address, egress to a v6-only destination works from every node |
 
 ---
 
@@ -2939,6 +2942,113 @@ Add:
 - [ ] `grep -r k3s-node` returns nothing meaningful in either repo
 
 ---
+
+# Phase 14 — Dual-stack cluster (D17)
+
+⚠️ **Do not start this before Phase 10 closes.** Phase 10's one remaining exit
+criterion is Home Assistant discovering Brink devices and Matter commissioning.
+Rebuilding the cluster underneath an open hardware-discovery problem means
+debugging two moving things at once, and Matter does **not** need this phase —
+Home Assistant runs `hostNetwork`, so it bypasses the CNI entirely and already
+uses brink-server's own IPv6 stack.
+
+## 14.1 The MTU gate — do this first, it may end the phase
+
+Everything downstream depends on `tailscale0` carrying ≥1350. This is
+non-destructive and cheap; run it before trusting any of the code that landed.
+
+1. Raise the overlay MTU by hand on a pair of nodes and measure across it:
+
+   ```bash
+   ip link set dev tailscale0 mtu 1400          # both ends, revert afterwards
+   ping -M do -s 1372 -c 20 <peer overlay v4>   # 1372 + 28 = 1400
+   ```
+
+   ⚠️ **`ping` alone is not the test.** D3's failure mode is a path that
+   answers ping and blackholes bulk transfer. Confirm with a byte-exact TCP
+   transfer of ≥20 MB, exactly as Phase 7 did.
+
+2. Measure **every directed pair**, not a sample. The paths are asymmetric:
+   brink→winkel runs over native IPv6 (WireGuard overhead 80), winkel→brink
+   over DS-Lite CGNAT IPv4 (60, plus the AFTR's 40-byte v4-in-v6 tunnel). At
+   MTU 1360 that needs 1440 and 1460 respectively on the physical path.
+
+3. ⚠️ **Test the DERP-relayed path too.** Phase 2 measured zero relay fallback,
+   but a path that only works direct means the first fallback to ionos
+   blackholes the cluster's pod traffic — and relay fallback is exactly what
+   happens when a home uplink flaps.
+
+**Abort if** any leg cannot carry `overlay.mtu + 80`, or if `--flannel-conf`
+turns out not to pin the MTU. Both leave a design that half-works.
+
+## 14.2 What has already landed (2026-08-12, inert)
+
+`cluster.dualStack` defaults `false`, and all four hosts evaluate to byte-identical
+flags to before — verified with `nix eval`. Also verified: with `dualStack = true`
+and the MTU left at 1280, the build **fails** with the flannel-v6.1 arithmetic
+spelled out; with the MTU raised but `overlayIPv6` unset, it fails naming the
+host and telling you where to read the address.
+
+## 14.3 Record the four `overlayIPv6` addresses
+
+⚠️ **Read them, do not derive them.** Headscale has been allocating from
+`fd7a:115c:a1e0::/48` since Phase 3 by nixpkgs default, unacknowledged anywhere
+in the repo. Allocation is `sequential`, so the values *look* predictable from
+the v4 assignments — but a wrong `--node-ip` is D3's failure mode, and the
+mapping is the control server's business, not ours.
+
+```bash
+headscale nodes list          # on ionos
+tailscale ip -6               # on each node
+```
+
+## 14.4 Confirm the two flannel flags exist
+
+```bash
+k3s server --help | grep -E 'flannel-conf|flannel-ipv6-masq'
+k3s agent  --help | grep -E 'flannel-conf|flannel-ipv6-masq'
+```
+
+⚠️ **An unrecognised flag makes k3s refuse to start, not warn.** `--flannel-conf`
+is marked experimental and `--flannel-ipv6-masq` may be server-only. winkel-pi is
+the only agent, and it is also the host where a failed rebuild has twice cost a
+recovery — check it there before deploying there.
+
+## 14.5 The rebuild
+
+k3s cannot enable dual-stack on an existing cluster, so this is Phase 7 again with
+Phases 8–10 on top. Carry-through work: local-path PVCs are `Retain`, so the data
+survives on disk but reattachment is manual; the new cluster CA means rotating the
+kubeconfig secret; all 7 production certificates re-issue over HTTP-01, so ionos's
+`:80` must stay live throughout (D8). Let's Encrypt allows 5 duplicate certificates
+per week, which is one retry, not many.
+
+⚠️ **`--flannel-conf` replaces k3s's entire generated `net-conf.json`**, so the pod
+CIDRs are restated in it. Both it and `--cluster-cidr` derive from
+`networkConfig.cluster`, which makes drift impossible *within this repo* — do not
+inline a literal into either.
+
+## 14.6 Edges
+
+- MetalLB v6 ranges from the site ULAs. Dual-stack Services cannot use
+  `spec.loadBalancerIP`; use the `metallb.io/loadBalancerIPs` annotation.
+- Prefer `PreferDualStack` over `RequireDualStack`. ⚠️ Note Traefik's chart renders
+  only `service.spec`, which is why the previous `RequireDualStack` was silently
+  discarded and never in effect — check the rendered Service, not the values file.
+- AAAA split-horizon records reopen three known traps at once: the `enabled: true`
+  rewrite trap, the apex/wildcard CNAME poisoning, and resolved's non-re-election
+  on any AdGuard restart. ⚠️ RFC 6724's default policy table ranks IPv4 (precedence
+  35) **above** ULA (3), so most clients will keep choosing the v4 VIP regardless.
+  Verify from a real client with a warm cache, never with `dig @<resolver>`.
+
+## 14.7 Exit criteria
+
+- [ ] Overlay MTU measured ≥1350 on every directed pair **and** on the DERP path
+- [ ] `flannel-v6.1` up on all four nodes holding an IPv6 address
+- [ ] Pods hold a v6 address; cross-site pod-to-pod v6 verified by bulk TCP
+- [ ] Egress to a v6-only destination works **from every node**, winkel-pi included
+- [ ] `overlay-mtu.service` survives a `tailscaled` restart and a reboot
+- [ ] `docs/k3s-ipv6-ingress.md` rewritten rather than deleted (Phase 13 item 4)
 
 ## Open items
 

@@ -138,6 +138,30 @@
           recorded back here — it becomes the k3s --node-ip (D3).
         '';
       };
+      overlayIPv6 = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Mesh-overlay IPv6 address, the v6 half of `--node-ip` under D17.
+
+          ⚠️ **Must be read off the live tailnet, never guessed.** Headscale
+          has been allocating these from `fd7a:115c:a1e0::/48` since Phase 3
+          purely by nixpkgs default — nothing in this repo asked for it and
+          nothing recorded the result. Allocation is `sequential`, so the
+          values *look* predictable from the v4 assignments, but the mapping is
+          an implementation detail of the control server and a wrong node-ip is
+          D3's failure mode: the node comes up on an address the rest of the
+          cluster cannot reach.
+
+          Get them with `headscale nodes list` on ionos, or `tailscale ip -6`
+          on each node, and paste them in.
+
+          Choosing the overlay rather than a site prefix is what keeps D2
+          intact: these addresses are ours and stable, whereas the Deutsche
+          Glasfaser /56 at each site changes unannounced. It also means maxdata
+          needing no LAN ULA of its own stays irrelevant to the cluster.
+        '';
+      };
       k3sRole = lib.mkOption {
         type = lib.types.nullOr (lib.types.enum ["server" "agent"]);
         default = null;
@@ -345,6 +369,25 @@ in {
         default = "100.64.0.0/10";
         description = "Overlay IPv4 pool. Must sit inside Tailscale's 100.64.0.0/10.";
       };
+      prefixV6 = lib.mkOption {
+        type = lib.types.str;
+        default = "fd7a:115c:a1e0::/48";
+        description = ''
+          Overlay IPv6 pool.
+
+          ⚠️ **This is not new behaviour — it is behaviour that was never
+          written down.** Headscale has allocated from this range since Phase 3
+          because it is the nixpkgs module's default and
+          `hosts/nixos/ionos/overlay-server.nix` set only `prefixes.v4`. Every
+          node has had an `fd7a:` address all along; nothing referenced it, so
+          the estate ULA in `sites.<x>.ulaPrefix` was deliberately chosen clear
+          of this range without the range itself ever being declared.
+
+          Stated explicitly now that D17 makes it load-bearing: it is where
+          `hosts.<h>.overlayIPv6` comes from, and a control-server default that
+          silently moved would take the cluster's node IPs with it.
+        '';
+      };
       derpRegionId = lib.mkOption {
         type = lib.types.int;
         default = 999;
@@ -367,9 +410,97 @@ in {
         type = lib.types.int;
         default = 1280;
         description = ''
-          Measured overlay MTU (Phase 2 → D3). Flannel gets this minus 50 for
-          VXLAN overhead in Phase 7. A wrong value blackholes large payloads
-          while ping still succeeds.
+          Overlay MTU, imposed on `tailscale0` by
+          `modules/system/overlay-client.nix` and consumed by
+          `modules/system/k3s-cluster.nix` to derive the flannel MTU. A wrong
+          value blackholes large payloads while ping still succeeds (D3).
+
+          ⚠️ **Until 2026-08-12 this option had no consumers at all.** It
+          recorded Phase 2's measurement while the live 1230 flannel MTU was
+          produced by interface inheritance — flannel reading `tailscale0`'s
+          own 1280. Changing the number here changed nothing. It is now
+          enforced at both ends, which also means changing it now genuinely
+          moves the cluster's MTU.
+
+          1280 is Tailscale's `safeTUNMTU`, not a measurement of the path. It
+          is also exactly the IPv6 minimum link MTU, which is what makes it
+          unusable for dual-stack: see `cluster.dualStack` for the arithmetic.
+        '';
+      };
+    };
+
+    # ---------------------------------------------------------------------
+    # Cluster address plan (D1, reversed by D17)
+    # ---------------------------------------------------------------------
+    #
+    # These were inline literals in modules/system/k3s-cluster.nix until D17.
+    # They are addresses, so they belong here — and under dual-stack there are
+    # four of them rather than two, with a live consistency requirement between
+    # the k3s flags and the flannel config that only holds if both derive from
+    # one source.
+
+    cluster = {
+      dualStack = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Whether the cluster runs dual-stack IPv4+IPv6 (D17, reversing D1).
+
+          ⚠️ **This cannot be flipped on a running cluster.** k3s is explicit:
+          dual-stack must be configured when the cluster is first created and
+          cannot be enabled on an existing IPv4-only cluster. Flipping this is
+          therefore a *rebuild instruction*, not a switch — every node must be
+          reset and the cluster rebuilt from `--cluster-init`.
+
+          ⚠️ **Requires `overlay.mtu` ≥ 1350, and that is arithmetic rather
+          than caution.** Flannel sets both VXLAN devices to
+          `extIface.MTU − 50`, a constant that is blind to the IP version of
+          the outer header (`vxlan/device.go`; `encapOverhead = 50`). The Linux
+          kernel refuses IPv6 on any device below `IPV6_MIN_MTU` = 1280
+          (`addrconf.c`, `-EINVAL` on add and `addrconf_ifdown()` on
+          `NETDEV_CHANGEMTU`). So `flannel-v6.1` needs `mtu − 50 ≥ 1280`.
+
+          The real overhead with `fd7a:` VTEPs is 70, not 50 — a 40-byte IPv6
+          outer header rather than 20 — so flannel over-claims by 20 bytes at
+          *every* underlay MTU. That is why `k3s-cluster.nix` pins the flannel
+          MTU explicitly at `mtu − 70` instead of letting it inherit.
+
+          The assertions in `k3s-cluster.nix` enforce both of these.
+        '';
+      };
+      podCidrV4 = lib.mkOption {
+        type = lib.types.str;
+        default = "10.42.0.0/16";
+        description = "Pod CIDR, IPv4. k3s's own default, kept deliberately.";
+      };
+      podCidrV6 = lib.mkOption {
+        type = lib.types.str;
+        default = "fd06:f10a:ebec:42::/56";
+        description = ''
+          Pod CIDR, IPv6. Carved from the estate ULA `fd06:f10a:ebec::/48`
+          rather than resurrecting D1's `fd01::/48`, so the whole estate stays
+          inside one randomly-generated /48 and the `:42:`/`:43:` subnet ids
+          echo the v4 `10.42`/`10.43` they sit beside.
+
+          /56 with the default `node-cidr-mask-size-ipv6` of 64 gives 256 node
+          subnets, against four nodes.
+
+          ULA rather than the site GUAs because D2 forbids depending on the
+          Deutsche Glasfaser prefix. The cost is that pod egress to the v6
+          internet needs `--flannel-ipv6-masq`, which `k3s-cluster.nix` sets.
+        '';
+      };
+      serviceCidrV4 = lib.mkOption {
+        type = lib.types.str;
+        default = "10.43.0.0/16";
+        description = "Service CIDR, IPv4. k3s's own default, kept deliberately.";
+      };
+      serviceCidrV6 = lib.mkOption {
+        type = lib.types.str;
+        default = "fd06:f10a:ebec:43::/112";
+        description = ''
+          Service CIDR, IPv6. ⚠️ /112 is the **largest mask k3s supports** for
+          an IPv6 service CIDR — a wider one is rejected rather than clamped.
         '';
       };
     };

@@ -10,10 +10,12 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }: let
   cfg = config.overlayClient;
   net = config.networkConfig;
+  iface = config.services.tailscale.interfaceName;
   self = net.hosts.${config.hostSpec.hostName} or null;
   site =
     if self == null || self.site == "public"
@@ -126,6 +128,39 @@ in {
           # **Nothing configured by this module should follow them.**
           "--accept-routes"
         ];
+    };
+
+    # Impose networkConfig.overlay.mtu on the overlay interface.
+    #
+    # ⚠️ **Tailscale offers no supported way to configure this.** Its default
+    # is `safeTUNMTU` = 1280, a conservative constant rather than a measurement
+    # of the path. `TS_DEBUG_MTU` exists but is documented as a debug envknob
+    # that is "used once at TUN creation and ignored thereafter", and the
+    # supported alternative in Tailscale's own source comments is exactly what
+    # this unit does: set it with the OS's tools, which wins over everything
+    # after creation. Tailscale will not discover a better MTU on its own —
+    # `ShouldPMTUD()` returns false unconditionally ("Until we feel confident
+    # PMTUD is solid"), and even when probing it does not emit Packet-Too-Big.
+    #
+    # ⚠️ **This is the fragile joint in the dual-stack design.** If it silently
+    # fails to run, tailscale0 stays at 1280, flannel-v6.1 comes up at 1230 and
+    # the kernel refuses it an IPv6 address — so the v6 half of the cluster
+    # disappears while the v4 half keeps working and hides the fact. Bound to
+    # the *device* rather than ordered after tailscaled.service because
+    # tailscaled creates the interface asynchronously: a unit ordered after the
+    # service races it and usually loses. Binding to the device also means a
+    # tailscaled restart, which destroys and recreates tailscale0, re-runs this
+    # rather than leaving the MTU reverted.
+    systemd.services.overlay-mtu = {
+      description = "Pin ${iface} MTU to ${toString net.overlay.mtu} (D3, D17)";
+      bindsTo = ["sys-subsystem-net-devices-${iface}.device"];
+      after = ["sys-subsystem-net-devices-${iface}.device"];
+      wantedBy = ["sys-subsystem-net-devices-${iface}.device"];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = "${pkgs.iproute2}/bin/ip link set dev ${iface} mtu ${toString net.overlay.mtu}";
+      };
     };
 
     # Routes are advertised, not granted: they stay inactive until approved on
