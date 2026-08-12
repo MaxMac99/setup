@@ -277,14 +277,25 @@ in {
           "--node-label=topology.kubernetes.io/zone=${self.site}"
         ]
         ++ lib.optionals dual [
-          # ⚠️ **Both of these are marked experimental/agent-scoped by k3s and
-          # neither has been confirmed against the version this fleet runs.**
-          # An unrecognised flag makes k3s refuse to start rather than warn, so
-          # confirm both appear in `k3s server --help` *and* `k3s agent --help`
-          # before deploying — winkel-pi is the only agent, and it is also the
-          # host where a failed rebuild has twice cost a recovery.
+          # ✅ Confirmed present in **both** `k3s server --help` and `k3s agent
+          # --help` at v1.35.6+k3s1, checked on winkel-pi itself (2026-08-12).
+          # k3s documents this as a *Flannel Agent Option* — per node, specific
+          # to that node's flannel instance — so it belongs here, on every
+          # node, rather than in the server-only block below.
           "--flannel-conf=${flannelConf}"
-
+        ]
+        # ⚠️ **Server-only, and this is not a compromise — do not "fix" it by
+        # moving it up into the all-nodes block.** k3s documents the Flannel
+        # *cluster* options (backend, ipv6-masq, external-ip) as settable "only
+        # on server nodes", identical across every server, and
+        # `--flannel-ipv6-masq` is absent from `k3s agent --help` altogether —
+        # verified on winkel-pi at v1.35.6+k3s1. Agents inherit the setting
+        # from the servers, so winkel-pi's pods are masqueraded without the
+        # flag ever being passed to them. Passing it there stops k3s outright,
+        # because an unrecognised flag makes k3s refuse to start rather than
+        # warn, and winkel-pi is the host where a failed rebuild has twice cost
+        # a recovery.
+        ++ lib.optionals (dual && isServer) [
           # Required, not optional: the pod CIDR is a ULA, so without
           # masquerading pods egress to the v6 internet using an address no
           # return path exists for. Replies are dropped upstream and the
