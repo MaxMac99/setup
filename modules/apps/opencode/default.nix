@@ -184,6 +184,8 @@ in {
 
             # Inspection
             "which *" = "allow";
+            "grep *" = "allow";
+            "echo *" = "allow";
             "ls *" = "allow";
             "cat *" = "allow";
             "head *" = "allow";
