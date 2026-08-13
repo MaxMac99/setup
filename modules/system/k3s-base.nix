@@ -41,15 +41,32 @@
   #
   # 2379/2380 are only meaningful on servers, but scoping them to the overlay
   # makes opening them on an agent harmless rather than dangerous.
+  # ⚠️ **7946 is MetalLB's memberlist, and leaving it out cost an estate-wide
+  # outage on 2026-08-13.** The speakers run `hostNetwork` and bind to the node
+  # IP, which D3 puts on the overlay — so their gossip crosses this interface
+  # and was silently blocked. In L2 mode memberlist is what *elects the
+  # announcer*; without it no node claims a VIP, ARP goes unanswered, and every
+  # LoadBalancer address stops resolving while the pods behind them stay
+  # perfectly healthy.
+  #
+  # ⚠️ It hid for a day because a formed memberlist keeps working on cached
+  # state: the gap only surfaced when `tailscaled` was restarted for an
+  # unrelated MTU test, which tore the cluster apart and left it unable to
+  # re-form. The symptom pointed at UniFi, then at the rebuild, then at DNS —
+  # never at a missing firewall rule. Both protocols are required; memberlist
+  # probes over UDP and falls back to TCP, and the log line
+  # `"Was able to connect ... over TCP but UDP probes failed"` is the tell.
   networking.firewall.interfaces.${config.services.tailscale.interfaceName} = {
     allowedTCPPorts = [
       6443 # Kubernetes API
       10250 # Kubelet
       2379 # etcd client
       2380 # etcd peer
+      7946 # MetalLB memberlist (speaker election)
     ];
     allowedUDPPorts = [
       8472 # Flannel VXLAN
+      7946 # MetalLB memberlist (speaker election)
     ];
   };
 
