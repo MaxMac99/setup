@@ -36,7 +36,7 @@ One session per phase. Read this section first, update it last.
 | 11 | Backups that exist | not started | | |
 | 12 | Monitoring | not started | | |
 | 13 | Cleanup | not started | | |
-| 14 | Dual-stack cluster (D17) | 🚧 **gate passed**, not deployed | 2026-08-12 | ✅ **14.1 is closed and no longer threatens the phase; 14.4's defect is found and fixed.** Code is complete and inert — `cluster.dualStack` defaults `false`, so all four hosts evaluate to today's exact flag set. What landed: the address plan (`overlay.prefixV6`, `hosts.*.overlayIPv6`, `cluster.{podCidr,serviceCidr}{V4,V6}`), the dual-stack k3s flags, `overlay-mtu.service` imposing `overlay.mtu` on `tailscale0`, an explicit flannel MTU via `--flannel-conf`, and two assertions that fail the build rather than the cluster. **Also fixed en route, and this one is live**: `--cluster-cidr`, `--service-cidr` and both D4 `--etcd-arg`s sat inside the `lanInterface != null` guard, so **ionos — the cluster-init server — received none of them**. Invisible because the CIDRs equal k3s's defaults; the etcd tuning was genuinely absent on the one node at the far end of both WAN paths. **Three things had to happen before deploying. Two are done; the third found a defect.** ✅ **14.1's ping half passed 2026-08-12** — all **12 directed pairs carry an overlay MTU of 1400 at 0% loss**, measured in-tunnel with `ping -M do -s 1372`, with a dead-man revert armed on every node *before* anything was raised, everything restored to 1280 and all four nodes still `Ready`. The true ceiling is **1420** (physical 1500 − 80), so the 1350 the assertion demands has real headroom. ⚠️ **Two probes were discarded en route, each having produced a clean-looking table while measuring nothing** — DF-ICMP to peers' underlay addresses measured the home routers' ICMPv6 filtering (it "failed" at 1280, below IPv6's own floor), and `tailscale ping --size` answered *directly at 1520* on a leg independently known to cap at 1500. The rule that came out of it: **calibrate a new probe against a leg whose answer is already known, before trusting it where you cannot otherwise measure.** ⚠️ 14.1's step-2 premise is also wrong as observed — **every WAN leg is native IPv6 today**, so the overhead is a uniform 80 and the DS-Lite 1460 case does not arise. ✅ **14.3 done** — the four `overlayIPv6` addresses read off the live tailnet, not derived. ⚠️⚠️ **14.4 found a live defect in the code that landed the same day — now fixed**: `--flannel-ipv6-masq` is **absent from `k3s agent --help`**, while the flag sat in the all-nodes `dual` block rather than the `isServer` one, so enabling `dualStack` would have stopped k3s on **winkel-pi** — the one host where a failed rebuild has twice cost a recovery. ✅ Moved to `lib.optionals (dual && isServer)` and **verified by evaluation**: the three servers carry it, winkel-pi carries only `--flannel-conf`, every host gets a dual `--node-ip`, and all four remain byte-identical to today at defaults. ⚠️ **A caution written into this doc before it was checked turned out to be wrong, and is struck in 14.4a** — that server-only placement would leave winkel-pi's pods egressing unmasqueraded. It would not: k3s scopes the Flannel *cluster* options (backend, ipv6-masq, external-ip) to servers and agents inherit them, while `--flannel-conf`/`--flannel-iface` are the genuinely per-node ones. **`--help` tells you whether a flag is accepted; only the documentation tells you its scope**, and from the Nix source a crash and a silently-unapplied setting look the same. ✅ **14.3 now landed in the Nix too**, not merely in prose — the four addresses are set on `hosts.*.overlayIPv6`. ✅ **14.1 closed completely the same day**: 20 MB byte-exact maxdata → brink-server on **all three paths the pair can take** — direct native IPv6 (294 Mbit/s), direct IPv4 NAT-traversed through Brink's DS-Lite CGNAT (280), and **DERP relayed via ionos (31)** — each at DF ping 1400 with 0% loss, via one runtime `iptables` rule on the receiver with a `firewall.service` restart armed as the dead-man. ⚠️⚠️ **The CGNAT leg is the binding constraint, and it was measured by accident**: blocking only IPv6 did not produce a relay, it produced a *direct IPv4 path*, which is the fallback the phase text described and 14.1c had just dismissed. It passes at overlay 1400 with **exactly zero bytes of wire headroom** — `1400 + 60 + 40 = 1500`, the physical MTU on the nose. **So prefer `overlay.mtu = 1380`**: flannel lands at 1310, still clear of the 1280 floor, with 20 bytes spare on *both* underlay families instead of none on the one that only appears once something has already broken. ⚠️ Relay fallback works but costs **10× throughput** and pushes every cross-site byte through ionos, which has no swap — nothing currently watches for it, so it is a Phase 12 alert. ⚠️ Two harness failures are recorded in 14.1a rather than dropped, including a receive hash of `e3b0c442…` — the SHA-256 of **zero bytes** — reported alongside an impossible 1.25 GB/s. **Still gating:** raising `overlay.mtu` from its current 1280, and the pre-rebuild dumps. ⚠️ **Ordering decided 2026-08-12: this phase runs before Phase 11**, so the rebuild happens with **no backup automation in existence** and the pre-rebuild dump is the only copy |
+| 14 | Dual-stack cluster (D17) | ✅ **deployed** (3 criteria open) | 2026-08-13 | ✅ **Rebuilt and restored overnight — dual-stack is live on all four nodes.** Pod CIDRs `10.42.x` + `fd06:f10a:ebec:420x::/64`, `tailscale0` 1380 → `flannel.1`/`flannel-v6.1` **1310**, pods and Services genuinely dual-stack. Everything restored and checked against pre-rebuild counts, not against "it started": HA **857 entities/105 devices**, Paperless **730 documents**, Grafana 4 dashboards, Authentik 3 users with a live outpost, **all 9 certificates** answering `curl` without `-k`. Still open: cross-site pod-to-pod **v6** bulk TCP, v6-only egress per node (`--flannel-ipv6-masq` has never been exercised), and `overlay-mtu.service` across a reboot. ⚠️⚠️ **Two method failures cost more than any incident and are written up in 14.5c**: `find … | head -1` matched a *pre-rebuild* local-path directory and wiped the original 857-entity Home Assistant config — recovered only from the ZFS snapshot, and the reason volume restores must resolve through `kubectl get pvc -o jsonpath='{.spec.volumeName}'`; and the HA tarball was **truncated**, with the original "verification" reading a registry back out of it and reporting 857 entities, which was true and worthless because those files sit early in the archive. `gzip -t` rejects it. **Phase 11 should therefore prefer `zfs send` to `tar` over a pipe.** ⚠️ Also found: a misaligned `podCidrV6` that would have handed brink-server its own LAN prefix, interrupted `pulumi up` runs orphaning Helm releases, namespaces wedging on finalizers whose operators were already deleted, cert-manager's ClusterIssuers racing its webhook, ntfy unable to start on an empty volume, and ionos OOMing under deploy load — which takes Headscale, and therefore the whole tailnet, with it. Code is complete and inert — `cluster.dualStack` defaults `false`, so all four hosts evaluate to today's exact flag set. What landed: the address plan (`overlay.prefixV6`, `hosts.*.overlayIPv6`, `cluster.{podCidr,serviceCidr}{V4,V6}`), the dual-stack k3s flags, `overlay-mtu.service` imposing `overlay.mtu` on `tailscale0`, an explicit flannel MTU via `--flannel-conf`, and two assertions that fail the build rather than the cluster. **Also fixed en route, and this one is live**: `--cluster-cidr`, `--service-cidr` and both D4 `--etcd-arg`s sat inside the `lanInterface != null` guard, so **ionos — the cluster-init server — received none of them**. Invisible because the CIDRs equal k3s's defaults; the etcd tuning was genuinely absent on the one node at the far end of both WAN paths. **Three things had to happen before deploying. Two are done; the third found a defect.** ✅ **14.1's ping half passed 2026-08-12** — all **12 directed pairs carry an overlay MTU of 1400 at 0% loss**, measured in-tunnel with `ping -M do -s 1372`, with a dead-man revert armed on every node *before* anything was raised, everything restored to 1280 and all four nodes still `Ready`. The true ceiling is **1420** (physical 1500 − 80), so the 1350 the assertion demands has real headroom. ⚠️ **Two probes were discarded en route, each having produced a clean-looking table while measuring nothing** — DF-ICMP to peers' underlay addresses measured the home routers' ICMPv6 filtering (it "failed" at 1280, below IPv6's own floor), and `tailscale ping --size` answered *directly at 1520* on a leg independently known to cap at 1500. The rule that came out of it: **calibrate a new probe against a leg whose answer is already known, before trusting it where you cannot otherwise measure.** ⚠️ 14.1's step-2 premise is also wrong as observed — **every WAN leg is native IPv6 today**, so the overhead is a uniform 80 and the DS-Lite 1460 case does not arise. ✅ **14.3 done** — the four `overlayIPv6` addresses read off the live tailnet, not derived. ⚠️⚠️ **14.4 found a live defect in the code that landed the same day — now fixed**: `--flannel-ipv6-masq` is **absent from `k3s agent --help`**, while the flag sat in the all-nodes `dual` block rather than the `isServer` one, so enabling `dualStack` would have stopped k3s on **winkel-pi** — the one host where a failed rebuild has twice cost a recovery. ✅ Moved to `lib.optionals (dual && isServer)` and **verified by evaluation**: the three servers carry it, winkel-pi carries only `--flannel-conf`, every host gets a dual `--node-ip`, and all four remain byte-identical to today at defaults. ⚠️ **A caution written into this doc before it was checked turned out to be wrong, and is struck in 14.4a** — that server-only placement would leave winkel-pi's pods egressing unmasqueraded. It would not: k3s scopes the Flannel *cluster* options (backend, ipv6-masq, external-ip) to servers and agents inherit them, while `--flannel-conf`/`--flannel-iface` are the genuinely per-node ones. **`--help` tells you whether a flag is accepted; only the documentation tells you its scope**, and from the Nix source a crash and a silently-unapplied setting look the same. ✅ **14.3 now landed in the Nix too**, not merely in prose — the four addresses are set on `hosts.*.overlayIPv6`. ✅ **14.1 closed completely the same day**: 20 MB byte-exact maxdata → brink-server on **all three paths the pair can take** — direct native IPv6 (294 Mbit/s), direct IPv4 NAT-traversed through Brink's DS-Lite CGNAT (280), and **DERP relayed via ionos (31)** — each at DF ping 1400 with 0% loss, via one runtime `iptables` rule on the receiver with a `firewall.service` restart armed as the dead-man. ⚠️⚠️ **The CGNAT leg is the binding constraint, and it was measured by accident**: blocking only IPv6 did not produce a relay, it produced a *direct IPv4 path*, which is the fallback the phase text described and 14.1c had just dismissed. It passes at overlay 1400 with **exactly zero bytes of wire headroom** — `1400 + 60 + 40 = 1500`, the physical MTU on the nose. **So prefer `overlay.mtu = 1380`**: flannel lands at 1310, still clear of the 1280 floor, with 20 bytes spare on *both* underlay families instead of none on the one that only appears once something has already broken. ⚠️ Relay fallback works but costs **10× throughput** and pushes every cross-site byte through ionos, which has no swap — nothing currently watches for it, so it is a Phase 12 alert. ⚠️ Two harness failures are recorded in 14.1a rather than dropped, including a receive hash of `e3b0c442…` — the SHA-256 of **zero bytes** — reported alongside an impossible 1.25 GB/s. **Still gating:** raising `overlay.mtu` from its current 1280, and the pre-rebuild dumps. ⚠️ **Ordering decided 2026-08-12: this phase runs before Phase 11**, so the rebuild happens with **no backup automation in existence** and the pre-rebuild dump is the only copy |
 
 ## Decision log
 
@@ -3397,6 +3397,104 @@ on its own from this branch either**, since it is what triggers the very
 restart that creates the asymmetry. Ship it with the rebuild, or accept
 sequence 2.
 
+### 14.5c The rebuild as executed — 2026-08-12/13
+
+✅ **Done. Dual-stack is live on all four nodes and every workload is restored.**
+Node CIDRs `10.42.{0,1,2,3}.0/24` + `fd06:f10a:ebec:420{0,1,2,3}::/64`,
+`tailscale0` 1380 → `flannel.1`/`flannel-v6.1` **1310** on every node, pods and
+Services genuinely dual-stack (coredns `10.42.1.2` **and**
+`fd06:f10a:ebec:4201::2`; `kube-dns` `10.43.0.10` and `fd06:f10a:ebec:43::a`).
+Restored and verified: Home Assistant **857 entities / 105 devices / 36
+integrations**, Paperless **730 documents**, Grafana 4 dashboards, Authentik 3
+users with a working outpost, **all 9 certificates re-issued** and every
+hostname answering `curl` without `-k`.
+
+**Order that worked:** ZFS snapshots → stop k3s and wipe `/var/lib/rancher/k3s`
+on all four → activate ionos first (`--cluster-init`) → brink-server → maxdata →
+winkel-pi → new kubeconfig → `pulumi refresh` → `pulumi up` → restore databases
+→ restore volumes → scale up.
+
+⚠️⚠️ **`podCidrV6` was misaligned and the second node would have collided with
+Brink's LAN.** Caught after ionos had already initialised. Full account in
+`modules/data/network-config.nix`; the short version is that a /56 ends inside
+the fourth hextet, so `…:42::/56` is really `…:0000::/56` and contained both the
+service CIDR and `sites.brink.ulaPrefix`. **Check v6 prefix alignment with a
+tool; the literal lies.**
+
+#### Traps this phase found, all of which cost real time
+
+- ⚠️ **Every interrupted `pulumi up` orphans a Helm release.** Pulumi auto-names
+  releases with a fresh suffix, so the *next* run collides with the previous
+  one's `ValidatingWebhookConfiguration`, `Secret` and CRDs — and the error
+  names the object, never the cause. Three runs were interrupted (one by an
+  operator, two by ionos), and each left a complete release behind. **Let a run
+  finish even when it looks stuck**; LoadBalancer awaits legitimately take
+  minutes.
+- ⚠️ **Deleting a namespace whose controller you already deleted wedges it
+  forever.** `challenges.acme.cert-manager.io`, `databases.postgresql.cnpg.io`
+  and ARC's `autoscalingrunnersets` all carry finalizers that only their
+  operator clears. With the operator gone, the namespace hangs in `Terminating`
+  indefinitely. Fix is `kubectl patch … --type=merge -p
+  '{"metadata":{"finalizers":null}}'`. ⚠️ **Sweep core objects too** — ARC
+  stamps `actions.github.com/cleanup-protection` on a plain **Role and
+  RoleBinding**, which a CRD-only sweep misses.
+- ⚠️ **cert-manager's ClusterIssuers race the webhook.** `dependsOn: certManager`
+  is already set and is *not* sufficient: `helm.v3.Chart` renders client-side and
+  Pulumi considers it done before the webhook Service has endpoints, so the
+  ClusterIssuer fails with `no endpoints available`. It succeeds on any later run
+  because cert-manager is by then installed. **Verify with a server-side dry run**
+  (`kubectl apply --dry-run=server`) rather than retrying blind — that exercises
+  the real webhook and creates nothing.
+- ⚠️ **ntfy cannot start on an empty volume.** Its `init-users` init container
+  runs `ntfy user add`, but the auth database is created *by the server on first
+  start* — so on a fresh volume the init container exits 1, the server never
+  starts, and the file is never created. Invisible for years because the volume
+  always had `user.db`. Restoring the volume is the fix.
+- ⚠️ **The Authentik outpost token lives in Authentik's own database.** A fresh
+  Authentik makes the token in `Pulumi.default.yaml` return `403 Token
+  invalid/expired`, and the outpost crashloops on a failed liveness probe.
+  **Do not regenerate it** — restoring `pg-authentik.dump` makes the stored token
+  valid again, and regenerating would desync it from Pulumi config. Note this is
+  the *opposite* of Phase 10, where Authentik was rebuilt from scratch and the
+  OIDC `sub` values were dead: restoring the database preserves the installation
+  identity, so every social login keeps working.
+- ⚠️ **ionos runs out of memory during a full deploy and takes the overlay with
+  it.** 1851 MB, no swap, `k3s-server` alone at 555 MB RSS. Under a full
+  `pulumi up` the etcd write volume killed it: sshd stopped completing banner
+  exchange, overlay ICMP failed while its public IP still answered, and — because
+  **Headscale runs there** — the whole tailnet control plane went with it, which
+  presents as unrelated hosts becoming unreachable. Recovered by panel restart.
+  Use `pulumi up --parallel 4`; revisit `zramSwap` (currently disabled for
+  "kswapd0 CPU issues", a rationale aimed at *disk* swap).
+- ⚠️ **MetalLB now installs `frr-k8s` by default** — 13 CRDs and a five-container
+  DaemonSet on every node, for an estate that uses **L2 mode only**. Pure
+  overhead, and it is memory winkel-pi and ionos do not have. Disable explicitly.
+
+#### ⚠️⚠️ Two failures of *method*, which matter more than the incidents
+
+1. **`find … -name '*_<ns>_<pvc>' | head -1` matched the pre-rebuild directory.**
+   The old local-path directories are deliberately retained, so after a rebuild
+   **two** directories match every pattern and the old one often sorts first.
+   Acting on that match wiped the original Home Assistant config — the 857-entity
+   one — rather than the newly created empty volume. **Always resolve the target
+   through the live PVC**: `kubectl get pvc <n> -o jsonpath='{.spec.volumeName}'`,
+   then match `<pv>_<ns>_<pvc>`. Recovered only because
+   `main/k8s@pre-dualstack-2026-08-12` existed.
+2. **The Home Assistant tarball was truncated, and reading a file out of it
+   "verified" nothing.** `kubectl exec … tar czf - | ssh host 'cat >'` produced a
+   108 MB archive that `gzip -t` rejects. The original verification read
+   `.storage/core.entity_registry` back out and reported 857 entities — true, and
+   worthless: those files sit early in the archive and the cut is at the tail.
+   **Test the archive (`gzip -t`, `tar tzf | wc -l`), then its contents.** The
+   generalisation is the one this document keeps relearning: *the thing measured
+   was not the thing that had to be true.*
+
+   ✅ **Consequence for Phase 11: prefer ZFS snapshots to tarballs.** The
+   snapshots were complete, instantaneous, local to each node, and are what
+   actually saved this phase. `zfs send` to a second pool is a better backup
+   primitive than `tar` over a pipe, and it removes the streaming failure mode
+   entirely.
+
 ## 14.6 Edges
 
 - MetalLB v6 ranges from the site ULAs. Dual-stack Services cannot use
@@ -3454,12 +3552,27 @@ sequence 2.
 
 ## 14.7 Exit criteria
 
-- [ ] Overlay MTU measured ≥1350 on every directed pair **and** on the DERP path
-- [ ] `flannel-v6.1` up on all four nodes holding an IPv6 address
-- [ ] Pods hold a v6 address; cross-site pod-to-pod v6 verified by bulk TCP
+- [x] Overlay MTU measured ≥1350 on every directed pair **and** on the DERP path
+      — ✅ 14.1a. All 12 directed pairs at 1400/0% loss, byte-exact 20 MB over
+      direct IPv6, the DS-Lite CGNAT IPv4 fallback **and** the DERP relay.
+      Deployed at **1380**, chosen by the fallback path's arithmetic.
+- [x] `flannel-v6.1` up on all four nodes holding an IPv6 address — ✅ all four
+      at MTU **1310**, ionos holding `fd06:f10a:ebec:4200::/128`.
+- [x] Pods hold a v6 address — ✅ coredns `10.42.1.2` + `fd06:f10a:ebec:4201::2`,
+      Services dual-stack (`kube-dns` `10.43.0.10` + `fd06:f10a:ebec:43::a`).
+      ⬜ **Cross-site pod-to-pod v6 by bulk TCP is still outstanding** — the
+      host-level equivalent passed in 14.1a, but that is not the same path and
+      must not be read as covering it.
 - [ ] Egress to a v6-only destination works **from every node**, winkel-pi included
-- [ ] `overlay-mtu.service` survives a `tailscaled` restart and a reboot
+      — ⚠️ this is what `--flannel-ipv6-masq` exists for and it has never been
+      exercised; the pod CIDR is a ULA, so an untested NAT gap fails as a dead
+      destination rather than an error.
+- [ ] `overlay-mtu.service` survives a `tailscaled` restart and a reboot — it is
+      deployed and bound to the device, but neither has been tested since.
 - [ ] `docs/k3s-ipv6-ingress.md` rewritten rather than deleted (Phase 13 item 4)
+- [x] ~~Cluster rebuilt with every workload restored~~ — ✅ 14.5c, and verified
+      against pre-rebuild counts rather than by "it came up": 857 entities / 105
+      devices, 730 documents, 4 dashboards, 3 Authentik users, 9 certificates.
 
 ## Open items
 
@@ -3527,6 +3640,23 @@ sequence 2.
   brink-server already has; it does *not* require Phase 14, because Home
   Assistant runs `hostNetwork` and never touches the CNI. Do not let a
   commissioning failure be blamed on the cluster's address family.
+- **MetalLB installs `frr-k8s`, which this estate does not use.** *(Opened
+  2026-08-13.)* D5 uses **L2 mode** with `L2Advertisement`s; the chart
+  nevertheless brings 13 CRDs, a **five-container DaemonSet on every node**, a
+  webhook and a statuscleaner. Pure overhead, and it is memory winkel-pi (3.7 G)
+  and ionos (1.8 G, no swap) cannot spare. ⚠️ It was also wrongly suspected of
+  breaking subnet routing during the rebuild — it had not; winkel-pi's table 52
+  was intact throughout and the real fault was ionos being down. Disable it
+  explicitly in `infrastructure/metallb.ts` rather than leaving it to a chart
+  default that Renovate can move again.
+- **UniFi devices not yet confirmed checking in after the rebuild.** *(Opened
+  2026-08-13.)* `unifi-data` (600 M, 4681 files) and `unifi-mongo` were restored
+  from the ZFS snapshot and the pod is Running, but the device state was not
+  verified before the session ended. ⚠️ **Verify with `last_seen`, never
+  `adopted`** — Phase 10 established that a restore sets `adopted: true` on every
+  device before a single packet has arrived. If they are not checking in, the
+  fix is the documented one: SSH each device and `set-inform
+  http://192.168.178.243:8080/inform`.
 - **ionos memory headroom.** *(Opened 2026-08-07.)* 1851 MB RAM with
   `k3s-server` at ~792 MB, no swap, and `zramSwap` deliberately disabled — which
   is why it cannot run `nixos-rebuild` locally and everything is built on
