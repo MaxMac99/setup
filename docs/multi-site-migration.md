@@ -36,7 +36,7 @@ One session per phase. Read this section first, update it last.
 | 11 | Backups that exist | not started | | |
 | 12 | Monitoring | not started | | |
 | 13 | Cleanup | not started | | |
-| 14 | Dual-stack cluster (D17) | ✅ **deployed** (3 criteria open) | 2026-08-13 | ✅ **Rebuilt and restored overnight — dual-stack is live on all four nodes.** Pod CIDRs `10.42.x` + `fd06:f10a:ebec:420x::/64`, `tailscale0` 1380 → `flannel.1`/`flannel-v6.1` **1310**, pods and Services genuinely dual-stack. Everything restored and checked against pre-rebuild counts, not against "it started": HA **857 entities/105 devices**, Paperless **730 documents**, Grafana 4 dashboards, Authentik 3 users with a live outpost, **all 9 certificates** answering `curl` without `-k`. Still open: cross-site pod-to-pod **v6** bulk TCP, v6-only egress per node (`--flannel-ipv6-masq` has never been exercised), and `overlay-mtu.service` across a reboot. ⚠️⚠️ **Two method failures cost more than any incident and are written up in 14.5c**: `find … | head -1` matched a *pre-rebuild* local-path directory and wiped the original 857-entity Home Assistant config — recovered only from the ZFS snapshot, and the reason volume restores must resolve through `kubectl get pvc -o jsonpath='{.spec.volumeName}'`; and the HA tarball was **truncated**, with the original "verification" reading a registry back out of it and reporting 857 entities, which was true and worthless because those files sit early in the archive. `gzip -t` rejects it. **Phase 11 should therefore prefer `zfs send` to `tar` over a pipe.** ⚠️ Also found: a misaligned `podCidrV6` that would have handed brink-server its own LAN prefix, interrupted `pulumi up` runs orphaning Helm releases, namespaces wedging on finalizers whose operators were already deleted, cert-manager's ClusterIssuers racing its webhook, ntfy unable to start on an empty volume, and ionos OOMing under deploy load — which takes Headscale, and therefore the whole tailnet, with it. Code is complete and inert — `cluster.dualStack` defaults `false`, so all four hosts evaluate to today's exact flag set. What landed: the address plan (`overlay.prefixV6`, `hosts.*.overlayIPv6`, `cluster.{podCidr,serviceCidr}{V4,V6}`), the dual-stack k3s flags, `overlay-mtu.service` imposing `overlay.mtu` on `tailscale0`, an explicit flannel MTU via `--flannel-conf`, and two assertions that fail the build rather than the cluster. **Also fixed en route, and this one is live**: `--cluster-cidr`, `--service-cidr` and both D4 `--etcd-arg`s sat inside the `lanInterface != null` guard, so **ionos — the cluster-init server — received none of them**. Invisible because the CIDRs equal k3s's defaults; the etcd tuning was genuinely absent on the one node at the far end of both WAN paths. **Three things had to happen before deploying. Two are done; the third found a defect.** ✅ **14.1's ping half passed 2026-08-12** — all **12 directed pairs carry an overlay MTU of 1400 at 0% loss**, measured in-tunnel with `ping -M do -s 1372`, with a dead-man revert armed on every node *before* anything was raised, everything restored to 1280 and all four nodes still `Ready`. The true ceiling is **1420** (physical 1500 − 80), so the 1350 the assertion demands has real headroom. ⚠️ **Two probes were discarded en route, each having produced a clean-looking table while measuring nothing** — DF-ICMP to peers' underlay addresses measured the home routers' ICMPv6 filtering (it "failed" at 1280, below IPv6's own floor), and `tailscale ping --size` answered *directly at 1520* on a leg independently known to cap at 1500. The rule that came out of it: **calibrate a new probe against a leg whose answer is already known, before trusting it where you cannot otherwise measure.** ⚠️ 14.1's step-2 premise is also wrong as observed — **every WAN leg is native IPv6 today**, so the overhead is a uniform 80 and the DS-Lite 1460 case does not arise. ✅ **14.3 done** — the four `overlayIPv6` addresses read off the live tailnet, not derived. ⚠️⚠️ **14.4 found a live defect in the code that landed the same day — now fixed**: `--flannel-ipv6-masq` is **absent from `k3s agent --help`**, while the flag sat in the all-nodes `dual` block rather than the `isServer` one, so enabling `dualStack` would have stopped k3s on **winkel-pi** — the one host where a failed rebuild has twice cost a recovery. ✅ Moved to `lib.optionals (dual && isServer)` and **verified by evaluation**: the three servers carry it, winkel-pi carries only `--flannel-conf`, every host gets a dual `--node-ip`, and all four remain byte-identical to today at defaults. ⚠️ **A caution written into this doc before it was checked turned out to be wrong, and is struck in 14.4a** — that server-only placement would leave winkel-pi's pods egressing unmasqueraded. It would not: k3s scopes the Flannel *cluster* options (backend, ipv6-masq, external-ip) to servers and agents inherit them, while `--flannel-conf`/`--flannel-iface` are the genuinely per-node ones. **`--help` tells you whether a flag is accepted; only the documentation tells you its scope**, and from the Nix source a crash and a silently-unapplied setting look the same. ✅ **14.3 now landed in the Nix too**, not merely in prose — the four addresses are set on `hosts.*.overlayIPv6`. ✅ **14.1 closed completely the same day**: 20 MB byte-exact maxdata → brink-server on **all three paths the pair can take** — direct native IPv6 (294 Mbit/s), direct IPv4 NAT-traversed through Brink's DS-Lite CGNAT (280), and **DERP relayed via ionos (31)** — each at DF ping 1400 with 0% loss, via one runtime `iptables` rule on the receiver with a `firewall.service` restart armed as the dead-man. ⚠️⚠️ **The CGNAT leg is the binding constraint, and it was measured by accident**: blocking only IPv6 did not produce a relay, it produced a *direct IPv4 path*, which is the fallback the phase text described and 14.1c had just dismissed. It passes at overlay 1400 with **exactly zero bytes of wire headroom** — `1400 + 60 + 40 = 1500`, the physical MTU on the nose. **So prefer `overlay.mtu = 1380`**: flannel lands at 1310, still clear of the 1280 floor, with 20 bytes spare on *both* underlay families instead of none on the one that only appears once something has already broken. ⚠️ Relay fallback works but costs **10× throughput** and pushes every cross-site byte through ionos, which has no swap — nothing currently watches for it, so it is a Phase 12 alert. ⚠️ Two harness failures are recorded in 14.1a rather than dropped, including a receive hash of `e3b0c442…` — the SHA-256 of **zero bytes** — reported alongside an impossible 1.25 GB/s. **Still gating:** raising `overlay.mtu` from its current 1280, and the pre-rebuild dumps. ⚠️ **Ordering decided 2026-08-12: this phase runs before Phase 11**, so the rebuild happens with **no backup automation in existence** and the pre-rebuild dump is the only copy |
+| 14 | Dual-stack cluster (D17) | ✅ **done** | 2026-08-13 | ✅ **All exit criteria closed 2026-08-13** except the `k3s-ipv6-ingress.md` rewrite, which is Phase 13's item. Cross-site **pod-to-pod over IPv6** verified byte-exact — 20 971 520 bytes, sha `3568217a72eed545…` on both ends, 301 Mbit/s, Winkel → Brink across `flannel-v6.1` (deliberately not satisfied by 14.1a's host-level transfer, which never touches that layer). v6 egress works from pods with a **ULA source**, and ⚠️ **winkel-pi — the agent that never receives `--flannel-ipv6-masq` — carries masquerade rules byte-identical to the servers'**, which proves agents inherit the setting and settles 14.4 by measurement rather than by documentation. `overlay-mtu.service` re-runs when `tailscaled` recreates the device (timestamp advanced, MTU back at 1380). ⚠️ **14.5d records the first real test of the design**: Winkel's uplink degraded to <1 Mbit/s with 30–45% loss for eight hours, which a k3s *server* cannot ride out — maxdata could not pull a 69 MB etcd snapshot, went `NotReady`, and took every workload pinned to it down. **CNPG failed over to Brink correctly**, and the estate self-healed completely when the line recovered. ✅ **Rebuilt and restored overnight — dual-stack is live on all four nodes.** Pod CIDRs `10.42.x` + `fd06:f10a:ebec:420x::/64`, `tailscale0` 1380 → `flannel.1`/`flannel-v6.1` **1310**, pods and Services genuinely dual-stack. Everything restored and checked against pre-rebuild counts, not against "it started": HA **857 entities/105 devices**, Paperless **730 documents**, Grafana 4 dashboards, Authentik 3 users with a live outpost, **all 9 certificates** answering `curl` without `-k`. Still open: cross-site pod-to-pod **v6** bulk TCP, v6-only egress per node (`--flannel-ipv6-masq` has never been exercised), and `overlay-mtu.service` across a reboot. ⚠️⚠️ **Two method failures cost more than any incident and are written up in 14.5c**: `find … head -1` matched a *pre-rebuild* local-path directory and wiped the original 857-entity Home Assistant config — recovered only from the ZFS snapshot, and the reason volume restores must resolve through `kubectl get pvc -o jsonpath='{.spec.volumeName}'`; and the HA tarball was **truncated**, with the original "verification" reading a registry back out of it and reporting 857 entities, which was true and worthless because those files sit early in the archive. `gzip -t` rejects it. **Phase 11 should therefore prefer `zfs send` to `tar` over a pipe.** ⚠️ Also found: a misaligned `podCidrV6` that would have handed brink-server its own LAN prefix, interrupted `pulumi up` runs orphaning Helm releases, namespaces wedging on finalizers whose operators were already deleted, cert-manager's ClusterIssuers racing its webhook, ntfy unable to start on an empty volume, and ionos OOMing under deploy load — which takes Headscale, and therefore the whole tailnet, with it. Code is complete and inert — `cluster.dualStack` defaults `false`, so all four hosts evaluate to today's exact flag set. What landed: the address plan (`overlay.prefixV6`, `hosts.*.overlayIPv6`, `cluster.{podCidr,serviceCidr}{V4,V6}`), the dual-stack k3s flags, `overlay-mtu.service` imposing `overlay.mtu` on `tailscale0`, an explicit flannel MTU via `--flannel-conf`, and two assertions that fail the build rather than the cluster. **Also fixed en route, and this one is live**: `--cluster-cidr`, `--service-cidr` and both D4 `--etcd-arg`s sat inside the `lanInterface != null` guard, so **ionos — the cluster-init server — received none of them**. Invisible because the CIDRs equal k3s's defaults; the etcd tuning was genuinely absent on the one node at the far end of both WAN paths. **Three things had to happen before deploying. Two are done; the third found a defect.** ✅ **14.1's ping half passed 2026-08-12** — all **12 directed pairs carry an overlay MTU of 1400 at 0% loss**, measured in-tunnel with `ping -M do -s 1372`, with a dead-man revert armed on every node *before* anything was raised, everything restored to 1280 and all four nodes still `Ready`. The true ceiling is **1420** (physical 1500 − 80), so the 1350 the assertion demands has real headroom. ⚠️ **Two probes were discarded en route, each having produced a clean-looking table while measuring nothing** — DF-ICMP to peers' underlay addresses measured the home routers' ICMPv6 filtering (it "failed" at 1280, below IPv6's own floor), and `tailscale ping --size` answered *directly at 1520* on a leg independently known to cap at 1500. The rule that came out of it: **calibrate a new probe against a leg whose answer is already known, before trusting it where you cannot otherwise measure.** ⚠️ 14.1's step-2 premise is also wrong as observed — **every WAN leg is native IPv6 today**, so the overhead is a uniform 80 and the DS-Lite 1460 case does not arise. ✅ **14.3 done** — the four `overlayIPv6` addresses read off the live tailnet, not derived. ⚠️⚠️ **14.4 found a live defect in the code that landed the same day — now fixed**: `--flannel-ipv6-masq` is **absent from `k3s agent --help`**, while the flag sat in the all-nodes `dual` block rather than the `isServer` one, so enabling `dualStack` would have stopped k3s on **winkel-pi** — the one host where a failed rebuild has twice cost a recovery. ✅ Moved to `lib.optionals (dual && isServer)` and **verified by evaluation**: the three servers carry it, winkel-pi carries only `--flannel-conf`, every host gets a dual `--node-ip`, and all four remain byte-identical to today at defaults. ⚠️ **A caution written into this doc before it was checked turned out to be wrong, and is struck in 14.4a** — that server-only placement would leave winkel-pi's pods egressing unmasqueraded. It would not: k3s scopes the Flannel *cluster* options (backend, ipv6-masq, external-ip) to servers and agents inherit them, while `--flannel-conf`/`--flannel-iface` are the genuinely per-node ones. **`--help` tells you whether a flag is accepted; only the documentation tells you its scope**, and from the Nix source a crash and a silently-unapplied setting look the same. ✅ **14.3 now landed in the Nix too**, not merely in prose — the four addresses are set on `hosts.*.overlayIPv6`. ✅ **14.1 closed completely the same day**: 20 MB byte-exact maxdata → brink-server on **all three paths the pair can take** — direct native IPv6 (294 Mbit/s), direct IPv4 NAT-traversed through Brink's DS-Lite CGNAT (280), and **DERP relayed via ionos (31)** — each at DF ping 1400 with 0% loss, via one runtime `iptables` rule on the receiver with a `firewall.service` restart armed as the dead-man. ⚠️⚠️ **The CGNAT leg is the binding constraint, and it was measured by accident**: blocking only IPv6 did not produce a relay, it produced a *direct IPv4 path*, which is the fallback the phase text described and 14.1c had just dismissed. It passes at overlay 1400 with **exactly zero bytes of wire headroom** — `1400 + 60 + 40 = 1500`, the physical MTU on the nose. **So prefer `overlay.mtu = 1380`**: flannel lands at 1310, still clear of the 1280 floor, with 20 bytes spare on *both* underlay families instead of none on the one that only appears once something has already broken. ⚠️ Relay fallback works but costs **10× throughput** and pushes every cross-site byte through ionos, which has no swap — nothing currently watches for it, so it is a Phase 12 alert. ⚠️ Two harness failures are recorded in 14.1a rather than dropped, including a receive hash of `e3b0c442…` — the SHA-256 of **zero bytes** — reported alongside an impossible 1.25 GB/s. **Still gating:** raising `overlay.mtu` from its current 1280, and the pre-rebuild dumps. ⚠️ **Ordering decided 2026-08-12: this phase runs before Phase 11**, so the rebuild happens with **no backup automation in existence** and the pre-rebuild dump is the only copy |
 
 ## Decision log
 
@@ -3495,6 +3495,58 @@ tool; the literal lies.**
    primitive than `tar` over a pipe, and it removes the streaming failure mode
    entirely.
 
+### 14.5d First real-world test of the design: the Winkel uplink degraded — 2026-08-13
+
+⚠️ **Unrelated to the rebuild, and the most useful thing that happened all week.**
+Roughly **14:20 → 22:29** Winkel's WAN ran at **<1 Mbit/s with 30–45% packet
+loss** while the LAN stayed perfect. It self-healed with no intervention.
+
+| measured from | to gateway | to internet |
+|---|---|---|
+| maxdata | 0% | 40% |
+| winkel-pi | 0% | 30% (1.1.1.1), 40% (ionos v4 *and* v6) |
+| Mac on WiFi | 0% | 45% |
+| brink-server (control, other site) | 0% | 10% |
+
+Throughput: maxdata **108 KB/s**, winkel-pi **115 KB/s**, brink-server 1.47 MB/s
+— against 294 Mbit/s on the same path the day before. FritzBox reported
+`PhysicalLinkStatus=Up` and only ~195 KB/s of actual traffic, so **not**
+saturation and not the LAN: link up, line idle, a third of packets gone.
+
+**What it did to the cluster, and why that is worth knowing:**
+
+- ⚠️ **A k3s *server* cannot ride this out.** maxdata's etcd needed a **69 MB**
+  snapshot from brink-server and could not complete it, so k3s never signalled
+  ready, the node went `NotReady`, and it acquired
+  `node.kubernetes.io/unreachable:{NoSchedule,NoExecute}`. Everything pinned
+  there — UniFi, Paperless, Grafana, Loki, Prometheus, Time Machine, redis —
+  was evicted and could not reschedule, because their volumes only exist on
+  that node. **There is no LAN path around it**: winkel-pi reaches Brink through
+  the same FritzBox, so both Winkel nodes fail together.
+- ✅ **CNPG's failover worked, and this was its first genuine test.** `postgres-2`
+  at Brink was promoted to primary and the cluster stayed `healthy`; `postgres-1`
+  rejoined as a replica when maxdata returned. That is precisely the scenario
+  Phase 8 built the two-instance layout for, and until now it had only been
+  reasoned about.
+- ✅ **Full self-heal.** When the uplink recovered, etcd caught up, the taints
+  cleared and every workload rescheduled with no operator action.
+
+**Diagnostic lessons:**
+
+- ⚠️ **`ping -f` overstates loss** — the kernel rate-limits ICMP replies, so a
+  flood ping reported 37–40% loss even on paths that were fine. **Use paced
+  pings** (`-i 0.2`) and confirm with TCP throughput before believing a number.
+- ⚠️ **"The overlay is broken" and "the uplink is broken" look identical from
+  inside the cluster.** The discriminator is one line: ping the **default
+  gateway** and a **LAN peer**. Both 0% with the internet lossy means the fault
+  is upstream of your router and nothing in k3s, flannel or Tailscale is at
+  fault. It was initially misread here as an MTU problem, which it was not —
+  loss was equal at 1228 and 1380 bytes, and **an MTU fault is size-dependent
+  by definition**.
+- ⚠️ **A dead UniFi console is a symptom, not a clue.** The controller is pinned
+  to maxdata, so it disappears whenever that node does. Do not debug UniFi
+  before checking `kubectl get nodes`.
+
 ## 14.6 Edges
 
 - MetalLB v6 ranges from the site ULAs. Dual-stack Services cannot use
@@ -3558,17 +3610,33 @@ tool; the literal lies.**
       Deployed at **1380**, chosen by the fallback path's arithmetic.
 - [x] `flannel-v6.1` up on all four nodes holding an IPv6 address — ✅ all four
       at MTU **1310**, ionos holding `fd06:f10a:ebec:4200::/128`.
-- [x] Pods hold a v6 address — ✅ coredns `10.42.1.2` + `fd06:f10a:ebec:4201::2`,
-      Services dual-stack (`kube-dns` `10.43.0.10` + `fd06:f10a:ebec:43::a`).
-      ⬜ **Cross-site pod-to-pod v6 by bulk TCP is still outstanding** — the
-      host-level equivalent passed in 14.1a, but that is not the same path and
-      must not be read as covering it.
-- [ ] Egress to a v6-only destination works **from every node**, winkel-pi included
-      — ⚠️ this is what `--flannel-ipv6-masq` exists for and it has never been
-      exercised; the pod CIDR is a ULA, so an untested NAT gap fails as a dead
-      destination rather than an error.
-- [ ] `overlay-mtu.service` survives a `tailscaled` restart and a reboot — it is
-      deployed and bound to the device, but neither has been tested since.
+- [x] Pods hold a v6 address; cross-site pod-to-pod v6 verified by bulk TCP —
+      ✅ **2026-08-13.** coredns `10.42.1.2` + `fd06:f10a:ebec:4201::2`, Services
+      dual-stack (`kube-dns` `10.43.0.10` + `fd06:f10a:ebec:43::a`). Bulk test
+      ran **pod-to-pod over v6 only**, Winkel → Brink
+      (`paperless` on maxdata → `fd06:f10a:ebec:4201::4b` on brink-server):
+      **20 971 520 bytes, sha `3568217a72eed545…` identical on both ends,
+      0.53 s, 301 Mbit/s**. ⚠️ Deliberately *not* satisfied by 14.1a's
+      host-level transfer — that crosses `tailscale0` only, while this crosses
+      `flannel-v6.1` as well, which is the layer the phase actually added.
+- [x] Egress to a v6-only destination works **from every node** — ✅ functional
+      test from pods on brink-server and maxdata reached
+      `2606:4700:4700::1111:443` with a **ULA source address**, which only works
+      if masquerade is applied. ⚠️ winkel-pi and ionos host no pod with usable
+      tooling, so those were verified at the mechanism instead:
+      `ip6tables -t nat -S FLANNEL-POSTRTG` carries **2 MASQUERADE rules on all
+      four nodes**.
+      ✅✅ **And this is the proof for 14.4 that documentation alone could not
+      give**: winkel-pi is the agent and never receives `--flannel-ipv6-masq`,
+      yet its rules are byte-identical to the servers'. Agents *do* inherit the
+      setting, so scoping the flag to `isServer` is correct **and** complete —
+      confirming the struck caution in 14.4a was right to be struck.
+- [x] `overlay-mtu.service` survives a `tailscaled` restart — ✅ restarted
+      `tailscaled` on winkel-pi, which destroys and recreates `tailscale0`;
+      MTU came back at **1380** and `ExecMainStartTimestamp` **advanced**, so
+      the unit genuinely re-ran rather than the MTU merely persisting. The
+      reboot case holds by construction (`bindsTo`/`wantedBy` the device unit)
+      and the live-restart case is the harder of the two.
 - [ ] `docs/k3s-ipv6-ingress.md` rewritten rather than deleted (Phase 13 item 4)
 - [x] ~~Cluster rebuilt with every workload restored~~ — ✅ 14.5c, and verified
       against pre-rebuild counts rather than by "it came up": 857 entities / 105
@@ -3649,14 +3717,31 @@ tool; the literal lies.**
   was intact throughout and the real fault was ionos being down. Disable it
   explicitly in `infrastructure/metallb.ts` rather than leaving it to a chart
   default that Renovate can move again.
-- **UniFi devices not yet confirmed checking in after the rebuild.** *(Opened
-  2026-08-13.)* `unifi-data` (600 M, 4681 files) and `unifi-mongo` were restored
-  from the ZFS snapshot and the pod is Running, but the device state was not
-  verified before the session ended. ⚠️ **Verify with `last_seen`, never
-  `adopted`** — Phase 10 established that a restore sets `adopted: true` on every
-  device before a single packet has arrived. If they are not checking in, the
-  fix is the documented one: SSH each device and `set-inform
-  http://192.168.178.243:8080/inform`.
+- **Three UniFi in-wall APs stopped informing, and it is not the rebuild.**
+  *(Opened 2026-08-13.)* Measured with `last_seen`, never `adopted` — the
+  distinction Phase 10 established, and it is what separates these two cases:
+
+  | device | firmware | last_seen | |
+  |---|---|---|---|
+  | US8P150 switch | 7.4.1 | seconds ago | ✅ reconnected on its own |
+  | Buro / Wohn / Max IWHD | 6.7.54 | **12:21** | ❌ |
+
+  ⚠️ **12:21 is two hours *before* the uplink degraded at 14:20**, so this
+  predates the outage and is not a consequence of it. All three are pingable on
+  the LAN, have port 22 open, and hold the **correct** inform URL
+  `http://192.168.178.243:8080/inform` — so this is *not* Phase 10's stale-URL
+  trap either. The controller log shows **no inform attempts at all**: they are
+  not trying. The only difference from the device that recovered is firmware,
+  6.7.54 against 7.4.1.
+
+  **Fix when convenient:** SSH each AP and
+  `mca-cli-op set-inform http://192.168.178.243:8080/inform`. Credentials live
+  in the controller's own `db.setting.find({key:"mgmt"})`. ⚠️ Old firmware needs
+  legacy SSH algorithms (`-o KexAlgorithms=+diffie-hellman-group1-sha1 -o
+  HostKeyAlgorithms=+ssh-rsa`), and neither host has `sshpass` — use
+  `nix run nixpkgs#sshpass`. ⚠️ **Rotate `x_ssh_password` afterwards**: dumping
+  the whole `mgmt` document to read the inform URL also prints the device SSH
+  password and hash, which happened here.
 - **ionos memory headroom.** *(Opened 2026-08-07.)* 1851 MB RAM with
   `k3s-server` at ~792 MB, no swap, and `zramSwap` deliberately disabled — which
   is why it cannot run `nixos-rebuild` locally and everything is built on
