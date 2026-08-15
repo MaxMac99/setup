@@ -1,6 +1,11 @@
-# Phase 12: node, ZFS and smartctl exporters, mirroring maxdata's
-# hosts/nixos/maxdata/monitoring.nix. Brink has one host, so nothing here
-# is per-node parameterised the way a shared module would need to be.
+# Phase 12: ZFS and smartctl exporters. Node metrics are deliberately *not*
+# added here — homelab-k8s already runs `prometheus-prometheus-node-exporter`
+# as a hostNetwork DaemonSet on every node except maxdata (its nodeAffinity
+# explicitly excludes it by hostname, because maxdata is the one host that
+# predates the DaemonSet and already ran its own). Adding a host-level one
+# here fights that pod for :9100 — confirmed live on 2026-08-15: the DaemonSet
+# pod already owned the port and the systemd unit crash-looped
+# ("address already in use") until this was reverted to just ZFS/smartctl.
 {
   config,
   inputs,
@@ -15,22 +20,9 @@
     logFormat = "json";
   };
 
-  services.prometheus.exporters = {
-    node = {
-      enable = true;
-      port = 9100;
-      enabledCollectors = [
-        "systemd"
-        "filesystem"
-        "diskstats"
-        "processes"
-        "interrupts"
-      ];
-    };
-    smartctl = {
-      enable = true;
-      port = 9116;
-    };
+  services.prometheus.exporters.smartctl = {
+    enable = true;
+    port = 9116;
   };
 
   # ⚠️ Deliberately not `openFirewall`/`trustedInterfaces` here: eno1 already
@@ -41,5 +33,5 @@
   # via its Kubernetes `INTERNAL-IP`, which D3 puts on `tailscale0` — and that
   # path must not depend on the LAN trust surviving the Phase 12 cleanup item
   # tracked in the decision log.
-  networking.firewall.interfaces.${config.services.tailscale.interfaceName}.allowedTCPPorts = [9100 9116 9134];
+  networking.firewall.interfaces.${config.services.tailscale.interfaceName}.allowedTCPPorts = [9116 9134];
 }
