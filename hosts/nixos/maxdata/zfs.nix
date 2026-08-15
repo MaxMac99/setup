@@ -102,6 +102,18 @@
     owner = "syncoid";
   };
 
+  # syncoid runs as its own system user with its own $HOME, which has no
+  # known_hosts of its own — StrictHostKeyChecking fails the pull on every
+  # run, not just the first, until this exists. Pinned by address rather than
+  # `brink-server.mesh.mvissing.de`, since this is the overlay identity, not
+  # the DNS one, and the two are independent claims. Read directly off the
+  # box (`/etc/ssh/ssh_host_ed25519_key.pub`) and cross-checked against
+  # `ssh-keyscan` over the overlay, 2026-08-15.
+  programs.ssh.knownHosts."brink-server-overlay" = {
+    hostNames = [config.networkConfig.hosts.brink-server.overlayIPv4];
+    publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDFTX9KWUSx/YCjiYBLmoIHMrPKp773Noal0xG0B4uWn";
+  };
+
   # Syncoid for replication (fast → tank backup, and brink-server → tank
   # off-box). Both targets are pruned by services.sanoid's backupTarget
   # template above, not by syncoid itself.
