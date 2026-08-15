@@ -61,6 +61,17 @@ creation_rules:
     key_groups:
       - age:
           - *maxs-macbook-pro
+  # Phase 11: maxdata's syncoid pull key for brink-server's main/k8s. Narrow
+  # like kubeconfig.yaml, not common.yaml — brink-server, winkel-pi and ionos
+  # have no reason to hold a key that reads brink-server's own pool, and
+  # brink-server itself only needs the *public* half, which lives in the Nix
+  # config, not here.
+  - path_regex: secrets/backup.yaml
+    key_groups:
+      - age:
+          - *maxs-macbook-pro
+          - *maxdata
+          - *maxdata-host
   - path_regex: secrets/k3s.yaml
     key_groups:
       - age:

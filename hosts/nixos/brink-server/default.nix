@@ -19,7 +19,7 @@ in {
       "modules/system/site-dns.nix"
       "modules/system/k3s-cluster.nix"
     ])
-    ++ [./hardware-configuration.nix];
+    ++ [./hardware-configuration.nix ./backup.nix];
 
   hostSpec = {
     username = "max";

@@ -37,6 +37,43 @@
         useTemplate = ["production"];
         recursive = true;
       };
+      # Family data — was templated but never applied (Phase 11). daten-max/
+      # michael/anna are empty today; covered anyway so a future write is
+      # snapshotted from day one rather than after someone notices.
+      "tank/daten-familie" = {
+        useTemplate = ["production"];
+        recursive = true;
+      };
+      "tank/daten-max" = {
+        useTemplate = ["production"];
+        recursive = true;
+      };
+      "tank/daten-michael" = {
+        useTemplate = ["production"];
+        recursive = true;
+      };
+      "tank/daten-anna" = {
+        useTemplate = ["production"];
+        recursive = true;
+      };
+      # NFS exports (Paperless media etc.) and the unmounted timemachine
+      # child both live under here.
+      "tank/k8s" = {
+        useTemplate = ["production"];
+        recursive = true;
+      };
+      # Syncoid's receive side. autosnap=false: sanoid must never originate
+      # snapshots here, only prune the ones syncoid replicates in — the
+      # source (fast/k8s) already owns retention. Without this, syncoid's
+      # own snapshots never get pruned; this dataset carried 13 690 of them.
+      "tank/fast-backup/k8s" = {
+        useTemplate = ["backupTarget"];
+        recursive = true;
+      };
+      "tank/brink-backup/k8s" = {
+        useTemplate = ["backupTarget"];
+        recursive = true;
+      };
     };
     templates.production = {
       frequently = 0;
@@ -47,9 +84,27 @@
       autosnap = true;
       autoprune = true;
     };
+    templates.backupTarget = {
+      frequently = 0;
+      hourly = 48;
+      daily = 30;
+      monthly = 6;
+      yearly = 0;
+      autosnap = false;
+      autoprune = true;
+    };
   };
 
-  # Syncoid for replication (fast → tank backup)
+  # Phase 11: brink-server's private key for the syncoid pull below.
+  # brink-server itself only ever sees the public half (hosts/nixos/brink-server/backup.nix).
+  sops.secrets."syncoid_brink_key" = {
+    sopsFile = lib.custom.relativeToRoot "secrets/backup.yaml";
+    owner = "syncoid";
+  };
+
+  # Syncoid for replication (fast → tank backup, and brink-server → tank
+  # off-box). Both targets are pruned by services.sanoid's backupTarget
+  # template above, not by syncoid itself.
   services.syncoid = {
     enable = true;
     commands."fast-k8s-to-tank" = {
@@ -57,6 +112,16 @@
       target = "tank/fast-backup/k8s";
       recursive = true;
       sendOptions = "w";
+    };
+    # Pulls, not pushed: the credential that can read brink-server's pool
+    # lives here on the backup vault, not on the host being backed up
+    # (hosts/nixos/brink-server/backup.nix).
+    commands."brink-k8s-to-tank" = {
+      source = "syncoid-remote@${config.networkConfig.hosts.brink-server.overlayIPv4}:main/k8s";
+      target = "tank/brink-backup/k8s";
+      recursive = true;
+      sendOptions = "w";
+      sshKey = config.sops.secrets."syncoid_brink_key".path;
     };
   };
 
