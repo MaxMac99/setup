@@ -114,6 +114,23 @@
     publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDFTX9KWUSx/YCjiYBLmoIHMrPKp773Noal0xG0B4uWn";
   };
 
+  # `zfs receive` creates the leaf target but never a missing *parent* —
+  # `tank/fast-backup` already existed when that syncoid target was set up,
+  # but `tank/brink-backup` did not, and the first live run failed with
+  # "cannot open 'tank/brink-backup': dataset does not exist" until this
+  # existed. `-p` makes it idempotent across rebuilds, like `mkdir -p`.
+  systemd.services.tank-brink-backup-parent = {
+    description = "Ensure tank/brink-backup exists for the syncoid pull to receive into";
+    after = ["zfs.target"];
+    before = ["syncoid-brink-k8s-to-tank.service"];
+    wantedBy = ["multi-user.target"];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = "/run/booted-system/sw/bin/zfs create -p tank/brink-backup";
+    };
+  };
+
   # Syncoid for replication (fast → tank backup, and brink-server → tank
   # off-box). Both targets are pruned by services.sanoid's backupTarget
   # template above, not by syncoid itself.
