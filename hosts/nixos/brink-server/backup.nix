@@ -1,9 +1,19 @@
-# Phase 11: lets maxdata pull main/k8s over the overlay for off-box backup.
+# Phase 11: local snapshots on main/k8s, and lets maxdata pull it over the
+# overlay for an off-box copy.
 #
 # brink-server's local-path PVs — including Home Assistant's 857-entity
-# config — sit on `main`, a single unmirrored NVMe. Pull rather than push, so
-# the credential that can read this pool lives on the backup vault (maxdata),
-# not on the host being backed up.
+# config — sit on `main`, a single unmirrored NVMe with no point-in-time
+# recovery of its own until now. Sanoid below fixes that directly, and also
+# gives syncoid something better than its own bookkeeping to sync from: see
+# services.syncoid.commonArgs on maxdata for why that distinction is load-
+# bearing, not cosmetic — the first version of this pull left syncoid
+# creating a fresh marker snapshot every run, which sanoid's target-side
+# pruning can never see because it does not match sanoid's own naming, so
+# the "off-box copy" quietly regrew the exact unbounded-target problem
+# Phase 11 exists to fix, just under a new name.
+#
+# Pull rather than push, so the credential that can read this pool lives on
+# the backup vault (maxdata), not on the host being backed up.
 #
 # No root SSH (PermitRootLogin=no, openssh.nix) and no sudo either: the
 # account can do nothing beyond what `zfs allow` grants below. That is looser
@@ -13,6 +23,25 @@
 # transport actually needs, and tightening it further is unverified scope
 # this phase does not require.
 {pkgs, ...}: {
+  services.sanoid = {
+    enable = true;
+    datasets."main/k8s" = {
+      useTemplate = ["production"];
+      recursive = true;
+    };
+    # Matches maxdata's zfs.nix production template exactly, so the two
+    # halves of the estate's backup posture read as one policy, not two.
+    templates.production = {
+      frequently = 0;
+      hourly = 48;
+      daily = 30;
+      monthly = 6;
+      yearly = 0;
+      autosnap = true;
+      autoprune = true;
+    };
+  };
+
   users.users.syncoid-remote = {
     isSystemUser = true;
     group = "syncoid-remote";

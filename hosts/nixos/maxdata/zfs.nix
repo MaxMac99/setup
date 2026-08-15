@@ -133,9 +133,24 @@
 
   # Syncoid for replication (fast → tank backup, and brink-server → tank
   # off-box). Both targets are pruned by services.sanoid's backupTarget
-  # template above, not by syncoid itself.
+  # template above — which only ever recognises sanoid's own
+  # `autosnap_*_{hourly,daily,...}` naming. Without --no-sync-snap, syncoid
+  # creates its own uniquely-named marker snapshot on the *source* every run
+  # and replicates it in; the source stays lean because syncoid cleans up its
+  # own old markers there, but the copies already sent to the target are
+  # invisible to sanoid's pruning and never leave. That is exactly the
+  # unbounded-target bug this phase exists to fix, so both source datasets
+  # (fast/k8s here, main/k8s on brink-server) now carry their own sanoid
+  # schedule, and --no-sync-snap makes syncoid use those existing snapshots
+  # as sync points instead of minting new unprunable ones.
+  #
+  # ⚠️ Discovered live, not in review: the first version of brink-k8s-to-tank
+  # shipped without this, and 26 minutes of `sanoid --cron` on 2026-08-15
+  # only pruned 86 of ~7000 snapshots on tank/fast-backup/k8s — the 86 that
+  # matched sanoid's naming. The other ~6900 were exactly this.
   services.syncoid = {
     enable = true;
+    commonArgs = ["--no-sync-snap"];
     commands."fast-k8s-to-tank" = {
       source = "fast/k8s";
       target = "tank/fast-backup/k8s";
