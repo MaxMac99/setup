@@ -26,7 +26,7 @@ in {
     ++ (with inputs.nixos-raspberrypi.nixosModules; [
       raspberry-pi-4.base
     ])
-    ++ [./hardware-configuration.nix];
+    ++ [./hardware-configuration.nix ./monitoring.nix];
 
   nixpkgs.hostPlatform = "aarch64-linux";
 
