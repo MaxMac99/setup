@@ -151,6 +151,22 @@
   services.syncoid = {
     enable = true;
     commonArgs = ["--no-sync-snap"];
+    # The module's own default omits "destroy" here — reasonable for a target
+    # that is *only* ever received into, but syncoid also wants it to clean up
+    # its own stale syncoid_* markers on the target once they are no longer
+    # needed as sync points. Without it, that cleanup fails permission-denied
+    # every run (seen live, 2026-08-15) and the ~6900-snapshot backlog this
+    # phase exists to fix never actually drains.
+    localTargetAllow = [
+      "change-key"
+      "compression"
+      "create"
+      "destroy"
+      "mount"
+      "mountpoint"
+      "receive"
+      "rollback"
+    ];
     commands."fast-k8s-to-tank" = {
       source = "fast/k8s";
       target = "tank/fast-backup/k8s";
