@@ -3854,21 +3854,30 @@ saturation and not the LAN: link up, line idle, a third of packets gone.
   restart of sshd/k3s/nginx/Headscale/tailscaled. Verified live: `/dev/zram0`
   462 MB at priority 5, all five services `active`, all four k3s nodes stayed
   `Ready` throughout.
-- **Resolve Pulumi's secrets provider.** *(From Phase 2b work item 4, parked
-  here 2026-08-06 — real, but not boot-critical and not a migration blocker.)*
-  `Pulumi.default.yaml` has `encryptionsalt` and 16 `secure:` entries, so
-  `PULUMI_CONFIG_PASSPHRASE` is a genuine encryption key and the stored web
-  login does **not** substitute for it. Lose it and all 16 values — Authentik
-  outpost token, both OAuth pairs, `unpoller-password`, the SMB passwords —
-  become unrecoverable ciphertext. Preferred: `pulumi stack
-  change-secrets-provider service`, which re-encrypts all 16 under a
-  service-managed key, so the passphrase stops existing rather than being
-  relocated; no new dependency, since the state backend is already
-  `api.pulumi.com`. Then delete both `personal/pulumi-passphrase` and
-  `personal/pulumi-token` from `secrets/common.yaml`. Wants a clean tree and a
-  fresh `pulumi stack export` first. `personal/pulumi-token` is redundant either
-  way — `~/.pulumi/credentials.json` already holds a web login. Not urgent: the
-  passphrase currently sits in sops with four recipients.
+- **~~Resolve Pulumi's secrets provider~~ — ✅ done 2026-08-16.** *(From Phase
+  2b work item 4, parked here 2026-08-06 — real, but not boot-critical and not
+  a migration blocker.)* `Pulumi.default.yaml` had `encryptionsalt` and 17
+  `secure:` entries, so `PULUMI_CONFIG_PASSPHRASE` was a genuine encryption key
+  and the stored web login did **not** substitute for it. Fixed with `pulumi
+  stack change-secrets-provider default` — the CLI's own docs confirm `default`
+  *is* the Pulumi Cloud per-stack managed key when the backend is
+  `api.pulumi.com`, which this stack's already on; not a separate product.
+  Backed up with `pulumi stack export` first. Verified before touching
+  anything else: `pulumi preview --diff` showed **323 unchanged** with
+  `PULUMI_CONFIG_PASSPHRASE` unset entirely, and `Pulumi.default.yaml` lost its
+  `encryptionsalt` line — all 17 secrets round-tripped. `personal/pulumi-token`
+  confirmed redundant the same way: `pulumi whoami` succeeds with
+  `PULUMI_ACCESS_TOKEN` unset too, since `~/.pulumi/credentials.json` already
+  holds the web login. Both `personal/pulumi-passphrase` and
+  `personal/pulumi-token` removed from `secrets/common.yaml` (`sops unset`,
+  non-interactively — the `kopf3` block's unrelated `pulumi-token` untouched),
+  and the two `sops.secrets`/zsh-export lines removed from
+  `hosts/darwin/Maxs-MacBook-Pro/default.nix` — the rest of that file's `sops`
+  block (`age.keyFile`, `defaultSecretsMountPoint`) stays, since
+  `kubeconfig.nix`'s `kube/*` secrets depend on it. Built, then
+  `darwin-rebuild switch`ed on the Mac itself; verified live — the `personal`
+  secrets are gone from `~/.config/sops-nix/secrets.d`, `kube/*` and the
+  rendered kubeconfig template are untouched.
 - **1Password as personal tooling.** *(From Phase 2b work item 6.)* An ongoing
   human task, not a gate. WiFi and router-admin credentials, recovery keys, the
   Let's Encrypt account, IONOS panel logins, the SMB passwords shared with
