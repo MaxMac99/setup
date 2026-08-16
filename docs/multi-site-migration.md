@@ -3797,15 +3797,21 @@ saturation and not the LAN: link up, line idle, a third of packets gone.
   brink-server already has; it does *not* require Phase 14, because Home
   Assistant runs `hostNetwork` and never touches the CNI. Do not let a
   commissioning failure be blamed on the cluster's address family.
-- **MetalLB installs `frr-k8s`, which this estate does not use.** *(Opened
-  2026-08-13.)* D5 uses **L2 mode** with `L2Advertisement`s; the chart
-  nevertheless brings 13 CRDs, a **five-container DaemonSet on every node**, a
-  webhook and a statuscleaner. Pure overhead, and it is memory winkel-pi (3.7 G)
-  and ionos (1.8 G, no swap) cannot spare. ⚠️ It was also wrongly suspected of
-  breaking subnet routing during the rebuild — it had not; winkel-pi's table 52
-  was intact throughout and the real fault was ionos being down. Disable it
-  explicitly in `infrastructure/metallb.ts` rather than leaving it to a chart
-  default that Renovate can move again.
+- **~~MetalLB installs `frr-k8s`, which this estate does not use~~ — ✅ done
+  2026-08-16.** *(Opened 2026-08-13.)* D5 uses **L2 mode** with
+  `L2Advertisement`s; the chart nevertheless defaulted `frrk8s.enabled: true`,
+  bringing 13 CRDs, a five-container DaemonSet on every node, a webhook and a
+  statuscleaner for a BGP backend nothing uses. ⚠️ It was also wrongly
+  suspected of breaking subnet routing during the rebuild — it had not;
+  winkel-pi's table 52 was intact throughout and the real fault was ionos being
+  down. Fixed with `frrk8s: { enabled: false }` in
+  `infrastructure/metallb.ts`, explicit rather than left to a chart default
+  Renovate can move again. `pulumi up` verified clean (1 updated, 322
+  unchanged); the frr-k8s DaemonSet and CRDs are gone, `metallb-system` is back
+  to controller + one speaker per node, and all three speakers came up
+  `1/1 Ready` on maxdata/brink-server/winkel-pi (ionos correctly excluded by
+  its edge taint). Every existing LoadBalancer VIP still holds its address —
+  Traefik, Traefik-brink, Loki, Time Machine, UniFi, Mosquitto all unaffected.
 - **Three UniFi in-wall APs stopped informing, and it is not the rebuild.**
   *(Opened 2026-08-13.)* Measured with `last_seen`, never `adopted` — the
   distinction Phase 10 established, and it is what separates these two cases:
