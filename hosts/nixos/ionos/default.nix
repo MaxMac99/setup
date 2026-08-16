@@ -60,8 +60,20 @@
     splitHorizonTarget = config.networkConfig.sites.brink.ingressVIP;
   };
 
-  # Disable swap completely to avoid kswapd0 CPU issues
-  zramSwap.enable = false;
+  # zram, not disk swap. The original rationale for disabling swap entirely
+  # was "kswapd0 CPU issues" — real disk I/O latency on a VPS's virtio disk.
+  # zram never touches disk, so that argument doesn't carry over, and this box
+  # has since gained nginx and a hostNetwork Traefik on top of k3s: live at
+  # 2026-08-16, `free -h` shows 1.8Gi total, 98Mi free, 630Mi available. A
+  # full `pulumi up` has already OOM-killed it once and taken the whole
+  # tailnet down with it (Headscale runs here) — see the migration doc's
+  # decision log. `memoryPercent = 25` caps it at ~450 MB, a burst cushion
+  # rather than an invitation to run steady-state on compressed swap on a
+  # 2-vCPU box.
+  zramSwap = {
+    enable = true;
+    memoryPercent = 25;
+  };
   swapDevices = [];
 
   networking = {
