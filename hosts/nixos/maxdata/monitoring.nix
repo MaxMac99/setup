@@ -13,40 +13,23 @@
     logFormat = "json";
   };
 
-  # Grafana Alloy - Log shipping to Loki (replaces promtail)
+  # Grafana Alloy - Samba log shipping to Loki only.
+  #
+  # ⚠️ Phase 12, 2026-08-16: this used to *also* ship the systemd journal, and
+  # that half was a genuine duplicate — the in-cluster Alloy DaemonSet
+  # (homelab-k8s monitoring/alloy.ts) already ships every node's journal,
+  # maxdata included, with no exclusion (unlike the node-exporter DaemonSet's
+  # nodeAffinity, which does exclude maxdata for exactly this reason). Removed
+  # rather than kept: the cluster-wide DaemonSet gives consistent labelling
+  # across the fleet, which this host-only copy could only ever partially
+  # match. Samba logs are not covered by the DaemonSet (no Samba discovery in
+  # alloy.ts) and stay here.
   services.alloy = {
     enable = true;
     extraFlags = ["--disable-reporting"];
   };
 
   environment.etc."alloy/config.alloy".text = ''
-    // System journal logs
-    loki.source.journal "journal" {
-      forward_to    = [loki.relabel.journal.receiver]
-      max_age       = "12h"
-      labels        = {
-        job  = "systemd-journal",
-        host = "maxdata",
-      }
-    }
-
-    loki.relabel "journal" {
-      forward_to = [loki.write.loki.receiver]
-
-      rule {
-        source_labels = ["__journal__systemd_unit"]
-        target_label  = "unit"
-      }
-      rule {
-        source_labels = ["__journal__hostname"]
-        target_label  = "hostname"
-      }
-      rule {
-        source_labels = ["__journal_priority_keyword"]
-        target_label  = "level"
-      }
-    }
-
     // Samba logs
     local.file_match "samba" {
       path_targets = [{
