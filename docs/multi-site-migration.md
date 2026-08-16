@@ -3899,11 +3899,16 @@ saturation and not the LAN: link up, line idle, a third of packets gone.
 
   ✅ **Decided 2026-08-07: keep the service, discard the history.** The 689 G of
   existing backups was deleted rather than migrated, and Time Machine starts
-  empty on the now-correctly-mounted dataset. The recommendation above is
+  empty on the now-correctly-mounted dataset. The recommendation above was
   therefore **still open** — the WAN-latency problem it describes is unchanged,
-  only the accumulated data is gone. If a full first backup over the WAN proves
-  as slow as feared, the USB-disk-plus-restic plan is the fallback and nothing
-  is now lost by switching to it.
+  only the accumulated data is gone.
+
+  ✅ **Decided 2026-08-16: keep it on the WAN, closing this item without
+  changing anything.** Weighed against the local-USB-plus-restic alternative
+  and declined — accepted deliberately rather than left unaddressed. If a
+  first full backup over the WAN proves as slow or as fragile as feared in
+  practice, the USB-disk-plus-restic plan above is still the fallback and
+  nothing further has been lost by waiting.
 - **`tank/timemachine-*` — resolved.** Those datasets do not exist despite
   `setup-smb-datasets.sh:13-24`. Nothing to preserve. The live data is under
   `/tank/k8s/timemachine`, in the *parent* dataset — see Phase 13 item 7.
