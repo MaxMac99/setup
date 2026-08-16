@@ -105,15 +105,13 @@
       # the age key that decrypts everything already sits at
       # ~/.config/sops/age/keys.txt, and the disk is FileVault-encrypted.
       defaultSecretsMountPoint = "${config.home.homeDirectory}/.config/sops-nix/secrets.d";
-
-      secrets."personal/pulumi-token" = {};
-      secrets."personal/pulumi-passphrase" = {};
     };
 
-    programs.zsh.initContent = lib.mkAfter ''
-      export PULUMI_ACCESS_TOKEN=$(cat ${config.sops.secrets."personal/pulumi-token".path})
-      export PULUMI_CONFIG_PASSPHRASE=$(cat ${config.sops.secrets."personal/pulumi-passphrase".path})
-    '';
+    # personal/pulumi-token and personal/pulumi-passphrase are gone (moved off
+    # sops 2026-08-16): the homelab-k8s stack's secrets provider is now
+    # Pulumi Cloud's per-stack managed key rather than a local passphrase, and
+    # `~/.pulumi/credentials.json` (from `pulumi login`) already authenticates
+    # the CLI without PULUMI_ACCESS_TOKEN.
 
     home.packages = with pkgs; [
       ffmpeg_6
