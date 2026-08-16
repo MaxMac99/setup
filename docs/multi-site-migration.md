@@ -3837,12 +3837,23 @@ saturation and not the LAN: link up, line idle, a third of packets gone.
   `nix run nixpkgs#sshpass`. ⚠️ **Rotate `x_ssh_password` afterwards**: dumping
   the whole `mgmt` document to read the inform URL also prints the device SSH
   password and hash, which happened here.
-- **ionos memory headroom.** *(Opened 2026-08-07.)* 1851 MB RAM with
-  `k3s-server` at ~792 MB, no swap, and `zramSwap` deliberately disabled — which
-  is why it cannot run `nixos-rebuild` locally and everything is built on
-  maxdata and activated remotely (`--target-host max@100.64.0.1
-  --elevate=sudo`; note `--use-remote-sudo` is deprecated). Now that it also
-  runs nginx and a Traefik pod, revisit whether `zramSwap` is worth enabling.
+- **~~ionos memory headroom~~ — ✅ zram enabled 2026-08-16.** *(Opened
+  2026-08-07.)* 1.8 GB RAM, no disk swap, and `zramSwap` deliberately disabled
+  — which is still why it cannot run `nixos-rebuild` locally and everything is
+  built on maxdata and activated remotely (`--target-host max@100.64.0.1
+  --elevate=sudo`; note `--use-remote-sudo` is deprecated, and don't wrap the
+  command in local `sudo` — that runs the cross-host copy as root, which has
+  no SSH access to ionos, and fails with `Permission denied (publickey)`).
+  ⚠️ The original "kswapd0 CPU issues" rationale was about *disk* swap latency
+  and doesn't carry over to zram, which never touches disk — and the box now
+  also runs nginx and a hostNetwork Traefik pod on top of k3s, measured live
+  at **98 MB free of 1.8 GB**. Enabled with `memoryPercent = 25` (a ~450 MB
+  burst cushion, not steady-state compressed swap on a 2-vCPU box) and
+  deployed via the standard maxdata→target-host path: only 13 trivial
+  derivations, only `firewall.service` reloaded, zram units started, **zero**
+  restart of sshd/k3s/nginx/Headscale/tailscaled. Verified live: `/dev/zram0`
+  462 MB at priority 5, all five services `active`, all four k3s nodes stayed
+  `Ready` throughout.
 - **Resolve Pulumi's secrets provider.** *(From Phase 2b work item 4, parked
   here 2026-08-06 — real, but not boot-critical and not a migration blocker.)*
   `Pulumi.default.yaml` has `encryptionsalt` and 16 `secure:` entries, so
