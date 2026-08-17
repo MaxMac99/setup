@@ -1,5 +1,10 @@
 {pkgs, ...}: let
   python = pkgs.python313;
+  # test_pgrep expects to find a visible process by name, which the Nix
+  # build sandbox doesn't provide - fails there regardless of host platform.
+  plumbum = python.pkgs.plumbum.overridePythonAttrs (_: {
+    doCheck = false;
+  });
   gpxpyOld = python.pkgs.buildPythonPackage rec {
     pname = "gpxpy";
     version = "1.5.0";
@@ -230,6 +235,7 @@
       remotezip2
     ];
   };
+
   qh3 = python.pkgs.buildPythonPackage rec {
     pname = "qh3";
     version = "1.5.4";
@@ -379,7 +385,7 @@
       python.pkgs.aiofiles
       python.pkgs.prompt-toolkit
       python-pcapng
-      python.pkgs.plumbum
+      plumbum
       pyimg4
     ];
 
