@@ -93,10 +93,10 @@
 
     firewall = {
       allowedTCPPorts = [22 80 443];
-      allowedUDPPorts = [56527 443]; # WireGuard + QUIC/HTTP3
+      allowedUDPPorts = [443]; # QUIC/HTTP3
 
       # Trust interfaces used by K3s
-      trustedInterfaces = ["flannel.1" "cni0" "flannel-v6.1" "wg0"];
+      trustedInterfaces = ["flannel.1" "cni0" "flannel-v6.1"];
 
       # Disable reverse path filtering for K3s compatibility.
       #
@@ -110,7 +110,6 @@
 
       # Interface-specific rules - allow Flannel VXLAN only on internal interfaces
       interfaces = {
-        wg0.allowedUDPPorts = [8472]; # Flannel VXLAN on WireGuard only
         ens6.allowedUDPPorts = []; # No VXLAN on public interface
       };
 
@@ -129,41 +128,27 @@
       # what it bound to. Phase 9 rebuilds public ingress on ionos properly
       # with a hostNetwork Traefik (D7), which also ends the masquerading that
       # currently hides every client IP.
-      extraCommands = ''
-        # Enable IP forwarding
-        echo 1 > /proc/sys/net/ipv4/ip_forward
-        echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
-
-        # Masquerade outgoing traffic so responses route back correctly
-        iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
-        ip6tables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
-      '';
-
-      extraStopCommands = ''
-        # Clean up NAT rules on stop
-        iptables -t nat -D POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || true
-        ip6tables -t nat -D POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || true
-      '';
-    };
-
-    wireguard.interfaces = {
-      wg0 = {
-        ips = ["192.168.178.201/24" "fda8:a1db:5685::201/64"];
-        listenPort = 56527;
-        privateKeyFile = "/home/max/.wireguard/private_key";
-
-        peers = [
-          {
-            publicKey = "ulBtv6Iou8HKpJzeJS9YALlZTSKE1+W+fZCEzM3hGiw=";
-            presharedKeyFile = "/home/max/.wireguard/preshared_key";
-            allowedIPs = ["192.168.178.0/24" "fda8:a1db:5685::/64"];
-            endpoint = "xswl3ocz7lm59gcs.myfritz.net:56527";
-            persistentKeepalive = 25;
-          }
-        ];
-      };
     };
   };
+
+  # Phase 13: the FritzBox WireGuard tunnel (wg0) that used to live here is
+  # retired. It was the last independent path into Winkel alongside the
+  # overlay, kept deliberately until the overlay had run long enough to
+  # trust — D3/Phase 3 through Phase 14 covered that, including surviving an
+  # 8-hour degraded-uplink incident with a clean CNPG failover. Removed with
+  # it: the `wg0`-only `trustedInterfaces`/`allowedUDPPorts` entries, the
+  # `-o wg0 -j MASQUERADE` NAT rules (their `ip_forward`/`forwarding` sysctls
+  # were redundant with `modules/system/k3s-base.nix`, which every k3s host
+  # already sets declaratively — confirmed live via `sysctl` on brink-server,
+  # which never had a wg0 tunnel), the `wireguard.interfaces.wg0` block
+  # itself, and the boot-ordering workaround below that existed only because
+  # the peer endpoint was a MyFRITZ! DDNS name. This also frees ionos from
+  # depending on the two unmanaged key files at `/home/max/.wireguard/` —
+  # `private_key` and `preshared_key` — which made it non-reproducible from
+  # the flake; those files are left on disk (harmless, unreferenced) rather
+  # than deleted here. Retiring the FritzBox side itself (Internet →
+  # Freigaben → VPN, freeing `192.168.178.201+`) is a router-panel action,
+  # not code — see `docs/multi-site-migration.md` Phase 13 item 1.
 
   # ionos is the cluster's first server (Phase 7) — it bootstraps etcd and is
   # the join target for the other three.
@@ -232,12 +217,6 @@
   programs.git = {
     enable = true;
     config.safe.directory = "/home/max/setup";
-  };
-
-  # Fix WireGuard DNS resolution issue during boot
-  systemd.services."wireguard-wg0-peer-ulBtv6Iou8HKpJzeJS9YALlZTSKE1+W+fZCEzM3hGiw=" = {
-    after = ["nss-lookup.target"];
-    wants = ["nss-lookup.target"];
   };
 
   system.stateVersion = "25.05";
