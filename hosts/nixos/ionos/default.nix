@@ -8,10 +8,16 @@
   imports =
     (map lib.custom.relativeToRoot [
       "modules/system/openssh.nix"
-      "modules/system/k3s-base.nix"
+      "modules/system/k3s-cluster.nix"
       "modules/system/minimal-zsh.nix"
+      "modules/system/overlay-client.nix"
+      "modules/system/roaming-dns.nix"
     ])
-    ++ [./hardware-configuration.nix];
+    ++ [
+      ./hardware-configuration.nix
+      ./overlay-server.nix
+      ./public-ingress.nix
+    ];
 
   hostSpec = {
     username = "max";
@@ -19,8 +25,55 @@
     isMinimal = true;
   };
 
-  # Disable swap completely to avoid kswapd0 CPU issues
-  zramSwap.enable = false;
+  # ionos runs the control server *and* joins as a peer. It advertises no
+  # subnet — it has no LAN to offer.
+  overlayClient = {
+    enable = true;
+    authKeySecret = "overlay_authkey";
+  };
+
+  # The tailnet's resolver (D15) — see modules/system/roaming-dns.nix for why
+  # neither site's resolver could do this job, and why 53 is scoped to the
+  # overlay interface rather than opened globally as it is at the sites.
+  #
+  # ⚠️ Paired with `dns.nameservers.global` in ./overlay-server.nix, which is
+  # what actually points clients here. The module asserts the two agree.
+  roamingDns = {
+    enable = true;
+
+    # ⚠️ **This reverses D15's "no rewrites", and the target is Brink on
+    # purpose.** Full reasoning is on the option itself; the short version is
+    # that D15 sent roaming clients to the public edge on the premise that the
+    # edge would serve them, and Phase 9 closed without publishing anything —
+    # so that address returns 404 behind `TRAEFIK DEFAULT CERT` for every name.
+    #
+    # Brink rather than Winkel because Authentik and Home Assistant both run on
+    # brink-server, so a roaming login stays inside one site instead of
+    # crossing the WAN overlay twice.
+    #
+    # ⚠️ **Requires `--accept-routes=true` on roaming clients** — this is a LAN
+    # address behind brink-server's subnet router, so without the route the name
+    # resolves and then times out, which reads as the service being down. That
+    # is the opposite of the fleet default and correct only for devices that are
+    # never sitting on an advertised subnet while on the mesh; see
+    # modules/system/overlay-client.nix and 3.6.1.
+    splitHorizonTarget = config.networkConfig.sites.brink.ingressVIP;
+  };
+
+  # zram, not disk swap. The original rationale for disabling swap entirely
+  # was "kswapd0 CPU issues" — real disk I/O latency on a VPS's virtio disk.
+  # zram never touches disk, so that argument doesn't carry over, and this box
+  # has since gained nginx and a hostNetwork Traefik on top of k3s: live at
+  # 2026-08-16, `free -h` shows 1.8Gi total, 98Mi free, 630Mi available. A
+  # full `pulumi up` has already OOM-killed it once and taken the whole
+  # tailnet down with it (Headscale runs here) — see the migration doc's
+  # decision log. `memoryPercent = 25` caps it at ~450 MB, a burst cushion
+  # rather than an invitation to run steady-state on compressed swap on a
+  # 2-vCPU box.
+  zramSwap = {
+    enable = true;
+    memoryPercent = 25;
+  };
   swapDevices = [];
 
   networking = {
@@ -40,110 +93,130 @@
 
     firewall = {
       allowedTCPPorts = [22 80 443];
-      allowedUDPPorts = [56527 443]; # WireGuard + QUIC/HTTP3
+      allowedUDPPorts = [443]; # QUIC/HTTP3
 
       # Trust interfaces used by K3s
-      trustedInterfaces = ["flannel.1" "cni0" "flannel-v6.1" "wg0"];
+      trustedInterfaces = ["flannel.1" "cni0" "flannel-v6.1"];
 
-      # Disable reverse path filtering for K3s compatibility
-      checkReversePath = false;
+      # Disable reverse path filtering for K3s compatibility.
+      #
+      # mkForce because the tailscale module sets this to "loose" whenever
+      # useRoutingFeatures accepts routes, and an unforced `false` collides
+      # with it. Forcing is safe rather than a workaround: `false` disables
+      # rp_filter outright, which is strictly more permissive than the "loose"
+      # mode tailscale asks for, so overriding cannot break subnet routing —
+      # it only keeps the wider allowance k3s's asymmetric flannel paths need.
+      checkReversePath = lib.mkForce false;
 
       # Interface-specific rules - allow Flannel VXLAN only on internal interfaces
       interfaces = {
-        wg0.allowedUDPPorts = [8472]; # Flannel VXLAN on WireGuard only
         ens6.allowedUDPPorts = []; # No VXLAN on public interface
       };
 
-      # Enable NAT for forwarding traffic to internal Traefik
-      extraCommands = ''
-        # Enable IP forwarding
-        echo 1 > /proc/sys/net/ipv4/ip_forward
-        echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
-
-        # Forward HTTP (80) traffic from public interface to internal Traefik
-        iptables -t nat -A PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination 192.168.178.10:80
-        ip6tables -t nat -A PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination [fda8:a1db:5685::10]:80
-
-        # Forward HTTPS (443) TCP traffic from public interface to internal Traefik
-        iptables -t nat -A PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination 192.168.178.10:443
-        ip6tables -t nat -A PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination [fda8:a1db:5685::10]:443
-
-        # Forward HTTPS (443) UDP traffic for HTTP/3 QUIC
-        iptables -t nat -A PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination 192.168.178.10:443
-        ip6tables -t nat -A PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination [fda8:a1db:5685::10]:443
-
-        # Masquerade outgoing traffic so responses route back correctly
-        iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
-        ip6tables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
-      '';
-
-      extraStopCommands = ''
-        # Clean up NAT rules on stop
-        iptables -t nat -D PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination 192.168.178.10:80 2>/dev/null || true
-        ip6tables -t nat -D PREROUTING -i ens6 -p tcp --dport 80 -j DNAT --to-destination [fda8:a1db:5685::10]:80 2>/dev/null || true
-        iptables -t nat -D PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination 192.168.178.10:443 2>/dev/null || true
-        ip6tables -t nat -D PREROUTING -i ens6 -p tcp --dport 443 -j DNAT --to-destination [fda8:a1db:5685::10]:443 2>/dev/null || true
-        iptables -t nat -D PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination 192.168.178.10:443 2>/dev/null || true
-        ip6tables -t nat -D PREROUTING -i ens6 -p udp --dport 443 -j DNAT --to-destination [fda8:a1db:5685::10]:443 2>/dev/null || true
-        iptables -t nat -D POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || true
-        ip6tables -t nat -D POSTROUTING -o wg0 -j MASQUERADE 2>/dev/null || true
-      '';
-    };
-
-    wireguard.interfaces = {
-      wg0 = {
-        ips = ["192.168.178.201/24" "fda8:a1db:5685::201/64"];
-        listenPort = 56527;
-        privateKeyFile = "/home/max/.wireguard/private_key";
-
-        peers = [
-          {
-            publicKey = "ulBtv6Iou8HKpJzeJS9YALlZTSKE1+W+fZCEzM3hGiw=";
-            presharedKeyFile = "/home/max/.wireguard/preshared_key";
-            allowedIPs = ["192.168.178.0/24" "fda8:a1db:5685::/64"];
-            endpoint = "xswl3ocz7lm59gcs.myfritz.net:56527";
-            persistentKeepalive = 25;
-          }
-        ];
-      };
+      # ⚠️ The 80/443 DNAT to the in-cluster Traefik was removed here in Phase
+      # 3, and it was already dead before it was removed.
+      #
+      # Six rules forwarded ens6:80 and ens6:443 (TCP and QUIC) to
+      # networkConfig.legacy.ingressVIP — 192.168.178.10, a MetalLB address
+      # Traefik held by first-come luck rather than by configuration. That
+      # target stopped responding before Phase 0, so public ingress has been
+      # broken for some time and nothing working is being displaced.
+      #
+      # They have to go rather than merely being unused: DNAT happens in
+      # PREROUTING, *before* the local-delivery decision, so while those rules
+      # existed Headscale could not have received a packet on 443 no matter
+      # what it bound to. Phase 9 rebuilds public ingress on ionos properly
+      # with a hostNetwork Traefik (D7), which also ends the masquerading that
+      # currently hides every client IP.
     };
   };
 
-  # Configure K3s as agent (worker node)
-  services.k3s = {
-    role = lib.mkForce "agent";
-    tokenFile = config.sops.secrets.k3s_token.path;
-    serverAddr = "https://192.168.178.5:6443"; # k3s-node1
-    extraFlags = lib.mkForce (toString [
-      "--node-name=ionos"
-      "--node-label=edge=true" # Mark as edge node (custom label)
-      "--node-label=topology.kubernetes.io/zone=external" # For scheduling
-      "--node-ip=192.168.178.201,fda8:a1db:5685::201"
-      "--flannel-iface=wg0" # Use WireGuard interface for Flannel VXLAN traffic
-      # Taint to prevent accidental scheduling - only pods with toleration will run here
+  # Phase 13: the FritzBox WireGuard tunnel (wg0) that used to live here is
+  # retired. It was the last independent path into Winkel alongside the
+  # overlay, kept deliberately until the overlay had run long enough to
+  # trust — D3/Phase 3 through Phase 14 covered that, including surviving an
+  # 8-hour degraded-uplink incident with a clean CNPG failover. Removed with
+  # it: the `wg0`-only `trustedInterfaces`/`allowedUDPPorts` entries, the
+  # `-o wg0 -j MASQUERADE` NAT rules (their `ip_forward`/`forwarding` sysctls
+  # were redundant with `modules/system/k3s-base.nix`, which every k3s host
+  # already sets declaratively — confirmed live via `sysctl` on brink-server,
+  # which never had a wg0 tunnel), the `wireguard.interfaces.wg0` block
+  # itself, and the boot-ordering workaround below that existed only because
+  # the peer endpoint was a MyFRITZ! DDNS name. This also frees ionos from
+  # depending on the two unmanaged key files at `/home/max/.wireguard/` —
+  # `private_key` and `preshared_key` — which made it non-reproducible from
+  # the flake; those files are left on disk (harmless, unreferenced) rather
+  # than deleted here. Retiring the FritzBox side itself (Internet →
+  # Freigaben → VPN, freeing `192.168.178.201+`) is a router-panel action,
+  # not code — see `docs/multi-site-migration.md` Phase 13 item 1.
+
+  # ionos is the cluster's first server (Phase 7) — it bootstraps etcd and is
+  # the join target for the other three.
+  #
+  # It was an *agent* until Phase 7, pointing at `https://192.168.178.5:6443`
+  # (k3s-node1) over `--flannel-iface=wg0` with a dual-stack `--node-ip` on the
+  # FritzBox WireGuard. All three of those premises are gone: Phase 6 destroyed
+  # k3s-node1, D3 moves node IPs and flannel onto the overlay, and D1 drops
+  # cluster dual-stack. The zone label also changes `external` → `public` to
+  # match the networkConfig.sites keys — any Pulumi nodeSelector must follow.
+  k3sCluster = {
+    enable = true;
+    clusterInit = true;
+    extraFlags = [
+      # Public edge: nothing schedules here without saying so explicitly.
+      "--node-label=edge=true"
       "--node-taint=edge=true:NoSchedule"
-    ]);
+    ];
   };
 
   # Configure sops secret for K3s token
   sops = {
     defaultSopsFile = lib.custom.relativeToRoot "secrets/k3s.yaml";
-    age.sshKeyPaths = ["/home/max/.ssh/id_ed25519"]; # Use user SSH key for age
-    secrets.k3s_token = {
-      restartUnits = ["k3s.service"];
-    };
-    templates."k3s-env".content = ''
-      K3S_TOKEN=${config.sops.placeholder.k3s_token}
-    '';
+    # A **host** key at last (D11/2b.2), completing the correction inherited
+    # from Phase 2b item 2. Was /home/max/.ssh/id_ed25519 — a *user* key, and
+    # the file the migration notes repeatedly warn must never be renamed while
+    # it is the age source, because k3s_token stops decrypting at boot.
+    #
+    # Safe to flip because it was staged additively: the host-key recipient
+    # age19ylfvg7p… has been enrolled in .sops.yaml alongside the user key
+    # since 49fa463, both files were re-keyed with their plaintexts unchanged,
+    # and ionos was proven to decrypt common.yaml *and* k3s.yaml with this
+    # exact key on the box. So this line changes which of two working keys is
+    # used, not whether one works — and reverting is one line, not a re-key.
+    #
+    # ⚠️ Verify after a **reboot**, not after activation. sops-install-secrets
+    # runs on both, but only a boot proves the k3s token survives a cold start,
+    # which is the failure this ordering exists to prevent.
+    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
   };
 
-  # K3s token from sops template
-  systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkForce config.sops.templates."k3s-env".path;
+  # ⚠️ Phase 7 removed this host's own `secrets.k3s_token`, its `k3s-env`
+  # template and the forced `EnvironmentFile`. `modules/system/k3s-cluster.nix`
+  # now declares the secret once and feeds it to k3s via `tokenFile`.
+  #
+  # The template was `K3S_TOKEN=${placeholder.k3s_token}` — and the stored
+  # secret's value was *itself* `K3S_TOKEN=<token>`, so the env file came out as
+  # `K3S_TOKEN=K3S_TOKEN=<token>` while `tokenFile` read the prefix as part of
+  # the token. Both paths landed on the same effective string by accident, which
+  # is exactly why the breakage never surfaced. 7.0 stripped the prefix from the
+  # secret; keeping two sources of truth for one token would have turned that
+  # fix into a silent mismatch between the env var and the file.
 
-  # Fix WireGuard DNS resolution issue during boot
-  systemd.services."wireguard-wg0-peer-ulBtv6Iou8HKpJzeJS9YALlZTSKE1+W+fZCEzM3hGiw=" = {
-    after = ["nss-lookup.target"];
-    wants = ["nss-lookup.target"];
+  # ionos rebuilds itself from a clone at /home/max/setup, owned by max, while
+  # nixos-rebuild evaluates as root — and nix's libgit2 refuses to open a
+  # repository the current user does not own (`error code = 7`). Without this
+  # every rebuild fails before it starts.
+  #
+  # It was set imperatively in /root/.gitconfig on 2026-08-06 to get the 26.11
+  # upgrade moving; declaring it here is what stops that undeclared state from
+  # being load-bearing. Note the path differs from pi/brink-server, which use
+  # an /etc/nixos clone — converging ionos onto that pattern is Phase 13 work.
+  #
+  # ⚠️ libgit2 reads this from $HOME/.gitconfig, so a rebuild launched under
+  # `systemd-run` must be given `--setenv=HOME=/root` or it will not be found.
+  programs.git = {
+    enable = true;
+    config.safe.directory = "/home/max/setup";
   };
 
   system.stateVersion = "25.05";

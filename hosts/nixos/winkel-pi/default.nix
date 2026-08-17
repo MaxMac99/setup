@@ -1,0 +1,191 @@
+{
+  config,
+  lib,
+  pkgs,
+  inputs,
+  ...
+}: let
+  # Address plan lives in modules/data/network-config.nix, not inline here, so
+  # the router's static route and this host cannot drift apart.
+  site = config.networkConfig.sites.winkel;
+  self = config.networkConfig.hosts.winkel-pi;
+  prefixLength = lib.toInt (lib.last (lib.splitString "/" site.subnet));
+in {
+  imports =
+    (map lib.custom.relativeToRoot [
+      "modules/system/openssh.nix"
+      "modules/system/minimal-zsh.nix"
+      "modules/system/overlay-client.nix"
+      "modules/system/site-dns.nix"
+      "modules/system/k3s-cluster.nix"
+    ])
+    # Board specifics only. `nixos-raspberrypi.lib.nixosSystem` (see flake.nix)
+    # already supplies inject-overlays, nixpkgs-rpi and trusted-nix-caches —
+    # importing inject-overlays a second time applies the kernel/firmware
+    # overlay twice and evaluation recurses inside `raspberrypiWirelessFirmware`.
+    ++ (with inputs.nixos-raspberrypi.nixosModules; [
+      raspberry-pi-4.base
+    ])
+    ++ [./hardware-configuration.nix ./monitoring.nix];
+
+  nixpkgs.hostPlatform = "aarch64-linux";
+
+  # Pi PoE+ HAT: enable the rpi-poe-plus DT overlay so the EMC2301 fan
+  # controller and temperature-based fan curve work.
+  hardware.raspberry-pi.config.all.dt-overlays.rpi-poe-plus = {
+    enable = true;
+    params = {};
+  };
+
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+  };
+
+  # Winkel's subnet router (networkConfig.hosts.winkel-pi.subnetRouter), and
+  # the reason D10 put the pi here: it advertises 192.168.178.0/24 and is the
+  # FritzBox's next hop to Brink, so a nixos-rebuild on maxdata cannot take
+  # Winkel's routing, DNS and the only way in down with it.
+  overlayClient = {
+    enable = true;
+    authKeySecret = "overlay_authkey";
+  };
+
+  # k3s **agent** at Winkel (Phase 7) — the only non-server in the cluster.
+  # Deliberate: this is a Raspberry Pi on a USB-SATA disk, and etcd on that is a
+  # reliability trap. It is also D10's out-of-band anchor, so it should stay
+  # useful when the cluster is not.
+  k3sCluster.enable = true;
+
+  # Winkel's DNS resolver (networkConfig.sites.winkel.adguard = this host's own
+  # .3), and the second half of D10's argument for putting the pi here: DNS,
+  # subnet routing and the out-of-band way in all live on the machine that is
+  # *not* the one anyone rebuilds.
+  #
+  # This does not replace the in-cluster AdGuard on 192.168.178.14 that Winkel
+  # clients use today — the two run side by side until the FritzBox's DHCP is
+  # repointed, and Phase 8 deletes the old one.
+  siteDns.enable = true;
+
+  hostSpec = {
+    username = "max";
+    hostName = "winkel-pi";
+    isMinimal = true;
+  };
+
+  networking = {
+    hostName = "winkel-pi";
+    # Was "03030303", which collided in form with the derived IDs the microVMs
+    # built from their node number (they and that module went in Phase 6). This host
+    # has no ZFS pool, so the ID is cosmetic here — but a fleet where two hosts
+    # can present the same ID is a pool-import hazard waiting for the first
+    # machine that does.
+    hostId = "7a943cc4";
+
+    # Static, because the FritzBox static route for 192.168.1.0/24 points here
+    # (Phase 3) and a subnet router cannot sit on a lease. `.3` is outside the
+    # FritzBox DHCP pool (.20–.200) and was verified free from the Winkel LAN
+    # itself — no ping response, no ARP entry — on 2026-08-06.
+    #
+    # IPv4 only: `useDHCP = false` stops the DHCPv4 client, while IPv6 keeps
+    # arriving by RA/SLAAC as before. Nothing here depends on the site's IPv6
+    # prefix, which D2 forbids relying on.
+    useDHCP = false;
+    interfaces.end0 = {
+      useDHCP = false;
+      ipv4.addresses = [
+        {
+          address = self.lanIPv4;
+          inherit prefixLength;
+        }
+      ];
+      # This site's resolver ULA (Phase 4). Static, so the address the
+      # FritzBox advertises over RDNSS cannot move with the DG prefix (D2).
+      # Additive to SLAAC — the global address still arrives by RA.
+      ipv6.addresses = lib.optional (site.adguardIPv6 != null) {
+        address = site.adguardIPv6;
+        prefixLength = 64;
+      };
+    };
+    defaultGateway = site.gateway;
+    nameservers = site.dnsServers;
+
+    firewall = {
+      enable = true;
+      allowedTCPPorts = [
+        22
+      ];
+    };
+  };
+
+  # IPv6 keeps arriving by SLAAC now that dhcpcd is gone — the kernel does it.
+  # `accept_ra = 2` rather than the default 1 because a host ignores RAs when
+  # forwarding is on, and this box becomes a subnet router in Phase 3.
+  #
+  # Beware when switching a *running* host off DHCP: dhcpcd leaves
+  # `addr_gen_mode=1` (none), `autoconf=0` and `accept_ra=0` behind on its
+  # interface, so IPv6 vanishes entirely — no global address and not even a
+  # link-local — until those are reset or the host reboots. A clean boot
+  # restores the kernel defaults, so this only bites during a live switch.
+  boot.kernel.sysctl."net.ipv6.conf.end0.accept_ra" = 2;
+
+  # Host key, not a user key (D11, 2b.2). Unlike brink-server this needed no key
+  # ceremony: the &winkel-pi recipient in .sops.yaml was *already* derived from
+  # this host's /etc/ssh/ssh_host_ed25519_key — re-deriving from the live key on
+  # 2026-08-06 reproduced it exactly. The recipiency was never stale key
+  # material, only unwired, which is why it looked dead since adfcc70.
+  #
+  # No secrets are declared yet, and that is what keeps this safe: sops-nix with
+  # an empty secret set is a no-op at activation, so nothing here can fail a
+  # boot. The pi needs its first secret in Phase 3 (the overlay pre-auth key),
+  # which is exactly what this plumbing exists to receive.
+  sops = {
+    defaultSopsFile = lib.custom.relativeToRoot "secrets/common.yaml";
+    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
+  };
+
+  # Self-update path. The pi clones and pulls this repo itself from GitHub over
+  # SSH, so it no longer depends on anyone copying a tree onto it. Its private
+  # key is placed out-of-band at /home/max/.ssh/id_winkel_pi — a headless host
+  # cannot reach a vault agent, so this is a device key like maxdata's — and the
+  # public half is registered as a *read-only* deploy key scoped to this one
+  # repo, so a compromised pi cannot rewrite the fleet's configuration.
+  programs.ssh.extraConfig = ''
+    Host github.com
+      User git
+      IdentitiesOnly yes
+      IdentityFile /home/max/.ssh/id_winkel_pi
+  '';
+
+  # /etc/nixos is owned by max, so `git pull` uses max's deploy key and root
+  # never needs an SSH identity. nixos-rebuild still evaluates as root, and
+  # libgit2 refuses to open a repository it does not own without this.
+  programs.git = {
+    enable = true;
+    config.safe.directory = "/etc/nixos";
+  };
+
+  # mDNS so the host is reachable as winkel-pi.local without a static lease.
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    openFirewall = true;
+    publish = {
+      enable = true;
+      addresses = true;
+      workstation = true;
+    };
+  };
+
+  # Home Assistant and matter-server were removed here (migration Phase 5.2
+  # item 4): they move to brink-server, which sits on the Brink segment where
+  # every smart-home device actually lives. Once the pi moved to Winkel they
+  # could not reach a single device anyway — there is no cross-site mDNS — so
+  # this only stops building a large Python stack on a Pi 4 for nothing.
+  #
+  # /var/lib/hass (313 M) was backed up first, to
+  # ~/backup/pre-multi-site/pi-hass-2026-08-05.tar.gz. The state directory is
+  # left on disk; NixOS does not delete it when the service is removed.
+
+  system.stateVersion = "25.11";
+}

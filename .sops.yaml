@@ -1,12 +1,42 @@
 keys:
   - &maxs-macbook-pro age1crme8auc0sjgeu0r85w5lt04ey59me7jx4945zje4lnj3ctf2pzs8tc288
   - &kopf3-NB-26 age13242rt3uhlc6k7p6un8lxy86m3wysjclwntwr8v5pl9fshdf8suqxvqps2
+  # ⚠️ A *user* key, /home/max/.ssh/id_ed25519. Kept only until the host key
+  # below is proven on the box; nothing consumes it, because maxdata had no
+  # sops block at all until Phase 3.
   - &maxdata age1s44mfk6jem5nz0nnt0kp0l59tdhzns0s6dtt97gwxf7xyxh2240sj5mw4m
+  # Derived from maxdata's /etc/ssh/ssh_host_ed25519_key — a **host** key
+  # (D11/2b.2). Added alongside rather than replacing: Phase 6.1 calls maxdata's
+  # sops wiring the single highest-risk item in the migration, because the
+  # microVM k3s token becomes undecryptable if it is got wrong, so the old
+  # recipient stays until a decrypt has actually run on the box.
+  - &maxdata-host age1ewxtypj7pkugz8vnf4pxtkgrnma8eg66p5shsq58kwdsku55vutsr2n2u7
+  # ⚠️ A *user* key, /home/max/.ssh/id_ed25519 (ionos/default.nix:131) — the
+  # last D11/2b.2 offender together with maxdata. Never rename that file: it is
+  # ionos's age source, and k3s_token stops decrypting at boot without it.
   - &ionos age100thyt62mn4gyw90thmz5rzqtzd5d9jga4gtljvylcnuu3cawscqcqtmah
-  - &k3s-node1 age10jf99q3ygydry992384x0sc6qh4l7auvyun92arvsm2mm5lttvwqf2z3t3
-  - &k3s-node2 age135dpxcvascd3clh3dczmx827z9nn26f0gtcsa9e0nrjpj8eht55slnh2zj
-  - &k3s-node3 age1jcxzku7rqksy8juwtj6jvmvfyt63ywa386r3dj59cu2u35cgzqts4jxk0c
-  - &k3s-pi age1acjwunaejf345typ42284yxlreqqp39ndcfjqvcf8frsawwntf6sq3u23k
+  # Transitional, added 2026-08-06 (Phase 3.0). Derived from ionos's
+  # /etc/ssh/ssh_host_ed25519_key, and deliberately enrolled *alongside*
+  # &ionos rather than replacing it: adding a recipient is additive and cannot
+  # break a running host, whereas flipping age.sshKeyPaths is what actually
+  # risks k3s_token at boot. Both files can now be decrypted by either key, so
+  # the flip is a config change with a working fallback rather than a flag day.
+  # &ionos and this comment pair go away once the flip is verified.
+  - &ionos-host age19ylfvg7p6zw67t7dkutrj4d0dg5wllnf8ltwjzdlttuu33wt69ssv0mxlm
+  # &k3s-node1/2/3 lived here until Phase 6. Their identities were derived from
+  # /var/ssh/ssh_host_ed25519_key — a path *inside* the var-state.img volumes
+  # that phase deleted — so the keys ceased to exist the moment the images did.
+  # Removed only after maxdata's own host key was proven to decrypt k3s.yaml,
+  # and only after the images were actually gone, so the fallback outlived the
+  # risk it existed for.
+  # Was &k3s-pi. Already derived from /etc/ssh/ssh_host_ed25519_key — verified
+  # 2026-08-06 by re-deriving from the live host key, which reproduced this
+  # exact recipient. So the key material was never stale and needs no ceremony;
+  # only the host-side `sops` block was missing.
+  - &winkel-pi age1acjwunaejf345typ42284yxlreqqp39ndcfjqvcf8frsawwntf6sq3u23k
+  # Derived from /etc/ssh/ssh_host_ed25519_key — a *host* key, per D11/2b.2,
+  # unlike maxdata and ionos which still derive from a user key.
+  - &brink-server age1pqhavyh47c882zd3h20a8q0mng5kdm5qsz7d4f2vayrjfndcsyxq4m7d3a
 creation_rules:
   - path_regex: secrets/common.yaml
     key_groups:
@@ -14,14 +44,50 @@ creation_rules:
         - *maxs-macbook-pro
         - *kopf3-NB-26
         - *maxdata
+        - *maxdata-host
         - *ionos
+        - *ionos-host
+        - *brink-server
+        - *winkel-pi
+  # Cluster-admin client credentials for kubectl on workstations.
+  #
+  # ⚠️ Deliberately its own file with a *narrow* recipient list, rather than
+  # living in common.yaml. common.yaml is readable by every host including
+  # winkel-pi, which is an **agent** and has no admin credentials of its own —
+  # putting them there would hand it privileges the cluster never granted it.
+  # The servers are not recipients either: they already have
+  # /etc/rancher/k3s/k3s.yaml locally and gain nothing from a second copy.
+  - path_regex: secrets/kubeconfig.yaml
+    key_groups:
+      - age:
+          - *maxs-macbook-pro
+  # Phase 11: maxdata's syncoid pull key for brink-server's main/k8s. Narrow
+  # like kubeconfig.yaml, not common.yaml — brink-server, winkel-pi and ionos
+  # have no reason to hold a key that reads brink-server's own pool, and
+  # brink-server itself only needs the *public* half, which lives in the Nix
+  # config, not here.
+  - path_regex: secrets/backup.yaml
+    key_groups:
+      - age:
+          - *maxs-macbook-pro
+          - *maxdata
+          - *maxdata-host
   - path_regex: secrets/k3s.yaml
     key_groups:
       - age:
           - *maxs-macbook-pro
           - *maxdata
+          - *maxdata-host
           - *ionos
-          - *k3s-node1
-          - *k3s-node2
-          - *k3s-node3
-          - *k3s-pi
+          - *ionos-host
+          - *winkel-pi
+          # Added Phase 7. brink-server was deliberately left out of this file
+          # in Phase 5 because the token then belonged to the cluster Phase 6
+          # destroyed. It is a member of the new one, so it needs the new token.
+          #
+          # ⚠️ Order matters and is not cosmetic: a host that declares
+          # `sops.secrets.k3s_token` without being a recipient fails
+          # *activation*. brink-server is Brink's DNS and subnet router at the
+          # site with nobody in it, so this recipient and a proven decrypt come
+          # strictly before k3sCluster.enable is set on that host.
+          - *brink-server
