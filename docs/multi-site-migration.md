@@ -43,7 +43,7 @@ One session per phase. Read this section first, update it last.
 ✅ **Cross-site blackbox probes done immediately after, this time without incident.** `monitoring/blackbox.ts` (`homelab-k8s`): `prom/blackbox-exporter`, ICMP module, pinned to maxdata (same reasoning as Prometheus's own pinning — a stable vantage point rather than a latency baseline that shifts on reschedule), probing brink-server and ionos as the genuine cross-site legs and winkel-pi as a same-LAN control measurement, `NET_RAW` capability added rather than running as root. Grafana dashboard 7587 ("Prometheus Blackbox Exporter Overview") added alongside the existing `gnetId`-referenced dashboards; its init container downloaded it with no `curl -f` failure. ⚠️ **Two real bugs found before this worked, neither related to the incident above.** (1) `blackboxServiceUrl` used a plain JS template literal on `namespaceName`, a Pulumi `Output<string>` — silently produced the literal string `"blackbox-exporter.Calling [toString] on an [Output<T>]..."` as the scrape target rather than failing loudly, caught only by inspecting `pulumi preview --diff`'s rendered value rather than trusting a clean-looking preview. Fixed with `pulumi.interpolate`, the same pattern `ntfyInternalUrl` already uses elsewhere in this file. (2) **What looked like a second, independent DNS defect was actually the same incident, caught mid-repair.** Any hostname-based lookup from the `prometheus-server` pod on maxdata — the FQDN, the FQDN with a trailing dot, or the bare short name — hung to `context deadline exceeded`, while the Service's numeric ClusterIP and the pod's own IP connected instantly. Routed around it at the time by using `blackboxService.spec.clusterIP` (a live Pulumi-tracked value, not a hardcoded string) instead of a DNS name, and the doc briefly recorded this as a separate, unresolved, pre-existing finding — **wrong**: this was tested in the same window as the flannel FDB incident above and had the identical cause. CoreDNS runs on brink-server, so a cross-node DNS query from a pod on maxdata needed the exact pod-network path the empty FDB had broken; once `systemctl restart k3s` fixed that, the identical `wget` against the DNS name that had hung moments earlier resolved and connected instantly, retested for confirmation rather than assumed. **No separate DNS defect exists.** The ClusterIP-based workaround in `blackbox.ts` was left as-is rather than reverted back to a DNS name — it already works, and switching back would be pure churn for no benefit now that the cause is understood. Verified live: `probe_success` 1 on all three targets, RTTs of 10.5 ms (ionos), 4.9 ms (brink-server), 1.5 ms (winkel-pi) — consistent with Phase 2's originally measured cross-site figures.
 
 ✅ **maxdata's duplicate Alloy fixed the same session.** `hosts/nixos/maxdata/monitoring.nix` shipped the systemd journal to Loki twice — once from its own host-level Alloy, once from the in-cluster Alloy DaemonSet, which covers every node's journal including maxdata with no exclusion (unlike the node-exporter DaemonSet, whose `nodeAffinity` deliberately excludes maxdata). Removed the journal half of the host-level config; kept Samba log shipping, which the DaemonSet does not cover (no Samba discovery in `alloy.ts`). Deployed and verified live: clean `nixos-rebuild switch` (only `alloy.service` reloaded, no other units, all four nodes stayed `Ready`), and the reload log shows `loki.source.journal.journal` shutting down cleanly while `local.file_match.samba`/`loki.source.file.samba` kept evaluating. **Not yet done:** per-site ntfy alert *routing* for anything beyond the certs/ingress rules Phase 9 already wired plus the phone subscription (explicitly deferred, user's call). A live ZFS degradation test (`zpool offline` one `raidz1-0` disk on `tank`, 4-disk RAIDZ1, zero data risk) was proposed to actually prove `ZfsPoolNotOnline` fires and delivers a notification, and **declined** — the alert rules stay verified only as loaded (`health: ok`, `state: inactive`), not as fired. That exit criterion remains open by choice, not oversight. ⚠️ **All `homelab-k8s` pushes this session bypassed branch protection** (`main` normally requires a PR + a "Pulumi Preview" check) — GitHub logged it as a bypass rather than blocking it, consistent with how this repo has been worked in this migration, but worth knowing it happened |
-| 13 | Cleanup | not started | | |
+| 13 | Cleanup | ⚠️ **partial** | 2026-08-17 | **All code-side items done and deployed; one item is genuinely human-only.** Retired ionos's FritzBox `wg0` tunnel from the flake (zero service restart, all four nodes stayed `Ready`); deleted the three stale docs (`proxmox/`, `k3s-Migration.md`, `k3s-ipv6-ingress.md`); fixed the broken CI workflow, which still targeted the destroyed `k3s-node1/2/3` and was missing `brink-server`/`winkel-pi` entirely — every push to `main` would have failed; rewrote `homelab-k8s`'s README and fixed stale code comments (Diun/Nova, Grafana PVC size); reclaimed 68.6 G + 148 M of dead storage on maxdata; removed the dead Proxmox/Cockpit Homepage cards along with their secrets. ⚠️ **Found and fixed en route**: `secrets/kubeconfig.yaml` held a client cert signed by the *pre-Phase-14* cluster CA — silently stale since the dual-stack rebuild rotated it, surfaced only when a `darwin-rebuild switch` overwrote a working cached kubeconfig with the actually-broken sops content. ⬜ **Still open, deliberately**: copying the two FritzBox WireGuard key files to 1Password and deleting the FritzBox VPN connections in the router panel — both are router/vault actions nothing here can reach |
 | 14 | Dual-stack cluster (D17) | ✅ **done** | 2026-08-13 | ✅ **All exit criteria closed 2026-08-13** except the `k3s-ipv6-ingress.md` rewrite, which is Phase 13's item. Cross-site **pod-to-pod over IPv6** verified byte-exact — 20 971 520 bytes, sha `3568217a72eed545…` on both ends, 301 Mbit/s, Winkel → Brink across `flannel-v6.1` (deliberately not satisfied by 14.1a's host-level transfer, which never touches that layer). v6 egress works from pods with a **ULA source**, and ⚠️ **winkel-pi — the agent that never receives `--flannel-ipv6-masq` — carries masquerade rules byte-identical to the servers'**, which proves agents inherit the setting and settles 14.4 by measurement rather than by documentation. `overlay-mtu.service` re-runs when `tailscaled` recreates the device (timestamp advanced, MTU back at 1380). ⚠️ **14.5d records the first real test of the design**: Winkel's uplink degraded to <1 Mbit/s with 30–45% loss for eight hours, which a k3s *server* cannot ride out — maxdata could not pull a 69 MB etcd snapshot, went `NotReady`, and took every workload pinned to it down. **CNPG failed over to Brink correctly**, and the estate self-healed completely when the line recovered. ✅ **Rebuilt and restored overnight — dual-stack is live on all four nodes.** Pod CIDRs `10.42.x` + `fd06:f10a:ebec:420x::/64`, `tailscale0` 1380 → `flannel.1`/`flannel-v6.1` **1310**, pods and Services genuinely dual-stack. Everything restored and checked against pre-rebuild counts, not against "it started": HA **857 entities/105 devices**, Paperless **730 documents**, Grafana 4 dashboards, Authentik 3 users with a live outpost, **all 9 certificates** answering `curl` without `-k`. Still open: cross-site pod-to-pod **v6** bulk TCP, v6-only egress per node (`--flannel-ipv6-masq` has never been exercised), and `overlay-mtu.service` across a reboot. ⚠️⚠️ **Two method failures cost more than any incident and are written up in 14.5c**: `find … head -1` matched a *pre-rebuild* local-path directory and wiped the original 857-entity Home Assistant config — recovered only from the ZFS snapshot, and the reason volume restores must resolve through `kubectl get pvc -o jsonpath='{.spec.volumeName}'`; and the HA tarball was **truncated**, with the original "verification" reading a registry back out of it and reporting 857 entities, which was true and worthless because those files sit early in the archive. `gzip -t` rejects it. **Phase 11 should therefore prefer `zfs send` to `tar` over a pipe.** ⚠️ Also found: a misaligned `podCidrV6` that would have handed brink-server its own LAN prefix, interrupted `pulumi up` runs orphaning Helm releases, namespaces wedging on finalizers whose operators were already deleted, cert-manager's ClusterIssuers racing its webhook, ntfy unable to start on an empty volume, and ionos OOMing under deploy load — which takes Headscale, and therefore the whole tailnet, with it. Code is complete and inert — `cluster.dualStack` defaults `false`, so all four hosts evaluate to today's exact flag set. What landed: the address plan (`overlay.prefixV6`, `hosts.*.overlayIPv6`, `cluster.{podCidr,serviceCidr}{V4,V6}`), the dual-stack k3s flags, `overlay-mtu.service` imposing `overlay.mtu` on `tailscale0`, an explicit flannel MTU via `--flannel-conf`, and two assertions that fail the build rather than the cluster. **Also fixed en route, and this one is live**: `--cluster-cidr`, `--service-cidr` and both D4 `--etcd-arg`s sat inside the `lanInterface != null` guard, so **ionos — the cluster-init server — received none of them**. Invisible because the CIDRs equal k3s's defaults; the etcd tuning was genuinely absent on the one node at the far end of both WAN paths. **Three things had to happen before deploying. Two are done; the third found a defect.** ✅ **14.1's ping half passed 2026-08-12** — all **12 directed pairs carry an overlay MTU of 1400 at 0% loss**, measured in-tunnel with `ping -M do -s 1372`, with a dead-man revert armed on every node *before* anything was raised, everything restored to 1280 and all four nodes still `Ready`. The true ceiling is **1420** (physical 1500 − 80), so the 1350 the assertion demands has real headroom. ⚠️ **Two probes were discarded en route, each having produced a clean-looking table while measuring nothing** — DF-ICMP to peers' underlay addresses measured the home routers' ICMPv6 filtering (it "failed" at 1280, below IPv6's own floor), and `tailscale ping --size` answered *directly at 1520* on a leg independently known to cap at 1500. The rule that came out of it: **calibrate a new probe against a leg whose answer is already known, before trusting it where you cannot otherwise measure.** ⚠️ 14.1's step-2 premise is also wrong as observed — **every WAN leg is native IPv6 today**, so the overhead is a uniform 80 and the DS-Lite 1460 case does not arise. ✅ **14.3 done** — the four `overlayIPv6` addresses read off the live tailnet, not derived. ⚠️⚠️ **14.4 found a live defect in the code that landed the same day — now fixed**: `--flannel-ipv6-masq` is **absent from `k3s agent --help`**, while the flag sat in the all-nodes `dual` block rather than the `isServer` one, so enabling `dualStack` would have stopped k3s on **winkel-pi** — the one host where a failed rebuild has twice cost a recovery. ✅ Moved to `lib.optionals (dual && isServer)` and **verified by evaluation**: the three servers carry it, winkel-pi carries only `--flannel-conf`, every host gets a dual `--node-ip`, and all four remain byte-identical to today at defaults. ⚠️ **A caution written into this doc before it was checked turned out to be wrong, and is struck in 14.4a** — that server-only placement would leave winkel-pi's pods egressing unmasqueraded. It would not: k3s scopes the Flannel *cluster* options (backend, ipv6-masq, external-ip) to servers and agents inherit them, while `--flannel-conf`/`--flannel-iface` are the genuinely per-node ones. **`--help` tells you whether a flag is accepted; only the documentation tells you its scope**, and from the Nix source a crash and a silently-unapplied setting look the same. ✅ **14.3 now landed in the Nix too**, not merely in prose — the four addresses are set on `hosts.*.overlayIPv6`. ✅ **14.1 closed completely the same day**: 20 MB byte-exact maxdata → brink-server on **all three paths the pair can take** — direct native IPv6 (294 Mbit/s), direct IPv4 NAT-traversed through Brink's DS-Lite CGNAT (280), and **DERP relayed via ionos (31)** — each at DF ping 1400 with 0% loss, via one runtime `iptables` rule on the receiver with a `firewall.service` restart armed as the dead-man. ⚠️⚠️ **The CGNAT leg is the binding constraint, and it was measured by accident**: blocking only IPv6 did not produce a relay, it produced a *direct IPv4 path*, which is the fallback the phase text described and 14.1c had just dismissed. It passes at overlay 1400 with **exactly zero bytes of wire headroom** — `1400 + 60 + 40 = 1500`, the physical MTU on the nose. **So prefer `overlay.mtu = 1380`**: flannel lands at 1310, still clear of the 1280 floor, with 20 bytes spare on *both* underlay families instead of none on the one that only appears once something has already broken. ⚠️ Relay fallback works but costs **10× throughput** and pushes every cross-site byte through ionos, which has no swap — nothing currently watches for it, so it is a Phase 12 alert. ⚠️ Two harness failures are recorded in 14.1a rather than dropped, including a receive hash of `e3b0c442…` — the SHA-256 of **zero bytes** — reported alongside an impossible 1.25 GB/s. **Still gating:** raising `overlay.mtu` from its current 1280, and the pre-rebuild dumps. ⚠️ **Ordering decided 2026-08-12: this phase runs before Phase 11**, so the rebuild happens with **no backup automation in existence** and the pre-rebuild dump is the only copy |
 
 ## Decision log
@@ -2990,66 +2990,75 @@ a mirror), not something code can close. Carried forward rather than dropped.
 
 # Phase 13 — Cleanup
 
-1. Retire the FritzBox WireGuard server entirely — not just the ionos tunnel.
-   That means:
-   - ionos's `wg0` peer block (`hosts/nixos/ionos/default.nix:93-109`) and the
-     unmanaged key files at `/home/max/.wireguard/private_key` and
-     `preshared_key`, which currently make ionos non-reproducible from the flake.
-   - The boot-ordering workaround at `:143-147`, which exists only because the
-     peer endpoint is a MyFRITZ! DDNS name.
-   - **All** FritzBox VPN connections under Internet → Freigaben → VPN
-     (WireGuard), once Phase 3.3 has confirmed an overlay equivalent for each.
-     This frees `192.168.178.201+`.
+1. ✅ **NixOS side done 2026-08-17.** Retired ionos's `wg0` peer block, the
+   `wg0`-only `trustedInterfaces`/`allowedUDPPorts` entries, the
+   `-o wg0 -j MASQUERADE` NAT rules, and the MyFRITZ!-DDNS boot-ordering
+   workaround. `ip_forward`/`forwarding` sysctls confirmed redundant with
+   `k3s-base.nix` (live on brink-server, which never had a wg0 tunnel) before
+   removing them. Dry-build clean, deployed via the maxdata→target-host path
+   with **zero** restart of sshd/k3s/Headscale/nginx — only the wg0 units
+   stopped and `dhcpcd` reloaded — and all four nodes stayed `Ready`. The two
+   unmanaged key files at `/home/max/.wireguard/` are left on disk
+   (unreferenced, harmless) rather than deleted here. ⬜ **Still open, and
+   deliberately human**: copying those two files to 1Password, and deleting
+   the FritzBox VPN connections under Internet → Freigaben → VPN (frees
+   `192.168.178.201+`) — a router-panel action nothing here can reach.
+2. ✅ Done in **Phase 3**, which rebuilt ionos anyway.
+3. ✅ **Done 2026-08-17.** Deleted `docs/proxmox/` and `docs/k3s-Migration.md`.
+4. ✅ **Done 2026-08-17.** Deleted `docs/k3s-ipv6-ingress.md` — every
+   architectural detail in it (single-site `k3s-node1/2/3`, a
+   `traefik-external` DaemonSet, the FritzBox-only WireGuard address plan) was
+   superseded, with nothing salvageable to rewrite.
+5. ✅ **Done 2026-08-17.** `homelab-k8s`'s `README.md` fully rewritten (every
+   claim in it was stale — Proxmox VMs, AdGuard-on-Pi via hostPort/dnsmasq,
+   `/etc/nixos` as the deploy path); `CLAUDE.md`'s phase-status note corrected.
+   The two errors actually still live in *code comments*, not the docs
+   originally blamed, were fixed alongside: `monitoring/index.ts` claimed Diun
+   and Nova were deployed (never were, removed) and Grafana's PVC as 2Gi
+   (actually 10Gi). The DNS-01 and MongoDB claims had already been corrected
+   in an earlier session.
+6. ✅ **Done 2026-08-17.** Remaining `k3s-node`/`pi-k3s` hits in both repos are
+   deliberate historical footnotes, not stale references — except
+   `.github/workflows/check.yml`, which still tried to dry-build the destroyed
+   `k3s-node1/2/3` and was missing `brink-server`/`winkel-pi` entirely; every
+   push to `main` would have failed CI outright. Fixed to the real four hosts,
+   verified all dry-build clean.
+7. ✅ **Done 2026-08-17.** `tank/fast-backup/vms/*` (68.6 G, 1693 snapshots of
+   dead Proxmox zvols) and `/fast/k8s/migration` (148 M residue) destroyed —
+   confirmed unreferenced anywhere but the historical inventory doc first.
+   `tank` free: 7.11T → 7.17T. The other two sub-items were already resolved
+   by earlier phases and needed no action: `tank/k8s/timemachine` is mounted
+   (Phase 8), and the stale sparsebundle no longer exists (likely swept up
+   when Phase 8 discarded the 689G of old Time Machine history).
+8. ✅ **Done 2026-08-17, and turned out not to be just a config-deletion.**
+   `proxmox-api-user`/`proxmox-api-token` were still `config.requireSecret()`'d
+   by `apps/homepage.ts` for live Proxmox and Cockpit dashboard cards pointed
+   at `192.168.178.2:8006`/`:9090` — both ports confirmed closed on maxdata's
+   firewall since 2026-08-06, so `pulumi config rm` alone would have broken
+   the deploy outright with a missing-config error. Removed the cards, the
+   secret reads, and the two config entries together; deployed, verified
+   `homepage` pod `Running` and the secret down to its three live keys.
 
-   Do this only after the overlay has run alongside it long enough to trust —
-   it is the last remaining way into Winkel if the overlay fails.
-
-   ⚠️ **Interim mitigation, do this now rather than at Phase 13.** Phase 2b
-   considered moving those two key files into sops and **dropped it** (2b.3
-   item 3): it is declarative plumbing for material this phase deletes, and it
-   means editing the config of the only route into Winkel for no lasting gain.
-   The narrow risk it addressed is real though — if ionos's disk died before
-   this phase, `private_key` and `preshared_key` would be unrecoverable and the
-   tunnel unrebuildable. **Copy both files into 1Password.** A human action, no
-   plumbing, and Phase 3 retires the risk entirely by giving Winkel a second
-   independent path.
-2. (Moved to **Phase 3**, which rebuilds ionos anyway) Standardise ionos's sops age key onto a **host** key
-   (`/etc/ssh/ssh_host_ed25519_key`) instead of `/home/max/.ssh/id_ed25519`
-   (`:131`).
-3. Delete `docs/proxmox/` (describes a Proxmox-on-NixOS design that no longer
-   exists) and `docs/k3s-Migration.md` (superseded by this document).
-4. Update `docs/k3s-ipv6-ingress.md` or delete it — it describes a dual Traefik
-   design with a `traefik-external` DaemonSet that does not exist, and a
-   dual-stack ingress that D1 removes.
-5. Rewrite `README.md` and `CLAUDE.md` in `homelab-k8s`. Current known errors:
-   - Claims cert-manager uses DNS-01; the code was HTTP-01 (`CLAUDE.md:51`)
-   - Claims AdGuard uses hostPort 5353 pinned to the Pi (`README.md:14,25,91`);
-     no such config exists
-   - Claims Proxmox at `192.168.178.97` (`README.md:35`); code uses `.2`
-   - Grafana PVC listed as 2 Gi (`monitoring/index.ts:55`); actual is 10 Gi
-   - Paperless media listed as 500 Gi (`apps/paperless.ts:740`); actual is 300 Gi
-   - Claims Diun and Nova are deployed (`monitoring/index.ts:37-38`); neither exists
-   - Claims MongoDB is in active use (`CLAUDE.md:54`); it has no consumers
-6. Remove stale references to `k3s-node1/2/3` and `pi-k3s` throughout both repos.
-7. **Reclaim dead storage on maxdata**, all identified in Phase 0:
-   - `tank/fast-backup/vms/*` — 68.6 G of Proxmox-era zvols (`vm-100-*`,
-     `vm-201/202/203-*`, `base-9000-disk-0`) with 375 snapshots on one of them.
-     Nothing references them.
-   - `/fast/k8s/migration` — 156 M of residue from an earlier migration
-     (stale copies of `adguard-*`, `paperless-data`, `redis-data`).
-   - `tank/k8s/timemachine` — the dataset exists but is **not mounted**; the
-     689 G of real Time Machine data sits in the parent `tank/k8s`. Either mount
-     it properly and migrate the data in, or delete the empty dataset. Leaving
-     it as-is means no separate quota and no separate snapshot boundary.
-   - The stale `Max's MacBook Pro 2025-10-24-181306.incomplete` sparsebundle.
-8. Delete the dead `proxmox-api-user` / `proxmox-api-token` entries from
-   `Pulumi.default.yaml`.
+⚠️ **Found and fixed en route, not part of the plan**: `secrets/kubeconfig.yaml`
+still held a `system:admin` client cert signed by Phase 7's original cluster
+CA (`@1786084762`), but Phase 14's dual-stack rebuild (2026-08-12/13) rotated
+it (`@1786567145`) and the sops secret was never refreshed. Silent because a
+cached rendered kubeconfig predating the rotation kept working — a
+`darwin-rebuild switch` for the Pulumi secrets-provider work (Open items)
+overwrote that cache with the actually-stale sops content, and `kubectl`/the
+Pulumi kubernetes provider both started failing with `certificate signed by
+unknown authority` against every context. Refreshed `ca`/`client-cert`/
+`client-key` from maxdata's live `/etc/rancher/k3s/k3s.yaml`. Same shape as
+Phase 8's stale-`kubeconfig`-config trap: a credential that looks fine at rest
+and fails only when something forces a fresh read.
 
 ## 13.1 Exit criteria
 
 - [ ] Old WireGuard tunnel removed; ionos rebuildable from the flake alone
-- [ ] Stale docs deleted or rewritten
-- [ ] `grep -r k3s-node` returns nothing meaningful in either repo
+      — ✅ NixOS side done; ⬜ the router-panel deletion and 1Password copy are
+      human actions, still open
+- [x] Stale docs deleted or rewritten
+- [x] `grep -r k3s-node` returns nothing meaningful in either repo
 
 ---
 
