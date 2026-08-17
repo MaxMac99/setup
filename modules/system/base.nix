@@ -24,7 +24,7 @@ in {
       shell = pkgs.zsh;
       openssh.authorizedKeys.keys = lib.lists.forEach pubKeys (key: builtins.readFile key);
     }
-    // lib.optionalAttrs pkgs.stdenv.isLinux {
+    // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       home = "/home/${cfg.username}";
       isNormalUser = true;
       extraGroups = lib.flatten [
@@ -46,7 +46,7 @@ in {
       git
       inetutils
     ]
-    ++ lib.optionals pkgs.stdenv.isLinux [
+    ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
       unixtools.netstat
     ];
 

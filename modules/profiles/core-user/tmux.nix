@@ -16,7 +16,7 @@
     };
   };
 in {
-  home.packages = lib.optionals pkgs.stdenv.isDarwin [
+  home.packages = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
     pkgs.nowplaying-cli
   ];
   programs.tmux = {

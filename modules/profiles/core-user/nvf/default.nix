@@ -58,8 +58,6 @@
       };
       mini.icons.enable = true;
 
-      minimap.codewindow.enable = false;
-
       notes = {
         todo-comments.enable = true;
       };

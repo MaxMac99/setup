@@ -55,7 +55,7 @@
       default = let
         user = config.hostSpec.username;
       in
-        if pkgs.stdenv.isLinux
+        if pkgs.stdenv.hostPlatform.isLinux
         then "/home/${user}"
         else "/Users/${user}";
     };

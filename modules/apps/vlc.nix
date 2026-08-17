@@ -4,6 +4,6 @@
   lib,
   ...
 }: {
-  environment.systemPackages = lib.mkIf pkgs.stdenv.isLinux [pkgs.vlc];
-  homebrew.casks = lib.mkIf pkgs.stdenv.isDarwin ["vlc"];
+  environment.systemPackages = lib.mkIf pkgs.stdenv.hostPlatform.isLinux [pkgs.vlc];
+  homebrew.casks = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin ["vlc"];
 }

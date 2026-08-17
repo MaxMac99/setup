@@ -6,6 +6,6 @@
   lib,
   ...
 }: {
-  services.tailscale.enable = lib.mkIf pkgs.stdenv.isLinux true;
-  homebrew.casks = lib.mkIf pkgs.stdenv.isDarwin ["tailscale-app"];
+  services.tailscale.enable = lib.mkIf pkgs.stdenv.hostPlatform.isLinux true;
+  homebrew.casks = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin ["tailscale-app"];
 }
