@@ -11,6 +11,7 @@
     ./comments.nix
     ./filetree.nix
     ./git.nix
+    ./jinja.nix
     ./keymaps.nix
     ./persisted.nix
     ./tabline.nix
