@@ -200,7 +200,7 @@ in {
       };
     };
     luaConfigRC.whichkeyadds = entryAfter ["whichkey"] ''
-      wk.add(${toLuaObject whichKeyBinds})
+      require("which-key").add(${toLuaObject whichKeyBinds})
     '';
   };
 }
