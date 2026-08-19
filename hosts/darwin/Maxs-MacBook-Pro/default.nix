@@ -36,6 +36,7 @@
     "modules/apps/insomnia.nix"
     "modules/apps/k9s.nix"
     "modules/apps/kubeconfig.nix"
+    "modules/apps/t3code.nix"
     # Overlay client, for when this machine is at neither site. In-site access
     # does not need it — the `brink` and `winkel` kubeconfig contexts reach the
     # API directly over each site's LAN.

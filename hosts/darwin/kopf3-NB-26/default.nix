@@ -32,6 +32,7 @@
     "modules/apps/insomnia.nix"
     "modules/apps/k9s.nix"
     "modules/apps/opencode"
+    "modules/apps/t3code.nix"
   ];
 
   # ~/.ssh/config is managed outside nix here, so home-manager must not generate
