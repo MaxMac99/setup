@@ -1,4 +1,8 @@
-{lib, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: {
   nixpkgs.hostPlatform = "aarch64-darwin";
 
   hostSpec = {
@@ -34,6 +38,8 @@
     "modules/apps/opencode"
     "modules/apps/t3code.nix"
   ];
+
+  home-manager.users.maxvissing.home.packages = [pkgs.copier];
 
   # ~/.ssh/config is managed outside nix here, so home-manager must not generate
   # it (this also drops the blocks from projects.nix). The username is spelled
