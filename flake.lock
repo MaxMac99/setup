@@ -216,11 +216,11 @@
     "homebrew-cask": {
       "flake": false,
       "locked": {
-        "lastModified": 1787201983,
-        "narHash": "sha256-hjKo6DxvyqQ0gb4d7EYRB//6vKAQSJNhJkNAMRyD5SE=",
+        "lastModified": 1787275131,
+        "narHash": "sha256-dEju42l8b7/1LZkMFzeHOrBqHca1c1eRNlvk2Q//7CY=",
         "owner": "homebrew",
         "repo": "homebrew-cask",
-        "rev": "59265df33c5ebfd3d1c82dd4438c4225e1b099c5",
+        "rev": "57b0af13773298d6011b22e1cc96dc7a6c328dee",
         "type": "github"
       },
       "original": {
@@ -232,11 +232,11 @@
     "homebrew-core": {
       "flake": false,
       "locked": {
-        "lastModified": 1787210702,
-        "narHash": "sha256-DhYgatBaBdxPKn6DSAlRQfjc9Q7SSTtCR9+tL2MLkNQ=",
+        "lastModified": 1787273399,
+        "narHash": "sha256-Zs2jktx1kyJ8ue4YyxdgE3L1RhqncC+IvXxWvFk11nw=",
         "owner": "homebrew",
         "repo": "homebrew-core",
-        "rev": "d3cbe06dac1ea9701ad2a5c9f9a9e89667adc59d",
+        "rev": "7e4b7153f96f9e8c39e34901d476c05a579c8eb9",
         "type": "github"
       },
       "original": {
@@ -272,11 +272,11 @@
         "systems": "systems"
       },
       "locked": {
-        "lastModified": 1787178157,
-        "narHash": "sha256-TDFbs7DUcdXFgWMKbpQI3FY8OyCIv9Lh4QIgHnw3T48=",
+        "lastModified": 1787266596,
+        "narHash": "sha256-QCjPBwn7l1ucHZgxVJZLj/bXKcFEzW8xyZliR8z6XyM=",
         "owner": "rynfar",
         "repo": "meridian",
-        "rev": "2a6f581391c2c8592f662313836d4e0df45bee48",
+        "rev": "96bda147294971349a5378b53635f618d347ec19",
         "type": "github"
       },
       "original": {
