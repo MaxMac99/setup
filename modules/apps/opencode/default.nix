@@ -77,6 +77,17 @@
     hash = "sha256-/h4HxkUbtRGoqgyFvjJrd++XmOd1KSVku5dR2/f9b/s=";
   };
 
+  # ~/.claude/skills has to be a single directory, so claude-code cannot be given
+  # the three sources the way `programs.opencode.skills` takes them - they are
+  # merged into one store directory of symlinks instead. Keep this in sync with
+  # the `skills` option below; the two lists are what makes both agents see the
+  # same set. Names are flat and distinct across all three, so no entry shadows
+  # another - a collision here would fail the build on `ln`, not pass silently.
+  claudeSkills = pkgs.runCommand "claude-skills" {} ''
+    mkdir -p $out
+    ln -s ${anthropicSkills}/skills/* ${adhdSkill}/skills/* ${./global/skills}/* $out/
+  '';
+
   # Per-directory profiles, selected by the wrapper below. The settings file is
   # generated outside the profile directory on purpose: anything named
   # opencode.json *inside* OPENCODE_CONFIG_DIR is loaded at a precedence that
@@ -105,7 +116,15 @@ in {
   in {
     home.packages = [meridian];
 
-    home.file.".claude/skills".source = "${anthropicSkills}/skills";
+    home.file.".claude/skills".source = claudeSkills;
+
+    # Same output-shaping rules for claude-code as for opencode, from one source.
+    # ⚠️ opencode takes the FIRST match per category, and ~/.config/opencode/
+    # AGENTS.md (written by `context` below) outranks this file - so opencode
+    # never reads it and the duplication is inert rather than additive. Editing
+    # only one of the two consumers means editing ./global/context.md; there is
+    # no claude-only rules file, on purpose.
+    home.file.".claude/CLAUDE.md".source = ./global/context.md;
 
     home.activation.signOpencode = lib.hm.dag.entryAfter ["writeBoundary"] ''
       if [ "$(cat ${signedDir}/.source 2>/dev/null)" != "${payload}" ]; then

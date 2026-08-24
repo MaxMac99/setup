@@ -1,7 +1,9 @@
 <!--
-Rendered verbatim into ~/.config/opencode/AGENTS.md and sent with every request,
-so everything below costs context on every session. Keep it short; explanations
-of the wiring belong in modules/apps/opencode/default.nix, not here.
+Rendered verbatim into ~/.config/opencode/AGENTS.md *and* ~/.claude/CLAUDE.md,
+and sent with every request of either agent, so everything below costs context on
+every session. Keep it short and keep it agent-neutral - nothing here may assume
+opencode. Explanations of the wiring belong in modules/apps/opencode/default.nix,
+not here.
 
 Source: the always-on short form of ayghri/i-have-adhd (MIT). The long form is
 the pinned skill, behind an explicit /i-have-adhd.
