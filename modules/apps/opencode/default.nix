@@ -54,18 +54,6 @@
     };
   };
 
-  # opencode scans ~/.claude/skills for Claude-compatible skills, so pinning
-  # Anthropic's collection here serves both opencode and claude-code. Fetched at
-  # build time, never redistributed, so the source-available document skills are
-  # not a licensing concern. Note their scripts shell out to Python libraries
-  # that are not in this profile, so those skills may not run until added.
-  anthropicSkills = pkgs.fetchFromGitHub {
-    owner = "anthropics";
-    repo = "skills";
-    rev = "b29e7cf65e5cb78a5ac33d582270551bc74a14eb";
-    hash = "sha256-RH2B03gj4kzw1j5LORezgUZPPu8mW+mWb+Kl2U7WUbY=";
-  };
-
   # The output-shaping ruleset. Its short form is always on via ./global/context.md;
   # this pin only adds the long form, behind an explicit /i-have-adhd. Upstream's
   # own installers (`npx skills add`, `claude plugin marketplace`) all mutate the
@@ -104,8 +92,6 @@ in {
     payload = "${pkgs.opencode}/bin/.opencode-wrapped";
   in {
     home.packages = [meridian];
-
-    home.file.".claude/skills".source = "${anthropicSkills}/skills";
 
     home.activation.signOpencode = lib.hm.dag.entryAfter ["writeBoundary"] ''
       if [ "$(cat ${signedDir}/.source 2>/dev/null)" != "${payload}" ]; then
@@ -304,6 +290,12 @@ in {
       commands = ./global/commands;
       agents = ./global/agents;
 
+      # These are opencode's *own* skills. It ALSO scans ~/.claude/skills, which
+      # modules/apps/claude-code owns - so Anthropic's pinned collection reaches
+      # opencode from there, not from here. ⚠️ That makes this module depend on
+      # claude-code being imported alongside it: drop claude-code from a host and
+      # opencode silently loses ~20 skills with no evaluation error.
+      #
       # The option takes either a directory *or* an attrset, never both, so
       # pulling in one out-of-tree skill means enumerating the in-tree ones too.
       # readDir keeps that a one-place change when a skill is added.

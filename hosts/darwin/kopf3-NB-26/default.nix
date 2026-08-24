@@ -36,6 +36,7 @@
     "modules/apps/insomnia.nix"
     "modules/apps/k9s.nix"
     "modules/apps/opencode"
+    "modules/apps/claude-code"
     "modules/apps/t3code.nix"
   ];
 
