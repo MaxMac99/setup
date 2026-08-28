@@ -39,6 +39,7 @@
 
         # JS / Java
         nodejs_24
+        pnpm
         yarn
         maven
         temurin-bin-21
