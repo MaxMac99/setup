@@ -38,6 +38,16 @@ keys:
   # unlike maxdata and ionos which still derive from a user key.
   - &brink-server age1pqhavyh47c882zd3h20a8q0mng5kdm5qsz7d4f2vayrjfndcsyxq4m7d3a
 creation_rules:
+  # OpenRouter API key for opencode on the two Macs. Narrow like
+  # kubeconfig.yaml: no NixOS host runs opencode (only hosts/darwin import
+  # modules/apps/opencode), so widening the recipient list would put a live
+  # provider key in front of the k3s agents for no benefit. Rendered to
+  # ~/.local/share/opencode/auth.json by the opencode module.
+  - path_regex: secrets/opencode.yaml
+    key_groups:
+      - age:
+          - *maxs-macbook-pro
+          - *kopf3-NB-26
   - path_regex: secrets/common.yaml
     key_groups:
       - age:

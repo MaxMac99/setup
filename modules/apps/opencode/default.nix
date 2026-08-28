@@ -102,6 +102,26 @@ in {
       fi
     '';
 
+    # OpenRouter provider key, from secrets/opencode.yaml (Mac-only recipients).
+    # Rendered straight to auth.json in the shape `opencode auth login` writes,
+    # so provider config stays declarative and identical on both Macs.
+    # ⚠️ sops re-renders this on every activation: a manual `opencode auth
+    # login` for openrouter is overwritten on the next rebuild. Rotate the key
+    # in secrets/opencode.yaml, not here.
+    sops.secrets."openrouter/api_key" = {
+      sopsFile = lib.custom.relativeToRoot "secrets/opencode.yaml";
+    };
+    sops.templates."opencode-auth" = {
+      path = "${config.home.homeDirectory}/.local/share/opencode/auth.json";
+      mode = "0600";
+      content = builtins.toJSON {
+        openrouter = {
+          type = "api";
+          key = config.sops.placeholder."openrouter/api_key";
+        };
+      };
+    };
+
     programs.opencode = {
       # Env is scoped here; a shell-wide export would also reroute claude-code.
       package = pkgs.writeShellScriptBin "opencode" ''
