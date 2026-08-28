@@ -6,7 +6,25 @@
   ...
 }: let
   inherit (pkgs.stdenv.hostPlatform) system;
-  meridian = inputs.meridian.packages.${system}.meridian;
+  # ⚠️ bun2nix's setup hook populates the offline cache with `cp -r`, though its
+  # own comment says `-RL` — so every cache entry stays a symlink into the
+  # read-only store. `bun install --linker=hoisted` clones package dirs from
+  # there with the store's r-xr-xr-x, then cannot mkdir the nested
+  # `node_modules` the hoisted linker needs (zod under @opencode-ai/plugin,
+  # glob under rimraf, …) and dies with `AccessDenied` on exactly those 19
+  # packages. Upstream's `chmod -R u+rwx ./node_modules` only runs in the later
+  # lifecycle-scripts phase, too late to help. Re-materialise the cache as real,
+  # writable directories before the install phase reads it.
+  meridian =
+    inputs.meridian.packages.${system}.meridian.overrideAttrs
+    (_: {
+      preBunNodeModulesInstallPhase = ''
+        writableCache=$(mktemp -d)
+        cp -rL "$BUN_INSTALL_CACHE_DIR"/. "$writableCache"
+        chmod -R u+w "$writableCache"
+        export BUN_INSTALL_CACHE_DIR="$writableCache"
+      '';
+    });
   scrub = inputs.meridian.legacyPackages.${system}.meridianPlugins.opencode-scrub;
 
   pluginManifest = (pkgs.formats.json {}).generate "plugins.json" {
