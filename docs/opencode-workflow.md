@@ -62,8 +62,9 @@ GitHub and Jira details into the reviewers and the commit flow.
 `.work/` is ignored globally via `programs.git.ignores` in
 `modules/profiles/core-user/git.nix`, so no per-repo `.gitignore` edits.
 
-Worktrees are siblings: `../<repo>-<ticket>`, matching the existing bare-repo
-layout.
+Worktrees live inside the repo at `.work/<repo>-<branch>` — the `wt` convention
+(see [wt-workflow.md](wt-workflow.md)); the global `.work/` ignore covers both
+the ticket files and the worktrees themselves.
 
 ## Refinement protocol
 

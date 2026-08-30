@@ -30,31 +30,37 @@ name should agree with the commits and the eventual PR title.
 
 ## 3. Create the worktree
 
-Place it as a sibling of the current repository, which matches the existing
-bare-repository layout:
+Use the `wt` convention: worktrees live inside the repo at
+`.work/<repo>-<branch>`. Prefer the `wt` helper when it is on PATH (it also
+prewarms cargo), otherwise a plain `git worktree add` with the same path and
+naming:
 
 ```sh
-git worktree add ../<repo>-<n> -b <type>/<n>-<slug>
+wt new <repo> <type>/<n>-<slug>
+# or, without wt:
+git worktree add .work/<repo>-<type>-<n>-<slug> -b <type>/<n>-<slug>
 ```
 
-If that path exists already, do not clobber it — report it and stop. If the
+`wt` sanitizes the branch name (`feat/42-x` → `<repo>-feat-42-x`). If the
+worktree path exists already, do not clobber it — report it and stop. If the
 branch exists, add the worktree on the existing branch instead of creating it.
 
 ## 4. Write the ticket into the worktree
 
 ```
-../<repo>-<n>/.work/ticket.md
+.work/photonic-<type>-<n>-<slug>/.work/ticket.md
 ```
 
 Contents: the issue number and URL, the title, and the full body. This file is
 the contract for everything downstream — `reviewer-business` checks the
 implementation against it. `.work/` is gitignored globally, so it will not be
-committed.
+committed. (The worktree path under `.work/` and its own `.work/ticket.md`
+coexist by design; the gitignore covers both.)
 
 ## 5. Report
 
 ```
-Worktree:  /abs/path/to/<repo>-<n>
+Worktree:  /abs/path/to/<repo>/.work/<repo>-<type>-<n>-<slug>
 Branch:    feat/42-profile-switching
 Ticket:    .work/ticket.md  (#42 — Add per-directory profile switching)
 
@@ -68,6 +74,8 @@ is why `/move` or a fresh session is needed.
 ## Rules
 
 - Do not start implementing. This prepares the workspace and stops.
-- Do not create the worktree inside the repository — siblings only.
+- Do not create worktrees outside `.work/` inside the repo, and never name a
+  worktree directory `<branch>` alone — the `<repo>-<branch>` prefix is what
+  keeps IDE window titles and fuzzy finders unambiguous.
 - If the current repository has uncommitted changes, that is fine and does not
   block a worktree, but mention it so nothing is left behind by accident.
