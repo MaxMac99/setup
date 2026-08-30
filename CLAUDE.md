@@ -41,6 +41,24 @@ There are no tests. Validation is `nix eval` plus verification on the box.
 `git add -N`'d does not exist as far as `nix eval` is concerned, and the error
 names the file rather than the cause.
 
+## Worktrees (agent isolation)
+
+Parallel/agent work happens in git worktrees, never by switching branches in the main
+checkout. The layout is fixed:
+
+```
+setup/                              # main checkout (the daily IDE window)
+└── .work/setup-<branch>/           # one worktree per workstream
+```
+
+- Create worktrees with `wt new setup <branch>`. Plain `git worktree add` is fine as
+  long as the path and naming match.
+- Never create worktrees outside `.work/`, and never name them `<branch>` alone.
+- direnv auto-allows everything under `~/projects`; nix-direnv provides the
+  environment on first `cd`. No `direnv allow`, no manual setup.
+- List/clean up: `wt list setup` / `wt prune setup`.
+- Full details of the convention: [docs/wt-workflow.md](docs/wt-workflow.md).
+
 ## Hosts, and how each one deploys
 
 | Host | Site | Arch | Deploy source | Updated as |
