@@ -32,12 +32,6 @@
       #      bindkey '^[[Z' backward-word      # shift+tab
       #      bindkey '^ ' autosuggest-accept   # ctrl+space
 
-      # robbyrussell shows only the leaf directory (%c), which is useless with the
-      # worktree layout where every leaf is just the branch name. Show up to the
-      # last 3 components instead, eliding the rest.
-      PROMPT="%(?:%{$fg_bold[green]%}%1{➜%} :%{$fg_bold[red]%}%1{➜%} ) %{$fg[cyan]%}%(4~|…/%3~|%~)%{$reset_color%}"
-      PROMPT+=' $(git_prompt_info)'
-
       # ⚠️ No KUBECONFIG export here. There used to be one pointing at
       # ~/.kube/k3s-config — a kubeconfig for k3s-node1 (192.168.178.5), a
       # microVM destroyed in Phase 6. Because this file is interactive-only
