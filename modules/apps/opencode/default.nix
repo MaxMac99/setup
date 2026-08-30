@@ -203,10 +203,11 @@ in {
         # `gh api` is deliberately absent: `gh api repos/O/R/issues -f title=x`
         # implies POST, so any `gh api repos/*` allow would auto-approve writes.
         #
-        # This list is what makes ./global/context.md's "Shell approvals" rule
-        # cheap: the reads below never reach a prompt, so anything that does
-        # prompt is by construction not a known-safe read and is worth a line of
-        # explanation. Adding an allow here silently removes that explanation.
+        # ./global/context.md's "Tool call visibility" rule makes every call
+        # narrate (`read|write · what · why`), so allowlisting reads here costs
+        # no visibility - it only skips the approval prompt, not the
+        # explanation. Adding an allow never silences a call. The deny rules
+        # below still hard-block regardless of narration.
         # ⚠️ The permission dialog renders only the command - its metadata is
         # {command, directories, patterns}, with no field a plugin or config can
         # write - which is why the explanation has to precede the call instead.

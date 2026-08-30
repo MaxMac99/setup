@@ -26,11 +26,15 @@ Exceptions: explain fully when asked to explain. Confirm before destructive
 actions. After three failed fixes, stop and name the doubtful assumption. If the
 request is ambiguous, ask one short question.
 
-## Shell approvals
+## Tool call visibility
 
-The approval prompt shows the command and nothing else. Precede any command that
-will prompt with one line - this is the one exception to rule 10:
+Nothing executes silently. Before every tool call - bash, edit, write, search,
+or any other - state one line, and this is the one exception to rule 10:
 
     read|write · what it does · why
 
-Keep the command itself legible: one purpose per call, no long `&&` chains.
+After the call, state the outcome in one line: what came back, what changed, or
+what surprised you. For a pure read that found what was expected, the line can
+be the finding itself instead of a recap.
+
+Keep commands legible: one purpose per call, no long `&&` chains.
