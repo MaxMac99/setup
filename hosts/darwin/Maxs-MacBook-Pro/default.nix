@@ -79,6 +79,7 @@
     # kubeconfig contexts reach the API directly over each site's LAN.
     "modules/apps/tailscale.nix"
     "modules/apps/opencode"
+    "modules/apps/opencode-desktop.nix"
     "modules/apps/claude-code"
     "modules/apps/1password.nix"
     "modules/apps/teleport.nix"
