@@ -14,11 +14,14 @@ PROJECTS_ROOT="${WT_PROJECTS_ROOT:-$HOME/projects}"
 usage() {
 	cat <<'EOF'
 usage:
-  wt new <repo> <branch> [base]   worktree at <repo>/.work/<repo>-<branch>
+  wt new [repo] <branch> [base]   worktree at <repo>/.work/<repo>-<branch>
   wt list [repo]                  worktrees with branch and dirty state
   wt prune [repo] [-y]            remove worktrees whose branch is merged
 
-Repos are resolved under ~/projects (override with WT_PROJECTS_ROOT).
+<repo> is optional: with no argument the current directory's repo is used
+(linked worktrees resolve to their main checkout). A repo may be given as a
+full path or as a name to look up under ~/projects (override with
+WT_PROJECTS_ROOT).
 EOF
 }
 
@@ -53,13 +56,36 @@ find_repo() {
 	fi
 }
 
-# each_repo - print every repo directory under PROJECTS_ROOT (depth 2).
-each_repo() {
-	find "$PROJECTS_ROOT" -maxdepth 2 -type d 2>/dev/null | sort | while IFS= read -r d; do
-		if is_repo "$d"; then
-			printf '%s\n' "$d"
+# resolve_target [repo] - print the repo directory to operate on.
+#   no argument    the repo containing $PWD; die if cwd is not inside a git
+#                  repo. A linked worktree resolves to its main checkout so
+#                  .work/ and the worktree name anchor on the primary clone.
+#   path argument  used as-is (must be a git repo).
+#   bare name      looked up under PROJECTS_ROOT via find_repo.
+resolve_target() {
+	local target="${1:-}" top common main
+	if [ -z "$target" ]; then
+		top="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" ||
+			die "not inside a git repo (run from a repo checkout, or pass a repo name/path)"
+		common="$(git -C "$top" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ||
+			common="$(git -C "$top" rev-parse --git-common-dir)"
+		main="$(dirname "$common")"
+		# Normal-clone convention puts the main checkout at the common dir's
+		# parent; if that is not a repo, fall back to the cwd toplevel.
+		if is_repo "$main"; then
+			printf '%s\n' "$main"
+		else
+			printf '%s\n' "$top"
 		fi
-	done
+		return 0
+	fi
+	case "$target" in
+	*/*)
+		is_repo "$target" || die "not a git repo: $target"
+		printf '%s\n' "$target"
+		;;
+	*) find_repo "$target" ;;
+	esac
 }
 
 # worktree_branches <repo_dir> - print "<worktree_path>\t<branch>" for every
@@ -79,20 +105,27 @@ worktree_branches() {
 }
 
 cmd_new() {
-	[ $# -ge 2 ] || usage
-	local repo="$1" branch="$2" base="${3:-}"
+	local repo="" branch="" base=""
+	case $# in
+	1) branch="$1" ;;
+	2) repo="$1" branch="$2" ;;
+	3) repo="$1" branch="$2" base="$3" ;;
+	*) usage >&2
+		exit 1 ;;
+	esac
 	local repo_dir wt_dir wt_name
-	repo_dir="$(find_repo "$repo")"
-	wt_name="${repo}-$(printf '%s' "$branch" | tr '/ ' '--')"
+	repo_dir="$(resolve_target "$repo")"
+	wt_name="$(basename "$repo_dir")-$(printf '%s' "$branch" | tr '/ ' '--')"
 	wt_dir="$repo_dir/.work/$wt_name"
 
 	mkdir -p "$repo_dir/.work"
+	# Git's progress chatter goes to stderr so `$(wt new …)` yields only the path.
 	if [ -n "${base:-}" ]; then
-		git -C "$repo_dir" worktree add -b "$branch" "$wt_dir" "$base"
+		git -C "$repo_dir" worktree add -b "$branch" "$wt_dir" "$base" 1>&2
 	elif git -C "$repo_dir" show-ref --verify --quiet "refs/heads/$branch"; then
-		git -C "$repo_dir" worktree add "$wt_dir" "$branch"
+		git -C "$repo_dir" worktree add "$wt_dir" "$branch" 1>&2
 	else
-		git -C "$repo_dir" worktree add -b "$branch" "$wt_dir"
+		git -C "$repo_dir" worktree add -b "$branch" "$wt_dir" 1>&2
 	fi
 
 	# Best-effort prewarm; never fatal.
@@ -106,11 +139,7 @@ cmd_new() {
 cmd_list() {
 	local target="${1:-}"
 	local repos repo_dir wt branch dirty
-	if [ -n "$target" ]; then
-		repos="$(find_repo "$target")"
-	else
-		repos="$(each_repo)"
-	fi
+	repos="$(resolve_target "$target")"
 	while IFS= read -r repo_dir; do
 		[ -n "$repo_dir" ] || continue
 		while IFS=$'\t' read -r wt branch; do
@@ -143,11 +172,7 @@ cmd_prune() {
 	done
 
 	local repos repo_dir wt branch base
-	if [ -n "$target" ]; then
-		repos="$(find_repo "$target")"
-	else
-		repos="$(each_repo)"
-	fi
+	repos="$(resolve_target "$target")"
 	while IFS= read -r repo_dir; do
 		[ -n "$repo_dir" ] || continue
 		base="$(default_base "$repo_dir")"

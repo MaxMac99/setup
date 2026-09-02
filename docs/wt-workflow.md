@@ -47,12 +47,19 @@ is what made every IDE window read as `main`.
 
 | Command | What it does |
 | --- | --- |
-| `wt new <repo> <branch> [base]` | Create `~/projects/<repo>/.work/<repo>-<branch>` from `<base>` (default: the repo's current HEAD). Prewarms `cargo fetch` when the worktree has a `Cargo.toml` and cargo is available. Prints the worktree path. |
-| `wt list [repo]` | Worktrees with branch and dirty-file count. Without an argument: every repo under `~/projects`. |
-| `wt prune [repo] [-y]` | Remove worktrees whose branch is fully merged into the repo's base (`main`/`master`). Asks per worktree unless `-y`. Skips worktrees with uncommitted changes. |
+| `wt new [repo] <branch> [base]` | Create `<repo>/.work/<repo>-<branch>` from `<base>` (default: the repo's current HEAD). With no `<repo>` argument the current directory's repo is used. Prewarms `cargo fetch` when the worktree has a `Cargo.toml` and cargo is available. Prints the worktree path (git progress goes to stderr, so `d="$(wt new feat/x)" && cd "$d"` works). |
+| `wt list [repo]` | Worktrees with branch and dirty-file count. Without an argument: the current directory's repo. |
+| `wt prune [repo] [-y]` | Remove worktrees whose branch is fully merged into the repo's base (`main`/`master`). Without an argument: the current directory's repo. Asks per worktree unless `-y`. Skips worktrees with uncommitted changes. |
 
-Repos are resolved under `~/projects` (one level of nesting), so `wt new photonic …`
-finds `~/projects/private/photonic`. Override the root with `WT_PROJECTS_ROOT`.
+Repo resolution for all three subcommands:
+
+- **No argument** — the repo containing the current directory. Running from a
+  *linked worktree* resolves to its **main checkout**, so `.work/` and the
+  worktree name stay anchored on the primary clone. Outside any repo: error.
+- **A path** (anything containing `/`) — used as-is; must be a git repo.
+- **A bare name** — looked up under `~/projects` (one level of nesting;
+  `wt new photonic …` finds `~/projects/private/photonic`). Override the
+  search root with `WT_PROJECTS_ROOT`.
 
 Branch names with slashes are sanitized (`feat/42-x` → `photonic-feat-42-x`).
 If the branch already exists, the worktree checks it out instead of creating it.
@@ -60,10 +67,11 @@ If the branch already exists, the worktree checks it out instead of creating it.
 ### Examples
 
 ```sh
-wt new photonic feat/42-xmp-sidecar      # isolated env for an agent task
-cd ~/projects/private/photonic/.work/photonic-feat-42-xmp-sidecar
-wt list photonic                          # what is running, what is dirty
-wt prune photonic                         # clean up merged workstreams
+cd ~/projects/private/photonic
+wt new feat/42-xmp-sidecar               # repo = cwd; isolated env for an agent task
+cd .work/photonic-feat-42-xmp-sidecar
+wt list                                  # what is running, what is dirty
+wt prune photonic                        # clean up merged workstreams
 ```
 
 ## Environment: nothing to set up
@@ -89,8 +97,8 @@ Agent work must happen in a worktree, never by switching branches in the main
 checkout. The convention lives in each repo's `AGENTS.md`/`CLAUDE.md` (see
 photonic's for the reference wording). The short version for any agent:
 
-- `wt new <repo> <branch>` — or plain `git worktree add` with the same path and
-  naming: `.work/<repo>-<branch>`.
+- `wt new <branch>` from inside the repo — or plain `git worktree add` with the
+  same path and naming: `.work/<repo>-<branch>`.
 - Never create worktrees outside `.work/`, never name them `<branch>` alone.
 
 The opencode `/workspace <issue>` command follows the same convention and
