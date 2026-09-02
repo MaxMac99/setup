@@ -67,21 +67,21 @@
     done
     [ "$filled" = 1 ] || echo "nothing to fill (all markers already valid)"
   '';
-  in {
-    environment.systemPackages = [pkgs.jetbrains.rust-rover];
+in {
+  environment.systemPackages = [pkgs.jetbrains.rust-rover];
 
-    home-manager.users.${config.hostSpec.username} = {lib, ...}: {
-      home.file.".rust-toolchain".source = rustToolchain;
-      # rust-analyzer comes from config.lspPackages (modules/data/lsp.nix).
-      home.packages = [
-        rustToolchain
-        rustStdlibCacheFix
-        pkgs.protobuf
-      ];
-      # Fill empty IDE stdlib caches on every rebuild, so a rustc version bump
-      # is healed without manual steps (no-op while all markers are valid).
-      home.activation.rustStdlibCache = lib.hm.dag.entryAfter ["writeBoundary"] ''
-        ${rustStdlibCacheFix}/bin/rust-stdlib-cache-fix || true
-      '';
-    };
+  home-manager.users.${config.hostSpec.username} = {lib, ...}: {
+    home.file.".rust-toolchain".source = rustToolchain;
+    # rust-analyzer comes from config.lspPackages (modules/data/lsp.nix).
+    home.packages = [
+      rustToolchain
+      rustStdlibCacheFix
+      pkgs.protobuf
+    ];
+    # Fill empty IDE stdlib caches on every rebuild, so a rustc version bump
+    # is healed without manual steps (no-op while all markers are valid).
+    home.activation.rustStdlibCache = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      ${rustStdlibCacheFix}/bin/rust-stdlib-cache-fix || true
+    '';
+  };
 }
