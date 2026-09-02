@@ -173,16 +173,21 @@ cmd_prune() {
 
 	local repos repo_dir wt branch base
 	repos="$(resolve_target "$target")"
-	while IFS= read -r repo_dir; do
+	# Both loops read from fds 3/4, not stdin: stdin must stay free for the
+	# interactive prompt inside the loop body.
+	while IFS= read -r repo_dir <&4; do
 		[ -n "$repo_dir" ] || continue
 		base="$(default_base "$repo_dir")"
-		while IFS=$'\t' read -r wt branch; do
+		# The worktree list feeds fd 3, not stdin: stdin must stay free for
+		# the interactive prompt inside the loop.
+		while IFS=$'\t' read -r wt branch <&3; do
 			[ -n "$branch" ] || continue
 			if ! git -C "$repo_dir" merge-base --is-ancestor "$branch" "$base" 2>/dev/null; then
 				continue
 			fi
 			if ! $assume_no; then
 				printf 'remove %s (merged into %s)? [y/N] ' "$wt" "$base"
+				answer=""
 				read -r answer || true
 				[ "$answer" = "y" ] || continue
 			fi
@@ -192,8 +197,8 @@ cmd_prune() {
 			fi
 			git -C "$repo_dir" worktree remove "$wt"
 			git -C "$repo_dir" branch -d "$branch" || true
-		done < <(worktree_branches "$repo_dir")
-	done <<<"$repos"
+		done 3< <(worktree_branches "$repo_dir")
+	done 4<<<"$repos"
 }
 
 [ $# -ge 1 ] || usage
