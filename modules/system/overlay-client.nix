@@ -22,6 +22,10 @@
     then null
     else net.sites.${self.site};
   advertises = self != null && self.subnetRouter && site != null;
+  exit = self != null && self.exitNode;
+  # Both roles forward traffic, so both need the routing sysctls. Everything
+  # else is a pure endpoint and keeps "none" — see the comment at the use.
+  routes = advertises || exit;
 in {
   options.overlayClient = {
     enable = lib.mkEnableOption "the Tailscale overlay client";
@@ -69,7 +73,7 @@ in {
       # filtering for accepted routes, and a host that accepts none does not
       # want its rp_filter relaxed for nothing.
       useRoutingFeatures =
-        if advertises
+        if routes
         then "both"
         else "none";
 
@@ -127,6 +131,41 @@ in {
           # 3.6.1 hazard held off by on-demand rules rather than by the flag.
           # **Nothing configured by this module should follow them.**
           "--accept-routes"
+        ]
+        ++ lib.optionals exit [
+          # D18 — advertise `0.0.0.0/0` and `::/0`, making this host a Tailscale
+          # exit node. Deliberately **not** `--advertise-routes=0.0.0.0/0,::/0`:
+          # the flag is the supported spelling, and it is what tells tailscaled
+          # these are *default* routes rather than ordinary subnets — which is
+          # what keeps clients from installing them via --accept-routes (below).
+          #
+          # ⚠️ **Advertising is not approving.** Same two-step as the subnet
+          # routers (see the warnings block at the bottom of this file), and the
+          # same silent no-op when skipped: the node reports itself healthy
+          # while no client is offered an exit node at all. On ionos:
+          #
+          #   headscale nodes list
+          #   headscale nodes approve-routes --identifier <ionos-id> \
+          #     --routes 0.0.0.0/0,::/0
+          #
+          # ⚠️ **Why ionos and not a home host** (D18): only host with a fixed
+          # public IP, so the exit address is stable; not behind CGNAT on a
+          # consumer uplink; and the roaming resolver (D15) runs on it, so an
+          # exit-node client's DNS rides the same box instead of crossing the
+          # overlay a second time.
+          #
+          # ⚠️ **What clients may NOT do with this route: nothing, unless they
+          # ask.** A default route is installed client-side only on explicit
+          # exit-node selection (menu bar / iOS app / `--exit-node`), never as
+          # a side effect of `--accept-routes`. That is the load-bearing
+          # assumption behind leaving `--accept-routes` on for the subnet
+          # routers while ionos now advertises `0.0.0.0/0` — and it is exactly
+          # the shape of failure 3.6.1 already produced once (an accepted route
+          # covering the host's own paths, landing in table 52 ahead of main).
+          # Verify on the wire after approval: table 52 on brink-server,
+          # winkel-pi and maxdata must show **no** `0.0.0.0/0` / `::/0` entry,
+          # and their default routes must still come from DHCP.
+          "--advertise-exit-node"
         ];
     };
 

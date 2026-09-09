@@ -26,7 +26,13 @@
   };
 
   # ionos runs the control server *and* joins as a peer. It advertises no
-  # subnet — it has no LAN to offer.
+  # subnet — it has no LAN to offer. It **is** the tailnet's exit node (D18,
+  # `networkConfig.hosts.ionos.exitNode`): the default routes ride the same
+  # `--advertise-exit-node` mechanism as the subnet routers' advertisements,
+  # and need `headscale nodes approve-routes` on this host before any client
+  # is offered them. Routing features were already "server" via k3s; the
+  # overlay client now asks for "both", which changes nothing the kernel does
+  # not already do.
   overlayClient = {
     enable = true;
     authKeySecret = "overlay_authkey";

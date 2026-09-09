@@ -180,6 +180,37 @@
           can already reach.
         '';
       };
+      exitNode = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Whether this host advertises the default routes (`0.0.0.0/0` and
+          `::/0`) onto the overlay — a Tailscale *exit node* (D18).
+
+          A client that selects it sends everything that is not tailnet- or
+          subnet-routed into the tunnel and out through this host's own uplink,
+          which is what makes the overlay a *true VPN* for a phone or laptop on
+          hostile Wi-Fi rather than a way to reach the estate.
+
+          ⚠️ **Orthonormal to `subnetRouter`, and the two compose
+          asymmetrically.** Both set `useRoutingFeatures = "both"`
+          (`modules/system/overlay-client.nix`), but only a subnet router may
+          also set `--accept-routes` (3.6.1). A host that is both would be a
+          transit router that also accepts routes — allowed, but nothing here
+          needs it, so don't.
+
+          ⚠️ **Exactly one exit node exists, and it is ionos.** The choice is
+          recorded on D18; the short version: it is the only host with a fixed
+          public IP, so the exit address is stable; it is the only host not
+          behind CGNAT on a consumer uplink; and the tailnet's roaming resolver
+          (D15) runs on it, so an exit-node client's DNS rides the same box
+          rather than crossing the overlay a second time. A home host could be
+          added later as a *second* exit node for "appear from home" —
+          Headscale supports several, and the client picks — but that couples
+          the VPN to a DG uplink and presents a changing address, which is a
+          different feature.
+        '';
+      };
     };
   };
 in {
@@ -306,6 +337,10 @@ in {
           # Read off the live tailnet with `tailscale ip -6`, 2026-08-12.
           overlayIPv6 = "fd7a:115c:a1e0::1";
           k3sRole = "server";
+          # D18 — the tailnet's exit node. Still advertises no subnet: there is
+          # no LAN to offer, and an exit node must not accept routes either
+          # (3.6.1), so `--accept-routes` stays off here.
+          exitNode = true;
         };
       };
     };
