@@ -104,6 +104,19 @@
         comment = "Daten Anna";
       };
 
+      # Immich upload inbox — photos dropped here are picked up by the
+      # fotos-upload timer (fotos-upload.nix) and pushed into Immich's
+      # internal library, then deleted locally.
+      "Fotos Inbox" = {
+        path = "/tank/fotos-inbox";
+        browseable = "yes";
+        "read only" = "no";
+        "valid users" = "max";
+        "create mask" = "0644";
+        "directory mask" = "0755";
+        comment = "Immich Upload Inbox";
+      };
+
       # Family shared data
       "Daten Familie" = {
         path = "/tank/daten-familie";

@@ -56,6 +56,13 @@
         useTemplate = ["production"];
         recursive = true;
       };
+      # Immich upload inbox — photos staged here from the Mac before the
+      # fotos-upload service pushes them into Immich. Same treatment as the
+      # family datasets: covered from day one, before the first write.
+      "tank/fotos-inbox" = {
+        useTemplate = ["production"];
+        recursive = false;
+      };
       # NFS exports (Paperless media etc.) and the unmounted timemachine
       # child both live under here.
       "tank/k8s" = {

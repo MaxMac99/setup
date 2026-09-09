@@ -52,6 +52,14 @@ chown max:users /tank/daten-familie
 chmod 775 /tank/daten-familie
 
 echo ""
+echo "Creating Immich upload inbox..."
+echo "  - tank/fotos-inbox"
+zfs create tank/fotos-inbox
+zfs set compression=lz4 tank/fotos-inbox
+chown max:users /tank/fotos-inbox
+chmod 755 /tank/fotos-inbox
+
+echo ""
 echo "================================================================"
 echo "ZFS datasets created successfully!"
 echo "================================================================"
