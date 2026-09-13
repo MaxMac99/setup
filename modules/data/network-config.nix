@@ -319,6 +319,13 @@ in {
           k3sRole = "server";
           # Deliberately not a subnet router (3.1): the pi is, so a rebuild of
           # maxdata cannot take Winkel's routing down with it.
+          #
+          # Second exit node (extends D18): offers Winkel's residential uplink
+          # as an egress alongside ionos's datacentre one. Unlike ionos it sits
+          # behind CGNAT/DS-Lite, so its exit address is shared and unstable —
+          # usable for outbound egress only. Still advertises no subnet, so
+          # --accept-routes stays off (3.6.1).
+          exitNode = true;
         };
         winkel-pi = {
           site = "winkel";
