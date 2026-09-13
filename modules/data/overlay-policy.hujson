@@ -23,12 +23,31 @@
 //
 // Tighten this when there is a second principal to separate — a family
 // member's device, or a guest — not before.
+//
+// nodeAttrs — control-plane node attributes, separate concern from the ACLs
+// above. `suggest-exit-node` is what the clients read (peer-side CapMap) to
+// populate their exit-node menus: without it a peer advertising approved
+// 0.0.0.0/0 routes is a fully functional exit node via the CLI
+// (`tailscale set --exit-node=…`) while the macOS/iOS GUI shows an empty
+// list — found on 2026-09-13 when maxdata joined ionos as an exit node
+// (D18 follow-up) and appeared nowhere in the Mac's GUI. Headscale only
+// surfaces the attribute on peers that advertise *approved* exit routes, so
+// granting it tailnet-wide makes exactly ionos and maxdata visible. No
+// client installs a default route without explicitly selecting an exit
+// node (3.6.1), so this cannot silently reroute anyone.
 {
   "acls": [
     {
       "action": "accept",
       "src": ["*"],
       "dst": ["*:*"],
+    },
+  ],
+
+  "nodeAttrs": [
+    {
+      "target": ["*"],
+      "attr": ["suggest-exit-node"],
     },
   ],
 }
