@@ -12,6 +12,7 @@
       "modules/system/minimal-zsh.nix"
       "modules/system/overlay-client.nix"
       "modules/system/roaming-dns.nix"
+      "modules/system/memory-heartbeat.nix"
     ])
     ++ [
       ./hardware-configuration.nix
@@ -37,6 +38,11 @@
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # The host whose 2026-09-13 thrash-death motivated this module. Reports over
+  # its own public uplink, which works even when the overlay it anchors is
+  # down. See modules/system/memory-heartbeat.nix.
+  memoryHeartbeat.enable = true;
 
   # The tailnet's resolver (D15) — see modules/system/roaming-dns.nix for why
   # neither site's resolver could do this job, and why 53 is scoped to the

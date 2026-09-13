@@ -13,6 +13,7 @@
       "modules/profiles/gcloud.nix"
       "modules/profiles/full-nvim.nix"
       "modules/system/overlay-client.nix"
+      "modules/system/memory-heartbeat.nix"
       "modules/system/k3s-cluster.nix"
     ])
     ++ [
@@ -36,6 +37,11 @@
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # Deliberately not a subnet router (3.1), and the second exit node (D18
+  # follow-up): reports over its own LAN uplink, overlay or not. See
+  # modules/system/memory-heartbeat.nix.
+  memoryHeartbeat.enable = true;
 
   # k3s server at Winkel (Phase 7) — the role the three microVMs used to fill
   # between them, now run natively on the host that already owns the storage.

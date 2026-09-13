@@ -17,6 +17,7 @@ in {
       "modules/system/minimal-zsh.nix"
       "modules/system/overlay-client.nix"
       "modules/system/site-dns.nix"
+      "modules/system/memory-heartbeat.nix"
       "modules/system/k3s-cluster.nix"
     ])
     # Board specifics only. `nixos-raspberrypi.lib.nixosSystem` (see flake.nix)
@@ -50,6 +51,11 @@ in {
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # Unattended-site anchor (D10): this host reports for itself even when the
+  # overlay is down — which is the exact scenario the healthchecks.io path
+  # exists for. See modules/system/memory-heartbeat.nix.
+  memoryHeartbeat.enable = true;
 
   # k3s **agent** at Winkel (Phase 7) — the only non-server in the cluster.
   # Deliberate: this is a Raspberry Pi on a USB-SATA disk, and etcd on that is a

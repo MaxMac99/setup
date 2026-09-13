@@ -17,6 +17,7 @@ in {
       "modules/system/minimal-zsh.nix"
       "modules/system/overlay-client.nix"
       "modules/system/site-dns.nix"
+      "modules/system/memory-heartbeat.nix"
       "modules/system/k3s-cluster.nix"
     ])
     ++ [./hardware-configuration.nix ./backup.nix ./monitoring.nix];
@@ -36,6 +37,10 @@ in {
     enable = true;
     authKeySecret = "overlay_authkey";
   };
+
+  # Reports for itself over its own uplink, overlay or not. See
+  # modules/system/memory-heartbeat.nix.
+  memoryHeartbeat.enable = true;
 
   # k3s server at Brink (Phase 7). Role, node IP and zone all come from
   # networkConfig.hosts.brink-server.
