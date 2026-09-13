@@ -65,14 +65,14 @@
     [ -s "$url_file" ] || { echo "no ping url"; exit 1; }
     url="$(cat "$url_file")"
 
-    stall="$(awk '/^full /{for(i=1;i<=NF;i++) if($i ~ /^avg60=/){sub("avg60=","",$i); print $i; exit}}' /proc/pressure/memory)"
-    avail="$(awk '/^MemAvailable:/{a=$2}/^MemTotal:/{t=$2}END{printf "%.1f", 100-100*a/t}' /proc/meminfo)"
+    stall="$(${pkgs.gawk}/bin/awk '/^full /{for(i=1;i<=NF;i++) if($i ~ /^avg60=/){sub("avg60=","",$i); print $i; exit}}' /proc/pressure/memory)"
+    avail="$(${pkgs.gawk}/bin/awk '/^MemAvailable:/{a=$2}/^MemTotal:/{t=$2}END{printf "%.1f", 100-100*a/t}' /proc/meminfo)"
 
     msg="full-psi-avg60=''${stall:-?}% mem-used=''${avail:-?}%"
     echo "$msg"
 
-    over_stall="$(awk -v s="''${stall:-0}" -v t="${toString cfg.psiStallPercent}" 'BEGIN{print (s+0 > t+0) ? 1 : 0}')"
-    over_avail="$(awk -v a="''${avail:-0}" -v t="${toString cfg.memUsedPercent}" 'BEGIN{print (a+0 > t+0) ? 1 : 0}')"
+    over_stall="$(${pkgs.gawk}/bin/awk -v s="''${stall:-0}" -v t="${toString cfg.psiStallPercent}" 'BEGIN{print (s+0 > t+0) ? 1 : 0}')"
+    over_avail="$(${pkgs.gawk}/bin/awk -v a="''${avail:-0}" -v t="${toString cfg.memUsedPercent}" 'BEGIN{print (a+0 > t+0) ? 1 : 0}')"
 
     if [ "$over_stall" = "1" ] || [ "$over_avail" = "1" ]; then
       # /fail marks the check Down immediately; the POST body becomes the
