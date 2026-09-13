@@ -71,8 +71,8 @@
     msg="full-psi-avg60=''${stall:-?}% mem-used=''${avail:-?}%"
     echo "$msg"
 
-    over_stall="$(awk -v s="''${stall:-0}" -v t="${cfg.psiStallPercent}" 'BEGIN{print (s+0 > t+0) ? 1 : 0}')"
-    over_avail="$(awk -v a="''${avail:-0}" -v t="${cfg.memUsedPercent}" 'BEGIN{print (a+0 > t+0) ? 1 : 0}')"
+    over_stall="$(awk -v s="''${stall:-0}" -v t="${toString cfg.psiStallPercent}" 'BEGIN{print (s+0 > t+0) ? 1 : 0}')"
+    over_avail="$(awk -v a="''${avail:-0}" -v t="${toString cfg.memUsedPercent}" 'BEGIN{print (a+0 > t+0) ? 1 : 0}')"
 
     if [ "$over_stall" = "1" ] || [ "$over_avail" = "1" ]; then
       # /fail marks the check Down immediately; the POST body becomes the
