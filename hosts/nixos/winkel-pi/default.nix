@@ -135,6 +135,15 @@ in {
   # restores the kernel defaults, so this only bites during a live switch.
   boot.kernel.sysctl."net.ipv6.conf.end0.accept_ra" = 2;
 
+  # ⚠️ The nixos-raspberrypi kernel builds with CONFIG_PSI=y but
+  # CONFIG_PSI_DEFAULT_DISABLED=y, so /proc/pressure is absent until psi=1 is
+  # on the cmdline — without it, this pi is the one node whose kernel PSI the
+  # Grafana rule (NodeMemoryStalled) can never see and whose heartbeat runs
+  # on MemAvailable alone (the probe degrades PSI to 0 rather than failing).
+  # Takes effect on the next reboot: the cmdline is baked into the boot
+  # configuration, and this host reboots rarely (D10 — unattended anchor).
+  boot.kernelParams = [ "psi=1" ];
+
   # Host key, not a user key (D11, 2b.2). Unlike brink-server this needed no key
   # ceremony: the &winkel-pi recipient in .sops.yaml was *already* derived from
   # this host's /etc/ssh/ssh_host_ed25519_key — re-deriving from the live key on

@@ -65,7 +65,14 @@
     [ -s "$url_file" ] || { echo "no ping url"; exit 1; }
     url="$(cat "$url_file")"
 
-    stall="$(${pkgs.gawk}/bin/awk '/^full /{for(i=1;i<=NF;i++) if($i ~ /^avg60=/){sub("avg60=","",$i); print $i; exit}}' /proc/pressure/memory)"
+    stall="$(${pkgs.gawk}/bin/awk '/^full /{for(i=1;i<=NF;i++) if($i ~ /^avg60=/){sub("avg60=","",$i); print $i; exit}}' /proc/pressure/memory 2>/dev/null || true)"
+    # PSI is optional at the kernel level: the Raspberry Pi kernel builds with
+    # CONFIG_PSI_DEFAULT_DISABLED=y, so /proc/pressure/memory simply does not
+    # exist until psi=1 lands in the cmdline (winkel-pi, 2026-09-13). A node
+    # without PSI must keep heartbeating — its missed-ping coverage is worth
+    # just as much as everyone else's — so the stall reading degrades to 0
+    # and the MemAvailable probe carries the memory signal alone.
+    stall="''${stall:-0}"
     avail="$(${pkgs.gawk}/bin/awk '/^MemAvailable:/{a=$2}/^MemTotal:/{t=$2}END{printf "%.1f", 100-100*a/t}' /proc/meminfo)"
 
     msg="full-psi-avg60=''${stall:-?}% mem-used=''${avail:-?}%"
