@@ -21,8 +21,12 @@ Status: **base config built, pipeline not yet built.** See [Status](#status).
 | 9 | Implement | built-in `build` agent | — |
 | 10 | Architecture / quality / tests / business / security review | `/review-all` | global |
 | 11 | Stage small commits, user commits | `/commit` | global |
+| 12 | Work through PR review comments | `/review-comments` | personal |
 
-Steps 9–11 loop until the ticket is done, then `/pr`.
+Steps 9–11 loop until the ticket is done, then `/pr`. `/review-comments`
+picks up after reviewers have answered the PR: it judges every open review
+comment, fixes the justified ones (one commit per comment), rebuts the rest
+on GitHub, and finishes with rebase and push.
 
 Anything that talks to a tracker is per-profile; anything that only reads
 `.work/ticket.md` or the diff is global. That is why `/epic`, `/refine` and
@@ -57,6 +61,7 @@ GitHub and Jira details into the reviewers and the commit flow.
   ticket.md          the ticket currently being implemented
   pr-body.md         generated PR body
   commit-msg         multi-line commit message, when needed
+  review-comments/   reply drafts for /review-comments, one file per thread
 ```
 
 `.work/` is ignored globally via `programs.git.ignores` in
@@ -262,7 +267,7 @@ Built:
   tests,business,security}`, `codebase-locator`, `codebase-pattern-finder`
 - Global commands — `commit`, `review-all`, `diagram`
 - Personal — `skills/{github-personal,github-issues}`,
-  `command/{pr,epic,refine,workspace,business-case}`
+  `command/{pr,epic,refine,workspace,business-case,review-comments}`
 - Config — permission posture, profile anchor, `.work/` gitignore, Anthropic
   skills pin, `imagemagick`
 

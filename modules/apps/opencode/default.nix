@@ -346,7 +346,15 @@ in {
             "gh search*" = "allow";
 
             # Irreversible or outward-facing: never without a human.
+            #
+            # `git push --force*` also matches `--force-with-lease`, which the
+            # /review-comments rebase-and-push flow needs to update a rewritten
+            # PR branch. The lease variant gets its own `ask` rule: this key
+            # sorts after the deny (`-` > `*`) and opencode applies the LAST
+            # matching rule, so only the lease form is loosened to a prompt. A
+            # bare `--force` matches nothing else and stays hard-blocked.
             "git push --force*" = "deny";
+            "git push --force-with-lease*" = "ask";
             "git reset --hard*" = "deny";
             "kubectl delete*" = "deny";
             "pulumi destroy*" = "deny";
