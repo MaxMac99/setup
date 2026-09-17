@@ -2,8 +2,19 @@
   config,
   lib,
   pkgs,
+  options,
   ...
-}: {
+}: let
+  # Limit journal size on disk — logs are shipped to Loki via Alloy.
+  #
+  # ⚠️ Cross-release trap: the fleet's nixpkgs (26.11) removed
+  # `services.journald.extraConfig` in favour of `services.journald.settings`,
+  # but winkel-pi's nixos-raspberrypi nixpkgs (26.05, D12) has no `settings`
+  # yet. A *conditional* definition (`mkIf false`) of an undeclared option
+  # still throws "option does not exist", so this cannot be version-gated —
+  # it is gated on the declared option tree instead, which evaluates lazily.
+  hasJournalSettings = lib.hasAttrByPath ["services" "journald" "settings"] options;
+in {
   # Enable K3S
   services.k3s = {
     enable = true;
@@ -103,10 +114,15 @@
   # Enable NFS client support
   services.rpcbind.enable = true;
 
-  # Limit journal size on disk — logs are shipped to Loki via Alloy
-  services.journald.extraConfig = ''
-    SystemMaxUse=500M
-  '';
+  services.journald =
+    lib.optionalAttrs hasJournalSettings {
+      settings.Journal.SystemMaxUse = "500M";
+    }
+    // lib.optionalAttrs (!hasJournalSettings) {
+      extraConfig = ''
+        SystemMaxUse=500M
+      '';
+    };
 
   # Time synchronization (critical for etcd)
   services.timesyncd.enable = true;
