@@ -21,6 +21,7 @@
       ./networking.nix
       ./zfs.nix
       ./smb.nix
+      ./fotos-upload.nix
       ./monitoring.nix
       ./hardware-configuration.nix
     ];

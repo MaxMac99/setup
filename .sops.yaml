@@ -82,6 +82,17 @@ creation_rules:
           - *maxs-macbook-pro
           - *maxdata
           - *maxdata-host
+  # Immich API key for maxdata's fotos-upload timer (hosts/nixos/maxdata/
+  # fotos-upload.nix). Narrow like backup.yaml rather than common.yaml: it is
+  # Max's own user credential, and the only consumer is maxdata's uploader —
+  # brink-server, winkel-pi and ionos have no reason to be able to upload
+  # photos into Max's account.
+  - path_regex: secrets/fotos-upload.yaml
+    key_groups:
+      - age:
+          - *maxs-macbook-pro
+          - *maxdata
+          - *maxdata-host
   - path_regex: secrets/k3s.yaml
     key_groups:
       - age:
