@@ -266,8 +266,15 @@ Built:
 - Global agents — `analyst-architecture`, `reviewer-{architecture,quality,
   tests,business,security}`, `codebase-locator`, `codebase-pattern-finder`
 - Global commands — `commit`, `review-all`, `diagram`
-- Personal — `skills/{github-personal,github-issues}`,
+- Personal — `skills/{github-personal,github-issues,review-comments}`,
   `command/{pr,epic,refine,workspace,business-case,review-comments}`
+
+⚠️ T3 Code 0.0.40 does not surface opencode `command/` definitions — its
+opencode driver loads models, agents and skills only (bin.mjs
+`loadInventoryFromCli`), so `/review-comments` is invisible there. The
+canonical workflow lives in the `review-comments` skill, which T3 Code *does*
+surface (`/skill:review-comments`); the command is a thin wrapper for the
+opencode CLI. Revisit when T3 Code ships command support.
 - Config — permission posture, profile anchor, `.work/` gitignore, Anthropic
   skills pin, `imagemagick`
 
