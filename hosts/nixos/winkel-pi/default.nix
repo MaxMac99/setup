@@ -142,7 +142,7 @@ in {
   # on MemAvailable alone (the probe degrades PSI to 0 rather than failing).
   # Takes effect on the next reboot: the cmdline is baked into the boot
   # configuration, and this host reboots rarely (D10 — unattended anchor).
-  boot.kernelParams = [ "psi=1" ];
+  boot.kernelParams = ["psi=1"];
 
   # Host key, not a user key (D11, 2b.2). Unlike brink-server this needed no key
   # ceremony: the &winkel-pi recipient in .sops.yaml was *already* derived from
