@@ -27,36 +27,6 @@
     });
   scrub = inputs.meridian.legacyPackages.${system}.meridianPlugins.opencode-scrub;
 
-  # ⚠️ nixpkgs builds opencode with Bun 1.4.x, upstream releases with 1.3.14.
-  # Bun 1.4's `compile` + `splitting: true` emits chunks in an order that
-  # leaves an undefined layer dependency, so every prompt dies in
-  # SystemPrompt.environment with "undefined is not an object (evaluating
-  # 'a.name')" (anomalyco/opencode#48645, #49262). 1.18.30 from nixpkgs is
-  # broken; 1.18.31 alone does not fix it - disabling splitting does.
-  # Drop this once nixpkgs ships a version built without the bug.
-  opencode = pkgs.opencode.overrideAttrs (finalAttrs: old: {
-    version = "1.18.31";
-    src = pkgs.fetchFromGitHub {
-      owner = "anomalyco";
-      repo = "opencode";
-      tag = "v${finalAttrs.version}";
-      hash = "sha256-Q0DYH5GHQGZ6ICyMR5rWq86DvfWpQERGZeLYTJb7cj0=";
-    };
-    postPatch =
-      old.postPatch
-      + ''
-        substituteInPlace packages/opencode/script/build.ts \
-          --replace-fail 'splitting: true,' 'splitting: false,'
-      '';
-    passthru =
-      old.passthru
-      // {
-        node_modules = old.passthru.node_modules.overrideAttrs {
-          outputHash = "sha256-qWZuOpolZAr7EZlAgfVx8nw8axoOMauoXwcqiJUGu24=";
-        };
-      };
-  });
-
   pluginManifest = (pkgs.formats.json {}).generate "plugins.json" {
     plugins = [
       {
@@ -137,7 +107,7 @@ in {
     # a binary this size - only /usr/bin/codesign works, hence activation.
     signedDir = "${config.xdg.stateHome}/opencode";
     signedBin = "${signedDir}/opencode";
-    payload = "${opencode}/bin/.opencode-wrapped";
+    payload = "${pkgs.opencode}/bin/.opencode-wrapped";
   in {
     home.packages = [meridian];
 
