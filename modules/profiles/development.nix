@@ -61,6 +61,7 @@ in {
           nodejs_24
           pnpm
           yarn
+          bun
           maven
           temurin-bin-21
         ];
