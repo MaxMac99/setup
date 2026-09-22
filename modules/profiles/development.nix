@@ -47,6 +47,7 @@ in {
           azure-cli
           pulumi
           pulumiPackages.pulumi-nodejs
+          pulumiPackages.pulumi-bun
           openapi-generator-cli
           openapi-down-convert
 
