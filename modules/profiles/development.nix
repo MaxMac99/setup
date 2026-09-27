@@ -35,7 +35,6 @@ in {
         ]
         ++ [
           # General dev tools
-          # claude-code moved to a brew formula (modules/system/darwin-homebrew.nix)
           exiftool
           cargo
           dotenv-cli
