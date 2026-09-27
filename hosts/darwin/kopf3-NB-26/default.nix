@@ -43,6 +43,29 @@
 
   home-manager.users.maxvissing.home.packages = [pkgs.copier];
 
+  # Work Mac: fixed Homebrew update slots Tue + Thu 10:00 (launchd runs a
+  # missed slot on next wake), plus a login catch-up guarded by the same
+  # 3-day minimum interval as the private Mac - protects against double runs.
+  brewAutoupdate = {
+    enable = true;
+    catchup = {
+      enable = true;
+      minDays = 3;
+    };
+    calendar = [
+      {
+        Weekday = 2; # Tuesday
+        Hour = 10;
+        Minute = 0;
+      }
+      {
+        Weekday = 4; # Thursday
+        Hour = 10;
+        Minute = 0;
+      }
+    ];
+  };
+
   # ~/.ssh/config is managed outside nix here, so home-manager must not generate
   # it (this also drops the blocks from projects.nix). The username is spelled
   # out because a `config.hostSpec.username` attr name would recurse into the

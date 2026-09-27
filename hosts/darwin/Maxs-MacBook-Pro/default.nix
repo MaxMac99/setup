@@ -82,10 +82,19 @@
     "modules/apps/opencode-desktop.nix"
     "modules/apps/claude-code"
     "modules/apps/1password.nix"
-    "modules/apps/teleport.nix"
   ];
 
   # Ad-hoc packages & Pulumi secrets (personal use only)
+  # Private Mac runs irregularly: Homebrew updates on login catch-up only,
+  # at most every 3 days (docs/update-strategy.md, brew upgrade Trigger).
+  brewAutoupdate = {
+    enable = true;
+    catchup = {
+      enable = true;
+      minDays = 3;
+    };
+  };
+
   home-manager.users.${config.hostSpec.username} = {config, ...}: {
     sops = {
       defaultSopsFile = lib.custom.relativeToRoot "secrets/common.yaml";
