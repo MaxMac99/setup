@@ -12,7 +12,7 @@ beschrieben.
 |---|---|---|---|
 | **1. App-Eigen-Updater** | 7 GUI-Casks mit `auto_updates` | die Apps selbst, im Hintergrund | keine |
 | **2. Brew-Lauf (LaunchAgent)** | restliche Casks + Formulas | launchd, automatisch | keine |
-| **3. Flake/Rebuild** | Nix-Pakete, Taps, flake inputs | Renovate-PR + dein `darwin-rebuild` | passwortlos (sudoers-Drop-in) |
+| **3. Flake/Rebuild** | Nix-Pakete, Taps, flake inputs | Renovate-PR + dein `darwin-rebuild` | sudo beim `switch` (privat: Touch ID) |
 
 Eine App liegt immer in genau **einer** Spur („eine App, ein Updater“).
 
@@ -54,23 +54,26 @@ Rebuilds überlassen.
 - `home-manager`-Aktionen (schreiben nur ins User-Profil)
 - der LaunchAgent-Lauf (läuft ohnehin im User-Kontext)
 
-**Ein Befehl, kein Passwort (sudoers-Drop-in):**
+**Genau ein sudo pro Session:**
 
 ```bash
 cd ~/projects/private/setup          # oder .work/setup-update-strategy
 git pull
-sudo darwin-rebuild switch --flake .#<host>   # NOPASSWD via /etc/sudoers.d
+sudo darwin-rebuild switch --flake .#<host>
 ```
 
-Die Architektur lässt einen komplett sudo-freien Switch nicht zu —
-nix-darwin schreibt `/etc`, User-Accounts und `/Library/LaunchDaemons` als
-root (anderes Aktivierungsmodell als Home-Manager, das nur ins User-Profil
-schreibt). Was aber weg kann, ist der **Passwort-Prompt**:
-`modules/system/darwin-sudo-rebuild.nix` legt einen sudoers-Drop-in an, der
-ausschließlich `darwin-rebuild` aus dem System-Pfad ohne Passwort erlaubt —
-keine beliebige Root-Macht. Einmal eingerichtet (der erste Rebuild braucht
-noch das Passwort, danach nie wieder) läuft der komplette Spur-3-Flow
-promptlos durch: Nix-Pakete, Tap-Re-Pointing, LaunchAgents, sops-Secrets.
+Das deckt alles in Spur 3 ab: Nix-Pakete, Tap-Re-Pointing (neue Cask-Versionen
+werden dadurch erst für den LaunchAgent sichtbar), LaunchAgent-Definitionen,
+sops-Secrets. Der Build selbst läuft schon sudo-frei durch (`nix build
+.#darwinConfigurations.<host>.config.system.build.toplevel` vorweg schadet
+nicht, spart Root-Build-Zeit). Auf dem privaten Mac authentifiziert sudo
+lokal per Touch ID statt Passwort.
+
+**⚠️ Arbeits-Mac (admin-by-request):** Ein sudoers-Drop-in für
+`darwin-rebuild` (NOPASSWD) wäre dort die Lösung, ist aber vom IT-gemanagten
+sudoers abhängig und nicht deklarativ erzwingbar. Ohne Admin-Rechte bleibt
+der Switch dort passwortpflichtig — der promptlose Weg ist Spur 1 + 2
+(LaunchAgents) und für Nix-Pakete die Home-Manager-Variante (siehe unten).
 
 **Bewusst mit Prompt im Alltag ausgeschlossen:**
 
@@ -94,3 +97,24 @@ promptlos durch: Nix-Pakete, Tap-Re-Pointing, LaunchAgents, sops-Secrets.
   2 h ignoriert).
 - **Fix-Review**: quartalsweise `grep -rn TEMP-FIX modules/ hosts/ lib/`
   gegen [workarounds.md](workarounds.md).
+
+## Home-Manager als sudoless-Ausweg für den Arbeits-Mac
+
+Ein Teil von Spur 3 ist auch **ohne sudo** ziehbar — alles, was
+`home-manager` verwaltet:
+
+```bash
+cd ~/projects/private/setup          # egal auf welchem Host
+git pull
+nix build --no-link .#darwinConfigurations.<host>.config.system.build.toplevel  # vorwärmen, ohne sudo
+home-manager switch --flake .#<host>   # kein sudo
+```
+
+Das zieht ohne Root-Rechte neu: User-Pakete (`home.packages`,
+`environment.systemPackages` auf User-Ebene), nvim/direnv/ssh-Config,
+`~/Library/LaunchAgents` und User-sichtbare Session-Settings. **Nicht**
+erfasst sind die System-Ebene-Änderungen des Rebuilds: `/etc`, Nix-Daemon-Settings, sops-Secrets, LaunchDaemons,
+`environment.systemPackages`-Apps in `/Applications` — die brauchen weiterhin
+den passwortpflichtigen Rebuild. Einbrauchbar als Rhythmus: HM-Switch beim
+Login/Laufwerk verhindert Zugriffsprobleme, echter Rebuild bei
+Admin-Gelegenheit (admin-by-request).
