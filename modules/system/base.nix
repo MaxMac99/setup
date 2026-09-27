@@ -68,6 +68,10 @@ in {
         # it from source and runs its Go test suite whenever the input moves.
         # That cost ionos ~20 min in a single buildPhase on 2026-08-06 (3.0.5)
         # and applies to every sops-nix host, which is all of them.
+        # TEMP-FIX(2026-09-27): sops-install-secrets not on cache.nixos.org
+        #   - expires when sops-nix ships it from nixpkgs (then cache.nixos.org
+        #   builds it); review at every nixpkgs release jump. See
+        #   docs/workarounds.md.
         "https://nix-community.cachix.org"
       ];
       extra-trusted-public-keys = [
