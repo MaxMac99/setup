@@ -100,21 +100,29 @@ der Switch dort passwortpflichtig — der promptlose Weg ist Spur 1 + 2
 
 ## Home-Manager als sudoless-Ausweg für den Arbeits-Mac
 
-Ein Teil von Spur 3 ist auch **ohne sudo** ziehbar — alles, was
-`home-manager` verwaltet:
+Ein Teil von Spur 3 ist auch **ohne sudo** ziehbar — der Home-Manager-Anteil
+derselben Flake-Konfiguration. Der Flake hat keine `homeConfigurations`
+(Ausgänge), HM ist als Submodul der `darwinConfigurations` verdrahtet —
+also direkt das Aktivierungspaket bauen und laufen lassen:
 
 ```bash
 cd ~/projects/private/setup          # egal auf welchem Host
 git pull
-nix build --no-link .#darwinConfigurations.<host>.config.system.build.toplevel  # vorwärmen, ohne sudo
-home-manager switch --flake .#<host>   # kein sudo
+nix build --no-link --print-out-paths \
+  .#darwinConfigurations.<host>.config.home-manager.users.maxvissing.home.activationPackage
+$(nix build --no-link --print-out-paths \
+  .#darwinConfigurations.<host>.config.home-manager.users.maxvissing.home.activationPackage | tail -1)/activate
 ```
 
-Das zieht ohne Root-Rechte neu: User-Pakete (`home.packages`,
-`environment.systemPackages` auf User-Ebene), nvim/direnv/ssh-Config,
-`~/Library/LaunchAgents` und User-sichtbare Session-Settings. **Nicht**
-erfasst sind die System-Ebene-Änderungen des Rebuilds: `/etc`, Nix-Daemon-Settings, sops-Secrets, LaunchDaemons,
-`environment.systemPackages`-Apps in `/Applications` — die brauchen weiterhin
-den passwortpflichtigen Rebuild. Einbrauchbar als Rhythmus: HM-Switch beim
-Login/Laufwerk verhindert Zugriffsprobleme, echter Rebuild bei
-Admin-Gelegenheit (admin-by-request).
+Alles User-Kontext, kein sudo. Das zieht neu: `home.packages`, nvim/
+direnv/ssh/zsh-Config, user-level `~/Library/LaunchAgents`, sops-Secrets.
+**Nicht** erfasst (System-Ebene, braucht den passwortpflichtigen Rebuild):
+`/etc`, nix-daemon-Settings, LaunchDaemons, `environment.systemPackages`-Apps
+in `/Applications`, nix-homebrew/Tap-Re-Pointing, brew bundle — d.h. auch
+die Spur-2-Casks werden erst beim echten Rebuild deklariert.
+
+Die HM-Aktivierung läuft damit bewusst *vor* dem nächsten Rebuild; dieser
+läuft `activate-user` erneut und gleicht beide Profile wieder aus — beide
+Wege sind kompatibel, Reihenfolge egal. Einbrauchbar als Rhythmus: HM-Switch
+ohne Admin-Rechte für den Alltag, echter Rebuild bei Admin-Gelegenheit
+(admin-by-request).
