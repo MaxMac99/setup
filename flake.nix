@@ -67,6 +67,7 @@
           ./modules/system/darwin.nix
           ./modules/system/darwin-homebrew.nix
           ./modules/system/darwin-brew-update.nix
+          ./modules/system/darwin-sudo-rebuild.nix
           home-manager.darwinModules.home-manager
           nix-homebrew.darwinModules.nix-homebrew
           sops-nix.darwinModules.sops

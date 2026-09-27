@@ -12,7 +12,7 @@ beschrieben.
 |---|---|---|---|
 | **1. App-Eigen-Updater** | 7 GUI-Casks mit `auto_updates` | die Apps selbst, im Hintergrund | keine |
 | **2. Brew-Lauf (LaunchAgent)** | restliche Casks + Formulas | launchd, automatisch | keine |
-| **3. Flake/Rebuild** | Nix-Pakete, Taps, flake inputs | Renovate-PR + dein `darwin-rebuild` | sudo nur beim finalen `switch` |
+| **3. Flake/Rebuild** | Nix-Pakete, Taps, flake inputs | Renovate-PR + dein `darwin-rebuild` | passwortlos (sudoers-Drop-in) |
 
 Eine App liegt immer in genau **einer** Spur („eine App, ein Updater“).
 
@@ -54,19 +54,23 @@ Rebuilds überlassen.
 - `home-manager`-Aktionen (schreiben nur ins User-Profil)
 - der LaunchAgent-Lauf (läuft ohnehin im User-Kontext)
 
-**Genau ein sudo pro Session:**
+**Ein Befehl, kein Passwort (sudoers-Drop-in):**
 
 ```bash
 cd ~/projects/private/setup          # oder .work/setup-update-strategy
 git pull
-sudo darwin-rebuild switch --flake .#<host>
+sudo darwin-rebuild switch --flake .#<host>   # NOPASSWD via /etc/sudoers.d
 ```
 
-Das deckt alles in Spur 3 ab: Nix-Pakete, Tap-Re-Pointing (neue Cask-Versionen
-werden dadurch erst für den LaunchAgent sichtbar), LaunchAgent-Definitionen,
-sops-Secrets. Der Build selbst läuft schon sudo-frei durch (`nix build
-.#darwinConfigurations.<host>.config.system.build.toplevel` vorweg schadet
-nicht, spart Root-Build-Zeit).
+Die Architektur lässt einen komplett sudo-freien Switch nicht zu —
+nix-darwin schreibt `/etc`, User-Accounts und `/Library/LaunchDaemons` als
+root (anderes Aktivierungsmodell als Home-Manager, das nur ins User-Profil
+schreibt). Was aber weg kann, ist der **Passwort-Prompt**:
+`modules/system/darwin-sudo-rebuild.nix` legt einen sudoers-Drop-in an, der
+ausschließlich `darwin-rebuild` aus dem System-Pfad ohne Passwort erlaubt —
+keine beliebige Root-Macht. Einmal eingerichtet (der erste Rebuild braucht
+noch das Passwort, danach nie wieder) läuft der komplette Spur-3-Flow
+promptlos durch: Nix-Pakete, Tap-Re-Pointing, LaunchAgents, sops-Secrets.
 
 **Bewusst mit Prompt im Alltag ausgeschlossen:**
 
