@@ -1,3 +1,4 @@
-{pkgs, ...}: {
-  environment.systemPackages = [pkgs.insomnia];
+# Insomnia - homebrew cask; nixpkgs lagged releases for months.
+{...}: {
+  homebrew.casks = ["insomnia"];
 }
