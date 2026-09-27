@@ -66,6 +66,7 @@
           ./modules/system/base.nix
           ./modules/system/darwin.nix
           ./modules/system/darwin-homebrew.nix
+          ./modules/system/darwin-brew-update.nix
           home-manager.darwinModules.home-manager
           nix-homebrew.darwinModules.nix-homebrew
           sops-nix.darwinModules.sops
