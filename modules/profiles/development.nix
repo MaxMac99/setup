@@ -26,14 +26,15 @@ in {
       config.whitelist.prefix = ["/Users/maxvissing/projects/"];
     };
     home = {
-      sessionVariables.PUPPETEER_EXECUTABLE_PATH = "/Applications/Nix Apps/Google Chrome.app/Contents/MacOS/Google Chrome";
+      # Chrome is a homebrew cask now (modules/apps/google-chrome.nix) - it
+      # lives at the plain /Applications path, not the old "Nix Apps" dir.
+      sessionVariables.PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
       packages = with pkgs;
         [
           wt
         ]
         ++ [
           # General dev tools
-          claude-code
           exiftool
           cargo
           dotenv-cli
@@ -41,6 +42,9 @@ in {
           # Nix tooling
           nixpkgs-fmt
           selene
+          # TEMP-FIX(2026-09-27): statix's own check phase fails on this
+          # nixpkgs rev; retry without override at the next nixpkgs release
+          # jump. See docs/workarounds.md.
           (statix.overrideAttrs (_: {doCheck = false;}))
 
           # Cloud / API

@@ -1,16 +1,16 @@
-# Zed editor - nixpkgs + HM config
+# Zed editor - homebrew cask (app self-updates) + HM config
 {
   config,
   pkgs,
   ...
 }: {
-  environment.systemPackages = [pkgs.zed-editor];
+  homebrew.casks = ["zed"];
 
   home-manager.users.${config.hostSpec.username} = {
     # Language servers come from config.lspPackages (modules/data/lsp.nix).
     programs.zed-editor = {
       enable = true;
-      package = null; # Installed via environment.systemPackages
+      package = null; # Installed via homebrew cask
       extensions = ["nix" "dockerfile" "toml" "log" "docker-compose" "env" "rust" "xcode-themes" "tokyo-night" "material-icon-theme"];
       userSettings = {
         # Appearance
@@ -105,7 +105,9 @@
         features = {edit_prediction_provider = "copilot";};
         agent_servers = {
           claude = {
-            env = {CLAUDE_CODE_EXECUTABLE = pkgs.claude-code;};
+            # claude-code is a brew formula (modules/system/darwin-homebrew.nix),
+            # not a nix profile package - point Zed at the brew binary.
+            env = {CLAUDE_CODE_EXECUTABLE = "/opt/homebrew/bin/claude";};
           };
         };
 
