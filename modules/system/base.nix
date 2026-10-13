@@ -87,6 +87,13 @@ in {
   };
 
   # Home-manager bootstrap (profiles set home-manager.users.* as needed)
+  # ⚠️ Deliberately NOT setting home-manager.useUserPackages: it would move
+  # home.packages into users.users.<name>.packages (installed by the root
+  # system activation into /etc/profiles/per-user), killing the sudoless HM
+  # activation path used on admin-by-request hosts (docs/update-runbook.md).
+  # As-is, HM's installPackages runs `nix profile install` into the user's
+  # own profile during activation — no sudo, in both the rebuild and the
+  # manual HM run.
   home-manager = {
     useGlobalPkgs = true;
     extraSpecialArgs = {
