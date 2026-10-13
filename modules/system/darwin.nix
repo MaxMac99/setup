@@ -6,6 +6,36 @@
     home = "/Users/${config.hostSpec.username}";
   };
 
+  # Pure per-user preferences live in Home-Manager rather than
+  # system.defaults.CustomUserPreferences, so they apply with the sudoless
+  # `hm-switch` (docs/sudoless-workflow.md). `defaults import` merges keys
+  # into the domain; it does not replace it. Locale changes need a re-login.
+  home-manager.users.${config.hostSpec.username}.targets.darwin.defaults = {
+    NSGlobalDomain = {
+      NSStatusItemSpacing = 8;
+      AppleLocale = "de_DE";
+      AppleMeasurementUnits = "Centimeters";
+      # HM types this as bool (what System Settings writes); nix-darwin's
+      # untyped CustomUserPreferences used to write integer 1.
+      AppleMetricUnits = true;
+      AppleTemperatureUnit = "Celsius";
+      AppleICUForce24HourTime = true;
+      AppleFirstWeekday = {gregorian = 2;};
+      AppleICUDateFormatStrings = {
+        "1" = "dd.MM.y";
+        "2" = "dd.MM.y";
+        "3" = "d. MMMM y";
+        "4" = "EEEE, d. MMMM y";
+      };
+      AppleICUNumberSymbols = {
+        "0" = ",";
+        "1" = ".";
+        "10" = ",";
+        "17" = ".";
+      };
+    };
+  };
+
   networking = {
     localHostName = config.hostSpec.hostName;
     wakeOnLan.enable = true;
@@ -83,29 +113,6 @@
       trackpad = {
         Clicking = true;
         TrackpadRightClick = true;
-      };
-      CustomUserPreferences = {
-        NSGlobalDomain = {
-          NSStatusItemSpacing = 8;
-          AppleLocale = "de_DE";
-          AppleMeasurementUnits = "Centimeters";
-          AppleMetricUnits = 1;
-          AppleTemperatureUnit = "Celsius";
-          AppleICUForce24HourTime = true;
-          AppleFirstWeekday = {gregorian = 2;};
-          AppleICUDateFormatStrings = {
-            "1" = "dd.MM.y";
-            "2" = "dd.MM.y";
-            "3" = "d. MMMM y";
-            "4" = "EEEE, d. MMMM y";
-          };
-          AppleICUNumberSymbols = {
-            "0" = ",";
-            "1" = ".";
-            "10" = ",";
-            "17" = ".";
-          };
-        };
       };
     };
   };
