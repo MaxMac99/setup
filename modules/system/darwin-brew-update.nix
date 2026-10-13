@@ -161,24 +161,33 @@ in {
     };
   };
 
+  # The agents are Home-Manager agents (~/Library/LaunchAgents), not nix-darwin
+  # `launchd.user.agents` (/Library/LaunchAgents, root-owned): that keeps
+  # schedule changes appliable with the sudoless `hm-switch`. The script sets
+  # its own PATH, so the agents need no environment of their own.
+  # ⚠️ Moving from the nix-darwin labels (org.nixos.*) takes one real rebuild
+  # to unload the old ones. Until then both sets may exist; the shared lock
+  # dir keeps them from running concurrently.
   config = lib.mkIf cfg.enable {
-    # Plain `brew upgrade` already excludes casks with auto_updates; --greedy
-    # would fight those apps' own updaters, so it must stay off.
-    launchd.user.agents.brew-autoupdate = lib.mkIf (cfg.calendar != []) {
-      path = ["/opt/homebrew/bin"];
-      serviceConfig = {
-        ProgramArguments = ["${script}/bin/brew-autoupdate" "scheduled"];
-        StartCalendarInterval = cfg.calendar;
+    home-manager.users.${config.hostSpec.username}.launchd.agents = {
+      # Plain `brew upgrade` already excludes casks with auto_updates; --greedy
+      # would fight those apps' own updaters, so it must stay off.
+      brew-autoupdate = lib.mkIf (cfg.calendar != []) {
+        enable = true;
+        config = {
+          ProgramArguments = ["${script}/bin/brew-autoupdate" "scheduled"];
+          StartCalendarInterval = cfg.calendar;
+        };
       };
-    };
 
-    launchd.user.agents.brew-autoupdate-catchup = lib.mkIf cfg.catchup.enable {
-      path = ["/opt/homebrew/bin"];
-      serviceConfig = {
-        ProgramArguments = ["${script}/bin/brew-autoupdate" "catchup"];
-        RunAtLoad = true;
-        EnvironmentVariables = {
-          BAU_MIN_DAYS = toString cfg.catchup.minDays;
+      brew-autoupdate-catchup = lib.mkIf cfg.catchup.enable {
+        enable = true;
+        config = {
+          ProgramArguments = ["${script}/bin/brew-autoupdate" "catchup"];
+          RunAtLoad = true;
+          EnvironmentVariables = {
+            BAU_MIN_DAYS = toString cfg.catchup.minDays;
+          };
         };
       };
     };
