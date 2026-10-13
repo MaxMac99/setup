@@ -51,7 +51,7 @@ Rebuilds überlassen.
 
 - `nix build`, `nix eval`, flake-Auswertung — der User ist `trusted-user`
 - `brew install/upgrade/cleanup/outdated`
-- `home-manager`-Aktionen (schreiben nur ins User-Profil)
+- `hm-switch` bzw. jede HM-Aktivierung (schreibt nur ins User-Profil)
 - der LaunchAgent-Lauf (läuft ohnehin im User-Kontext)
 
 **Genau ein sudo pro Session:**
@@ -73,7 +73,8 @@ lokal per Touch ID statt Passwort.
 `darwin-rebuild` (NOPASSWD) wäre dort die Lösung, ist aber vom IT-gemanagten
 sudoers abhängig und nicht deklarativ erzwingbar. Ohne Admin-Rechte bleibt
 der Switch dort passwortpflichtig — der promptlose Weg ist Spur 1 + 2
-(LaunchAgents) und für Nix-Pakete die Home-Manager-Variante (siehe unten).
+(LaunchAgents) und für alles unter `home-manager.users.*` `hm-switch`
+(siehe unten und [sudoless-workflow.md](sudoless-workflow.md)).
 
 **Bewusst mit Prompt im Alltag ausgeschlossen:**
 
@@ -101,28 +102,26 @@ der Switch dort passwortpflichtig — der promptlose Weg ist Spur 1 + 2
 ## Home-Manager als sudoless-Ausweg für den Arbeits-Mac
 
 Ein Teil von Spur 3 ist auch **ohne sudo** ziehbar — der Home-Manager-Anteil
-derselben Flake-Konfiguration. Der Flake hat keine `homeConfigurations`
-(Ausgänge), HM ist als Submodul der `darwinConfigurations` verdrahtet —
-also direkt das Aktivierungspaket bauen und laufen lassen:
+derselben Flake-Konfiguration:
 
 ```bash
-cd ~/projects/private/setup          # egal auf welchem Host
+cd ~/projects/private/setup
 git pull
-nix build --no-link --print-out-paths \
-  .#darwinConfigurations.<host>.config.home-manager.users.maxvissing.home.activationPackage
-$(nix build --no-link --print-out-paths \
-  .#darwinConfigurations.<host>.config.home-manager.users.maxvissing.home.activationPackage | tail -1)/activate
+hm-switch
 ```
 
-Alles User-Kontext, kein sudo. Das zieht neu: `home.packages`, nvim/
-direnv/ssh/zsh-Config, user-level `~/Library/LaunchAgents`, sops-Secrets.
-**Nicht** erfasst (System-Ebene, braucht den passwortpflichtigen Rebuild):
-`/etc`, nix-daemon-Settings, LaunchDaemons, `environment.systemPackages`-Apps
-in `/Applications`, nix-homebrew/Tap-Re-Pointing, brew bundle — d.h. auch
-die Spur-2-Casks werden erst beim echten Rebuild deklariert.
+`hm-switch` baut das `activationPackage` der eingebetteten HM-Konfiguration
+und ruft es so auf wie das nix-darwin-Modul von Home-Manager beim Rebuild
+(`activate --driver-version 1`, als User). Beide Wege sind deshalb beliebig
+abwechselnd kompatibel. Ohne `--driver-version 1` liefe das Skript im
+Legacy-Modus (Driver 0) und legte ein per-User-`home-manager`-Nix-Profil an,
+Standalone-Zustand, den die embedded-Verdrahtung nie pflegt.
 
-Die HM-Aktivierung läuft damit bewusst *vor* dem nächsten Rebuild; dieser
-läuft `activate-user` erneut und gleicht beide Profile wieder aus — beide
-Wege sind kompatibel, Reihenfolge egal. Einbrauchbar als Rhythmus: HM-Switch
-ohne Admin-Rechte für den Alltag, echter Rebuild bei Admin-Gelegenheit
-(admin-by-request).
+Das zieht: `home.packages`, nvim/direnv/zsh/opencode-Config, HM-LaunchAgents
+(inkl. `brew-autoupdate`), User-Defaults, sops-Secrets. **Nicht** erfasst:
+`/etc`, nix-daemon-Settings, `system.defaults`, `environment.systemPackages`,
+nix-homebrew/Tap-Re-Pointing, brew bundle. Rhythmus: `hm-switch` für den
+Alltag, echter Rebuild bei Admin-Gelegenheit (admin-by-request).
+
+Alle Rezepte (zsh, opencode, neue Tools/Apps, Updates):
+[sudoless-workflow.md](sudoless-workflow.md).
