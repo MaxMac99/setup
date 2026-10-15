@@ -42,6 +42,9 @@
       swift
       swiftpm
       cacert
+      # swiftpm clones package dependencies with git; without it every clone
+      # fails with an empty "Failed to clone repository" error.
+      git
     ];
 
     # Disable sandbox to allow network access for Swift Package Manager

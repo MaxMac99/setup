@@ -30,6 +30,10 @@
       # IDEs auto-attaching stdlib via `rustc --print sysroot` find nothing and
       # produce an empty (→ "corrupted") copy. Pin the sysroot to the merged
       # toolchain, which has both the src tree and the rlibs.
+      # TEMP-FIX(2026-09-27): nixpkgs wrapped rustc + IDE sysroot handling
+      #   - expires when rustc wrapper reports a usable sysroot or the IDE
+      #   stops relying on `rustc --print sysroot`; check on every rustc bump
+      #   (this block is version-sensitive). See docs/workarounds.md.
       for tool in rustc rustdoc; do
         rm $out/bin/$tool
         makeWrapper ${pkgs.rustc}/bin/$tool $out/bin/$tool --add-flags "--sysroot $out"
@@ -45,6 +49,10 @@
   # as-is (it early-returns when the marker exists and looks valid). Run with
   # the IDE closed; needed again after a rustc version bump (marker name
   # changes with the version).
+  # TEMP-FIX(2026-09-27): JetBrains reads its cache read-only from the store
+  #   - expires when JetBrains fixes attribute preservation or nixpkgs stops
+  #   shipping read-only trees; re-evaluate on every rustc/RustRover bump.
+  #   See docs/workarounds.md.
   rustStdlibCacheFix = pkgs.writeShellScriptBin "rust-stdlib-cache-fix" ''
     set -euo pipefail
     src="$HOME/.rust-toolchain/lib/rustlib/src/rust"
@@ -68,7 +76,10 @@
     [ "$filled" = 1 ] || echo "nothing to fill (all markers already valid)"
   '';
 in {
-  environment.systemPackages = [pkgs.jetbrains.rust-rover];
+  # IDE itself is the homebrew cask (auto_updates - RustRover self-updates).
+  # ⚠️ JetBrains Toolbox must NOT also manage it ("eine App, ein Updater"):
+  # uninstall Toolbox once by hand when adopting this.
+  homebrew.casks = ["rustrover"];
 
   home-manager.users.${config.hostSpec.username} = {lib, ...}: {
     home.file.".rust-toolchain".source = rustToolchain;
