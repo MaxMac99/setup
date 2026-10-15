@@ -35,7 +35,7 @@ der Agent ist der Apply-Schritt, nicht der Supply-Schritt.
 | App | Spur | Wie |
 |---|---|---|
 | Discord, Google Chrome, Insomnia, OpenCode desktop, t3-code, Zed, RustRover | 1 | In-App-Updater (Sparkle o. ä.) |
-| claude-code (Formula) | 2 | `brew upgrade` im LaunchAgent-Lauf |
+| claude-code (Cask, ohne `auto_updates`) | 2 | `brew upgrade` im LaunchAgent-Lauf |
 | displaylink, macfuse, logi-options+, logitune, stream-deck, focusrite | 2* | LaunchAgent überspringt sie (kein `--greedy`); sie werden via brew bundle beim Rebuild aktualisiert – deren Installer brauchen ohnehin mal einen Reboot |
 | intellij-idea, tailscale-app, 1password, arc, docker-desktop, ghostty, affinity, bambu-studio, autodesk-fusion | 2 | LaunchAgent-Lauf (ohne auto_updates-Flag) bzw. Rebuild |
 | Nix-Pakete (CLI-Tools, neovim, zoom, …) | 3 | `darwin-rebuild switch` nach Renovate-Merge |

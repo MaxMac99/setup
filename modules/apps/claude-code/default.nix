@@ -1,5 +1,5 @@
-# Claude Code - plugin wiring only. The agent itself is a package in
-# modules/profiles/development.nix; nothing here installs it.
+# Claude Code - plugin wiring only. The agent itself is the `claude-code`
+# Homebrew cask in modules/system/darwin-homebrew.nix; nothing here installs it.
 {
   config,
   pkgs,

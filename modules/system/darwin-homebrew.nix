@@ -34,11 +34,14 @@
       # their bundle reinstall at the next rebuild, as before.
       upgrade = false;
     };
-    # CLI formulae that should track brew, not nixpkgs (updates via the
-    # brew-autoupdate LaunchAgent rather than flake bumps).
-    brews = ["claude-code"];
-    # Shared hardware/driver casks that every Mac needs
     casks = [
+      # Tracks brew, not nixpkgs: updates via the brew-autoupdate LaunchAgent
+      # rather than flake bumps. ⚠️ A cask, not a formula - homebrew-core has
+      # no `claude-code`, so `brews` fails the whole brew bundle. The cask
+      # links the binary to /opt/homebrew/bin/claude.
+      "claude-code"
+
+      # Shared hardware/driver casks that every Mac needs
       "displaylink"
       "elgato-stream-deck"
       "focusrite-control"

@@ -105,7 +105,7 @@
         features = {edit_prediction_provider = "copilot";};
         agent_servers = {
           claude = {
-            # claude-code is a brew formula (modules/system/darwin-homebrew.nix),
+            # claude-code is a brew cask (modules/system/darwin-homebrew.nix),
             # not a nix profile package - point Zed at the brew binary.
             env = {CLAUDE_CODE_EXECUTABLE = "/opt/homebrew/bin/claude";};
           };

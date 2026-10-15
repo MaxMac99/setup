@@ -141,7 +141,7 @@ Stand: 26.09.2026 · Status: bereit zur Implementierung
 | nixpkgs-Kanal | **Bleibt `nixos-unstable`** (Problem 1 wird über Brew-Eigen-Updater gelöst, nicht über Kanalwechsel) |
 | CI/Renovate | **Läuft bereits** (`renovate.json`: lockFileMaintenance freitags, automerge). Flake-/Code-Updates laufen über Renovate + GitHub Actions |
 | Cask-Migration | **Alle** GUI-Apps aus nixpkgs migrieren; Casks sind ok |
-| claude-code | **Nach brew formula** migrieren (Terminal-Tool, kein GUI-Autoupdate, aber `brew upgrade` deckt es ab) |
+| claude-code | **Nach Brew migrieren** – als Cask `claude-code`, homebrew-core hat keine Formel dafür (Terminal-Tool, kein GUI-Autoupdate, aber `brew upgrade` deckt es ab) |
 | teleport | **Komplett entfernen** (unbenutzt; Cask-Varianten würden GUI + sudo-Pkg-Installer mitbringen) |
 | zoom | **Bleibt in Nix** — der Cask ist ein .pkg-Installer mit Admin-Bedarf, genau was vermieden werden soll. Updates laufen weiter über flake/renovate |
 | RustRover | **Cask `rustrover`** (auto_updates), nixpkgs-Paket raus, **JetBrains Toolbox wird deinstalliert** — IntelliJ IDEA + RustRover laufen danach rein über Cask |
@@ -163,7 +163,7 @@ Stand: 26.09.2026 · Status: bereit zur Implementierung
 | t3-code | `pkgs.t3code` | Cask `t3-code` (auto_updates) | nixpkgs hinkt hinterher (0.0.40 vs 0.0.42) |
 | zed-editor | `pkgs.zed-editor` | Cask `zed` (auto_updates) | Eigenupdater |
 | rust-rover | `pkgs.jetbrains.rust-rover` | Cask `rustrover` (auto_updates) | Toolbox fliegt raus, Cask übernimmt |
-| claude-code | `pkgs.claude-code` (Profil) | Brew formula `claude-code` | Updates via brew-Lauf statt flake |
+| claude-code | `pkgs.claude-code` (Profil) | Brew-Cask `claude-code` | Updates via brew-Lauf statt flake |
 | teleport | `pkgs.teleport` | **entfernen** | unbenutzt |
 | zoom | `pkgs.zoom-us` | **bleibt** | Cask wäre .pkg mit sudo-Bedarf |
 | intellij-idea | Cask (bereits) | bleibt | schon Cask |
@@ -177,7 +177,7 @@ Stand: 26.09.2026 · Status: bereit zur Implementierung
 - Ziel: kein Passwort-Prompt für flake update, build, home-manager, brew, Auto-Upgrade.
 
 ### 2. App-Migration (Probleme 1 + 2)
-- `modules/apps/*.nix` umstellen: die 6 Migrations-Apps auf `homebrew.casks`, `rust-rover.nix` analog, `claude-code` aus `development.nix` in Brew-Formula-Liste (über `homebrew.brews`), `teleport.nix` löschen und aus `hosts/darwin/Maxs-MacBook-Pro/default.nix` entfernen.
+- `modules/apps/*.nix` umstellen: die 6 Migrations-Apps auf `homebrew.casks`, `rust-rover.nix` analog, `claude-code` aus `development.nix` als Cask (über `homebrew.casks`), `teleport.nix` löschen und aus `hosts/darwin/Maxs-MacBook-Pro/default.nix` entfernen.
 - Einmalig manuell: `brew install` der neuen Casks, JetBrains Toolbox deinstallieren, `nix store gc` für die entfernten Store-Pfade.
 
 ### 3. Brew-Update-LaunchAgent (beide Macs, unterschiedlich)
