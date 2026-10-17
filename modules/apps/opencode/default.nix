@@ -97,26 +97,30 @@
   workConfig = profileConfig "work" {share = "disabled";};
   personalConfig = profileConfig "personal" {share = "manual";};
 in {
+  # ⚠️ Must be declared: homebrew.onActivation.cleanup = "uninstall" removes
+  # every formula not listed.
+  homebrew.brews = ["opencode"];
+
   home-manager.users.${config.hostSpec.username} = {
     config,
     lib,
     ...
   }: let
-    # pkgs.opencode's bun payload ships an ad-hoc signature that macOS 27
-    # rejects, so AMFI SIGKILLs it. Re-signing fixes it, but sigtool aborts on
-    # a binary this size - only /usr/bin/codesign works, hence activation.
-    signedDir = "${config.xdg.stateHome}/opencode";
-    signedBin = "${signedDir}/opencode";
-    payload = "${pkgs.opencode}/bin/.opencode-wrapped";
+    # OpenCode 2 comes from homebrew-core (nixpkgs is still on 1.x). The
+    # wrapper below execs the keg's stable `opt` path, which exists whether or
+    # not the formula is linked into /opt/homebrew/bin.
+    # ⚠️ Brew's own /opt/homebrew/bin/opencode link sits ahead of
+    # ~/.nix-profile/bin on PATH and would shadow the wrapper, silently dropping
+    # Meridian, the profile split and the LSP setting. So unlink it. `brew
+    # bundle` (darwin-rebuild) re-creates the link, hence this runs on every
+    # activation rather than once.
+    brewOpencode = "/opt/homebrew/opt/opencode/bin/opencode";
   in {
     home.packages = [meridian];
 
-    home.activation.signOpencode = lib.hm.dag.entryAfter ["writeBoundary"] ''
-      if [ "$(cat ${signedDir}/.source 2>/dev/null)" != "${payload}" ]; then
-        $DRY_RUN_CMD mkdir -p ${signedDir}
-        $DRY_RUN_CMD install -m 755 ${payload} ${signedBin}
-        $DRY_RUN_CMD /usr/bin/codesign -f -s - ${signedBin}
-        $DRY_RUN_CMD sh -c 'printf %s "${payload}" > ${signedDir}/.source'
+    home.activation.unlinkBrewOpencode = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      if [ -L /opt/homebrew/bin/opencode ]; then
+        $DRY_RUN_CMD /opt/homebrew/bin/brew unlink opencode >/dev/null || true
       fi
     '';
 
@@ -165,7 +169,7 @@ in {
             ;;
         esac
 
-        exec ${signedBin} "$@"
+        exec ${brewOpencode} "$@"
       '';
 
       enable = true;
