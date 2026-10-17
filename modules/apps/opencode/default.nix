@@ -1,6 +1,7 @@
 # OpenCode - terminal AI coding agent, fronted by Meridian
 {
   config,
+  lib,
   pkgs,
   inputs,
   ...
@@ -83,13 +84,35 @@
     hash = "sha256-/h4HxkUbtRGoqgyFvjJrd++XmOd1KSVku5dR2/f9b/s=";
   };
 
-  # Per-directory profiles, selected by the wrapper below. The settings file is
-  # generated outside the profile directory on purpose: anything named
-  # opencode.json *inside* OPENCODE_CONFIG_DIR is loaded at a precedence that
-  # would outrank a repo's own .opencode/opencode.json.
-  profileConfig = name: settings:
+  # A profile's command/*.md, as `commands` entries. Expects frontmatter that
+  # is exactly one `description:` line - all of them are today.
+  profileCommands = dir:
+    lib.mapAttrs' (file: _: let
+      parts = lib.splitString "\n---\n" (lib.removePrefix "---\n" (builtins.readFile (dir + "/${file}")));
+      front = builtins.head parts;
+    in
+      assert lib.assertMsg (lib.hasPrefix "description: " front && !lib.hasInfix "\n" front)
+      "opencode: ${file} needs frontmatter of exactly one `description:` line";
+        lib.nameValuePair (lib.removeSuffix ".md" file) {
+          description = lib.removePrefix "description: " front;
+          template = lib.removePrefix "\n" (lib.concatStringsSep "\n---\n" (builtins.tail parts));
+        })
+    (lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".md" n) (builtins.readDir dir));
+
+  # Per-directory profiles, selected by the wrapper below.
+  # ⚠️ OpenCode 2 treats OPENCODE_CONFIG_DIR as a *replacement* for
+  # ~/.config/opencode, not an addition: setting it drops every global setting
+  # (Meridian's baseURL and plugin, permissions, LSP, global commands/skills)
+  # and the background service then fails writing service.json into the
+  # read-only store. So a profile's commands and skills ride in its
+  # OPENCODE_CONFIG file instead, which merges above the global config.
+  profileConfig = name: settings: let
+    dir = ./profiles + "/${name}";
+  in
     (pkgs.formats.json {}).generate "opencode-${name}.json" ({
         "$schema" = "https://opencode.ai/config.json";
+        skills = ["${dir}/skills"];
+        commands = profileCommands (dir + "/command");
       }
       // settings);
 
@@ -157,15 +180,12 @@ in {
         # Mirrors the identity split in modules/profiles/projects.nix - keep the
         # two patterns in sync. OPENCODE_CONFIG merges above the global config
         # but below a project's own .opencode/, so per-repo settings still win.
-        # OPENCODE_CONFIG_DIR contributes the profile's agent/, command/, skills/.
         case "$PWD/" in
           "$HOME"/projects/kopf3/*)
             export OPENCODE_CONFIG=${workConfig}
-            export OPENCODE_CONFIG_DIR=${./profiles/work}
             ;;
           *)
             export OPENCODE_CONFIG=${personalConfig}
-            export OPENCODE_CONFIG_DIR=${./profiles/personal}
             ;;
         esac
 
@@ -179,6 +199,11 @@ in {
         share = "manual";
         plugin = ["${meridian}/lib/meridian/plugin/meridian.ts"];
         provider.anthropic.models = lib.genAttrs anthropicModels (_: noCost);
+        # ⚠️ OpenCode 2's native Anthropic client reads ANTHROPIC_API_KEY from
+        # the env but NOT ANTHROPIC_BASE_URL, so without this every request
+        # goes straight to api.anthropic.com with the dummy key and fails as
+        # "invalid x-api-key". The /v1 suffix is required.
+        provider.anthropic.options.baseURL = "http://${host}:${port}/v1";
 
         # Enables every built-in server; each one only starts if it finds its
         # binary, which config.lspPackages puts on PATH. The two entries below
