@@ -43,6 +43,16 @@
 
   home-manager.users.maxvissing.home.packages = [pkgs.copier];
 
+  # Casks install into ~/Applications here: the user is not in `admin` on this
+  # Mac, and /Applications is root:admin 775, so every in-app updater that
+  # swaps its bundle in place asked for an admin password. Casks that only run
+  # from /Applications pin `args.appdir` back in their own module.
+  homebrew.caskArgs.appdir = "~/Applications";
+  # Same default for a manual `brew install --cask` between rebuilds
+  # (docs/sudoless-workflow.md). The Brewfile run at rebuild is unaffected:
+  # it does not inherit the user's session environment.
+  home-manager.users.maxvissing.home.sessionVariables.HOMEBREW_CASK_OPTS = "--appdir=~/Applications";
+
   # Work Mac: fixed Homebrew update slots Tue + Thu 10:00 (launchd runs a
   # missed slot on next wake), plus a login catch-up guarded by the same
   # 3-day minimum interval as the private Mac - protects against double runs.

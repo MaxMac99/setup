@@ -169,8 +169,13 @@ Die Reihenfolge ist zugleich die Empfehlung:
    Grenzen:
    - Casks mit `.pkg`-Installer (Treiber, Systemerweiterungen) verlangen
      immer ein Admin-Passwort. Die bleiben beim Rebuild.
-   - Casks schreiben nach `/Applications`. Ob der User dort schreiben darf,
-     zeigt `ls -ld /Applications` (Gruppe `admin`) zusammen mit `id -Gn`.
+   - Auf `kopf3-NB-26` landen Casks in `~/Applications`
+     (`homebrew.caskArgs.appdir`, für Handinstallationen
+     `HOMEBREW_CASK_OPTS`), damit die eingebauten Updater ohne Passwort
+     laufen. Ausnahmen, die nur aus `/Applications` laufen (1Password,
+     Docker Desktop, Tunnelblick), pinnen `args.appdir` im eigenen Modul.
+     Von Hand installiert brauchen sie `--appdir=/Applications` und damit
+     Admin-Rechte. Auf dem privaten Mac bleibt alles in `/Applications`.
 
 3. **Weder noch** (DMG, App Store): von Hand installieren. Das ist dann
    bewusst nicht deklarativ.
