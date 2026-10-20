@@ -10,7 +10,7 @@ beschrieben.
 
 | Spur | Was hängt dran | Wer triggert | Rechte |
 |---|---|---|---|
-| **1. App-Eigen-Updater** | 7 GUI-Casks mit `auto_updates` | die Apps selbst, im Hintergrund | keine |
+| **1. App-Eigen-Updater** | alle Casks mit `auto_updates` (oder `version :latest`) | die Apps selbst, im Hintergrund | keine |
 | **2. Brew-Lauf (LaunchAgent)** | restliche Casks + Formulas | launchd, automatisch | keine |
 | **3. Flake/Rebuild** | Nix-Pakete, Taps, flake inputs | Renovate-PR + dein `darwin-rebuild` | sudo beim `switch` (privat: Touch ID) |
 
@@ -34,16 +34,27 @@ der Agent ist der Apply-Schritt, nicht der Supply-Schritt.
 
 | App | Spur | Wie |
 |---|---|---|
-| Discord, Google Chrome, Insomnia, OpenCode desktop, t3-code, Zed, RustRover | 1 | In-App-Updater (Sparkle o. ä.) |
-| claude-code (Cask, ohne `auto_updates`) | 2 | `brew upgrade` im LaunchAgent-Lauf |
-| displaylink, macfuse, logi-options+, logitune, stream-deck, focusrite | 2* | LaunchAgent überspringt sie (kein `--greedy`); sie werden via brew bundle beim Rebuild aktualisiert – deren Installer brauchen ohnehin mal einen Reboot |
-| intellij-idea, tailscale-app, 1password, arc, docker-desktop, ghostty, affinity, bambu-studio, autodesk-fusion | 2 | LaunchAgent-Lauf (ohne auto_updates-Flag) bzw. Rebuild |
+| Discord, Google Chrome, Insomnia, OpenCode desktop, t3-code, Zed, RustRover, intellij-idea, tailscale-app, 1password, arc, docker-desktop, tunnelblick, ghostty, affinity, macfuse, logi-options+, logitune, stream-deck | 1 | In-App-Updater (`auto_updates`); der LaunchAgent lässt sie aus |
+| autodesk-fusion | 1 | `version :latest`, der LaunchAgent lässt sie aus (kein `--greedy`) |
+| claude-code, bambu-studio, Formulas | 2 | `brew upgrade` im LaunchAgent-Lauf |
+| displaylink, focusrite-control | 2* | `.pkg` ohne `auto_updates`: steht in `brewAutoupdate.skip`, kommt via brew bundle beim Rebuild |
 | Nix-Pakete (CLI-Tools, neovim, zoom, …) | 3 | `darwin-rebuild switch` nach Renovate-Merge |
 | macOS selbst | – | Systemeinstellungen, bewusst manuell |
 
 \* Hardware-Casks mit sudo-Pflichtigem .pkg-Installer: der User-Lauf würde
 beim Upgrade am Admin-Prompt hängen, deshalb bewusst dem Root-Kontext des
-Rebuilds überlassen.
+Rebuilds überlassen. Ein neuer `.pkg`-Cask ohne `auto_updates` gehört in
+`brewAutoupdate.skip` (`modules/system/darwin-brew-update.nix`).
+
+⚠️ **Homebrew ≥ 7 upgradet `auto_updates`-Casks standardmäßig mit.** Der
+LaunchAgent setzt deshalb `HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS=1`; ohne
+das hat er am 2026-10-20 docker-desktop und tunnelblick angefasst und ist an
+sudo bzw. App-Management gescheitert. Ein manuelles `brew upgrade` im
+Terminal hat die Variable nicht und tut das weiterhin.
+
+⚠️ **Arbeits-Mac:** 1password, docker-desktop und tunnelblick liegen bewusst
+in `/Applications` (root:admin). Ihre eigenen Updater fragen dort ohne
+Admin-Rechte nach einem Passwort – das ist erwartet, nicht der Agent.
 
 ## Sudo-Kalender: wann mit, wann ohne
 
@@ -87,8 +98,9 @@ der Switch dort passwortpflichtig — der promptlose Weg ist Spur 1 + 2
 
 - **Notification „Update fehlgeschlagen“**: Log unter
   `~/Library/Logs/brew-autoupdate.log`, Ursache ist meist ein .pkg-Cask, der
-  einen Admin-Prompt wollte → nächsten Rebuild abwarten oder den Cask
-  einmalig `brew upgrade`-en mit Passwort.
+  einen Admin-Prompt wollte → in `brewAutoupdate.skip` aufnehmen, dann
+  nächsten Rebuild abwarten oder den Cask einmalig `brew upgrade`-en mit
+  Passwort.
 - **App ist alt geblieben, obwohl Release draußen ist**: Spur-1-App → App
   selbst updaten lassen; Spur-2-App → läuft mit dem nächsten Renovate-PR +
   Rebuild. Prüfen mit `brew outdated` bzw. `brew info <name>`.

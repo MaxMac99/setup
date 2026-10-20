@@ -1,11 +1,16 @@
 # User-context Homebrew auto-updates via launchd LaunchAgents.
 #
 # Runs entirely as the logged-in user - no sudo, no root. nix-homebrew owns
-# /opt/homebrew for the user, and `brew upgrade` (without --greedy) skips
-# casks with auto_updates, so app-own updaters stay authoritative ("eine App,
-# ein Updater"). The .pkg casks among the shared hardware set (macfuse,
-# displaylink) are skipped by the agent for the same reason; they keep
-# updating through brew bundle at darwin-rebuild, which runs as root anyway.
+# /opt/homebrew for the user, and casks with auto_updates are excluded, so
+# app-own updaters stay authoritative ("eine App, ein Updater").
+# ⚠️ Homebrew 7 includes auto_updates casks in `outdated`/`upgrade` by
+# default; HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS=1 restores the old
+# behaviour. Without it the agent tried docker-desktop and tunnelblick, whose
+# upgrades need sudo / App Management, and failed at the password prompt.
+#
+# .pkg casks *without* auto_updates (displaylink, focusrite-control) would
+# hit the same prompt, so they are listed in `skip`; they keep updating
+# through brew bundle at darwin-rebuild, which runs as root anyway.
 #
 # Trigger model (docs/update-strategy.md):
 #   - calendar: fixed-time runs (launchd runs a missed slot on next wake).
@@ -26,6 +31,8 @@
 }: let
   cfg = config.brewAutoupdate;
 
+  skipFile = pkgs.writeText "brew-autoupdate-skip" (lib.concatLines cfg.skip);
+
   script = pkgs.writeShellApplication {
     name = "brew-autoupdate";
     runtimeInputs = with pkgs; [coreutils];
@@ -34,6 +41,7 @@
       min_days="''${BAU_MIN_DAYS:-3}"
 
       export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      export HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS=1
 
       state_dir="$HOME/Library/Application Support/brew-autoupdate"
       log_file="$HOME/Library/Logs/brew-autoupdate.log"
@@ -81,13 +89,15 @@
       } >> "$log_file"
 
       if [ "$outdated_rc" -eq 0 ] && [ -n "$outdated" ]; then
-        names="$(printf '%s\n' "$outdated" | awk '{print $1}')"
+        names="$(printf '%s\n' "$outdated" | awk '{print $1}' | grep -vxF -f ${skipFile} || true)"
       fi
 
       if [ "$outdated_rc" -ne 0 ]; then
         rc=$outdated_rc
       elif [ -n "$names" ]; then
-        upgrade_out="$(brew upgrade 2>&1)" && upgrade_rc=0 || upgrade_rc=$?
+        # Named, so `skip` holds; names are never empty here.
+        mapfile -t upgrade_names <<< "$names"
+        upgrade_out="$(brew upgrade "''${upgrade_names[@]}" 2>&1)" && upgrade_rc=0 || upgrade_rc=$?
         {
           echo "--- upgrade (rc=$upgrade_rc) ---"
           printf '%s\n' "$upgrade_out"
@@ -143,6 +153,16 @@ in {
       };
     };
 
+    skip = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = ["displaylink" "focusrite-control"];
+      description = ''
+        Formulae/casks the agent never upgrades: .pkg casks without
+        auto_updates, whose installer needs sudo. They update through brew
+        bundle at darwin-rebuild instead.
+      '';
+    };
+
     calendar = lib.mkOption {
       type = lib.types.listOf (lib.types.attrsOf lib.types.int);
       default = [];
@@ -170,7 +190,7 @@ in {
   # dir keeps them from running concurrently.
   config = lib.mkIf cfg.enable {
     home-manager.users.${config.hostSpec.username}.launchd.agents = {
-      # Plain `brew upgrade` already excludes casks with auto_updates; --greedy
+      # The script excludes casks with auto_updates (see header); --greedy
       # would fight those apps' own updaters, so it must stay off.
       brew-autoupdate = lib.mkIf (cfg.calendar != []) {
         enable = true;
