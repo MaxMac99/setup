@@ -84,19 +84,29 @@
     hash = "sha256-/h4HxkUbtRGoqgyFvjJrd++XmOd1KSVku5dR2/f9b/s=";
   };
 
-  # A profile's command/*.md, as `commands` entries. Expects frontmatter that
-  # is exactly one `description:` line - all of them are today.
+  # A profile's commands/*.md, as `commands` entries. Frontmatter must be flat
+  # `key: value` lines; `true`/`false` become booleans. Only fields V2 commands
+  # accept are allowed, so a typo fails evaluation instead of being ignored.
+  commandFields = ["description" "agent" "model" "subagent"];
   profileCommands = dir:
     lib.mapAttrs' (file: _: let
       parts = lib.splitString "\n---\n" (lib.removePrefix "---\n" (builtins.readFile (dir + "/${file}")));
-      front = builtins.head parts;
+      field = line: let
+        m = builtins.match "([a-z]+): (.+)" line;
+        value = builtins.elemAt m 1;
+      in
+        assert lib.assertMsg (m != null && lib.elem (builtins.head m) commandFields)
+        "opencode: ${file}: unsupported frontmatter line `${line}`";
+          lib.nameValuePair (builtins.head m) ({
+              "true" = true;
+              "false" = false;
+            }
+            .${value}
+            or value);
     in
-      assert lib.assertMsg (lib.hasPrefix "description: " front && !lib.hasInfix "\n" front)
-      "opencode: ${file} needs frontmatter of exactly one `description:` line";
-        lib.nameValuePair (lib.removeSuffix ".md" file) {
-          description = lib.removePrefix "description: " front;
-          template = lib.removePrefix "\n" (lib.concatStringsSep "\n---\n" (builtins.tail parts));
-        })
+      lib.nameValuePair (lib.removeSuffix ".md" file)
+      (builtins.listToAttrs (map field (lib.filter (l: l != "") (lib.splitString "\n" (builtins.head parts))))
+        // {template = lib.removePrefix "\n" (lib.concatStringsSep "\n---\n" (builtins.tail parts));}))
     (lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".md" n) (builtins.readDir dir));
 
   # Per-directory profiles, selected by the wrapper below.
@@ -112,7 +122,7 @@
     (pkgs.formats.json {}).generate "opencode-${name}.json" ({
         "$schema" = "https://opencode.ai/config.json";
         skills = ["${dir}/skills"];
-        commands = profileCommands (dir + "/command");
+        commands = profileCommands (dir + "/commands");
       }
       // settings);
 
