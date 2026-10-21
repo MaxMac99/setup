@@ -1,10 +1,13 @@
 ---
-description: Push the current branch and open a GitHub pull request with a generated title and body
+name: pr
+description: Push the current branch and open a GitHub pull request with a generated title and body. Run only when the user asks for it.
+disable-model-invocation: true
 ---
 
-Open a pull request for the current branch.
+# Pull request workflow
 
-Extra instruction from the user (may be empty, or may name the base branch): $ARGUMENTS
+Open a pull request for the current branch. The user's message may add an
+instruction or name the base branch.
 
 ## Steps
 
@@ -12,8 +15,8 @@ Extra instruction from the user (may be empty, or may name the base branch): $AR
    - `git status --short` — refuse to continue if the tree is dirty; ask the
      user to commit or stash first.
    - `git rev-parse --abbrev-ref HEAD` — refuse if this is `main` or `master`.
-   - `git log --oneline <base>..HEAD` where `<base>` is `$ARGUMENTS` if it names
-     a branch, otherwise the repository's default branch.
+   - `git log --oneline <base>..HEAD` where `<base>` is the branch the user
+     named, otherwise the repository's default branch.
    - `git diff <base>...HEAD` — read the actual changes, not just the subjects.
 
 2. Derive the title from the commits:
@@ -77,5 +80,6 @@ Extra instruction from the user (may be empty, or may name the base branch): $AR
 - Do not add reviewers or labels unless the user asked.
 - If a PR already exists for this branch (`gh pr view` succeeds), do not create a
   second one — offer to update the existing body instead.
-- The `github-personal` skill covers identity. If the push authenticates as the
-  wrong account, the repository is in the wrong directory.
+- The GitHub identity follows the repository's directory
+  (`modules/profiles/projects.nix`). If the push authenticates as the wrong
+  account, the repository is in the wrong directory; do not change git config.

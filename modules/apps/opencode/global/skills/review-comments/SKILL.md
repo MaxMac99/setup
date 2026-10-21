@@ -1,6 +1,7 @@
 ---
 name: review-comments
-description: Work through the open review comments on a GitHub pull request - judge every comment, fix the justified ones (one commit per comment), rebut the rest on GitHub, rebase and push. Use when the user asks to address, answer, work through or process PR review comments, or invokes /review-comments.
+description: Work through the open review comments on a GitHub pull request - judge every comment, fix the justified ones (one commit per comment), rebut the rest on GitHub, rebase and push. Run only when the user asks for it.
+disable-model-invocation: true
 ---
 
 # Review comments workflow
@@ -8,10 +9,6 @@ description: Work through the open review comments on a GitHub pull request - ju
 Process the open review comments on the current pull request. Every comment
 gets an answer, and you judge it yourself: fix what is justified, rebut what
 is not, ask the user before guessing. Nothing is left unanswered.
-
-In T3 Code this skill is the invocation surface (`/skill:review-comments`);
-in the opencode CLI the `/review-comments` command loads this skill. The
-canonical content lives here — do not duplicate the workflow elsewhere.
 
 ## 1. Establish the PR
 
@@ -45,8 +42,8 @@ query($owner:String!,$repo:String!,$number:Int!){
 }' -F owner=<owner> -F repo=<repo> -F number=<number>
 ```
 
-`gh pr view --json` has no review-comment field (gh 2.100), which is why this
-is GraphQL. `<owner>/<repo>` comes from
+`gh pr view --json` has had no review-thread field, which is why this is
+GraphQL. `<owner>/<repo>` comes from
 `gh repo view --json nameWithOwner -q .nameWithOwner`.
 
 Reduce to the work list:
