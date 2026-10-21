@@ -41,7 +41,7 @@ it wrong without it?
   - Files: `modules/apps/opencode/default.nix`.
   - First: check the V2 docs for a switch that stops scanning
     `~/.claude/skills`; fall back to `deny` per skill ID.
-  - Done when: `/api/skill` lists none of the 15, and `ls ~/.claude/skills`
+  - Done when: `/api/skill` lists none of the 17, and `ls ~/.claude/skills`
     still does.
 
 - [ ] **3. Prune knowledge skills**
@@ -89,7 +89,9 @@ it wrong without it?
 
 - [ ] **9. Docs and final check**
   - Goal: the written docs match the new setup.
-  - Files: `docs/opencode-workflow.md`, `docs/wt-workflow.md`.
+  - Files: `docs/opencode-workflow.md`, `docs/wt-workflow.md`, the
+    `context` comment in `default.nix` (V2 no longer reads `CLAUDE.md`, so
+    "AGENTS.md suppresses CLAUDE.md" is obsolete).
   - Done when: both mention no removed command or agent, and `/api/skill`
     plus `/api/command` show exactly the target set.
 

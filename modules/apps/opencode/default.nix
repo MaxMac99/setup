@@ -368,6 +368,36 @@ in {
             "kubectl delete*" = "deny";
             "pulumi destroy*" = "deny";
           };
+
+          # opencode also scans ~/.claude/skills, which modules/apps/claude-code
+          # fills with Anthropic's pinned collection. Those are general
+          # knowledge the model already has, so they are kept out of opencode
+          # entirely; `deny` hides them and refuses loading. V2 has no switch to
+          # stop scanning that directory, so the IDs are listed by hand.
+          # ⚠️ Bumping that pin can add a skill that is not listed here; it then
+          # shows up in opencode until it is added. `opencode api get /api/skill`
+          # shows what opencode sees.
+          skill =
+            {"*" = "allow";}
+            // lib.genAttrs [
+              "algorithmic-art"
+              "brand-guidelines"
+              "canvas-design"
+              "claude-api"
+              "doc-coauthoring"
+              "docx"
+              "frontend-design"
+              "internal-comms"
+              "mcp-builder"
+              "pdf"
+              "pptx"
+              "skill-creator"
+              "slack-gif-creator"
+              "theme-factory"
+              "web-artifacts-builder"
+              "webapp-testing"
+              "xlsx"
+            ] (_: "deny");
         };
       };
 
@@ -376,11 +406,8 @@ in {
       commands = ./global/commands;
       agents = ./global/agents;
 
-      # These are opencode's *own* skills. It ALSO scans ~/.claude/skills, which
-      # modules/apps/claude-code owns - so Anthropic's pinned collection reaches
-      # opencode from there, not from here. ⚠️ That makes this module depend on
-      # claude-code being imported alongside it: drop claude-code from a host and
-      # opencode silently loses ~20 skills with no evaluation error.
+      # These are opencode's *own* skills. The ones it picks up from
+      # ~/.claude/skills are denied in `permission.skill` above.
       #
       # The option takes either a directory *or* an attrset, never both, so
       # pulling in one out-of-tree skill means enumerating the in-tree ones too.
