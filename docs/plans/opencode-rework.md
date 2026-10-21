@@ -14,8 +14,10 @@ it wrong without it?
    one-line command for the TUI. T3 Code does not surface opencode commands.
 3. The Anthropic collection (`~/.claude/skills`) is removed from opencode
    entirely. claude-code keeps it.
-4. `architecture` is dissolved into the architecture agents and the diagram
-   skill. `docs-first` is replaced by one line in `context.md`.
+4. `architecture` is rewritten as the user's preferences (DDD, inward layers,
+   shipping rules), not a textbook; the agents and `/epic` load it. Its
+   mermaid table moves to the diagram workflow. `docs-first` is replaced by
+   one line in `context.md`.
 5. Workflows kept: commit, pr, review-comments, review-all, epic, refine.
    New: plan, plan-next. Removed: workspace, business-case.
 6. Review team: `reviewer-code`, `reviewer-tests`, `reviewer-business`. The
@@ -49,8 +51,8 @@ it wrong without it?
   - Files: `global/skills/{architecture,docs-first,rust-workflow}`,
     `profiles/personal/skills/github-issues`, `global/context.md`,
     `global/agents/{analyst,reviewer}-architecture.md`.
-  - Done when: `architecture` and `docs-first` are gone, their useful parts
-    live in the agents and `context.md`, and no skill hard-codes a tool version.
+  - Done when: `docs-first` is gone, `architecture` states preferences only,
+    and no skill hard-codes a tool version.
 
 - [ ] **4. Interview skill**
   - Goal: one question at a time, with background, options and recommendation,
@@ -105,6 +107,9 @@ it wrong without it?
 - Q: Interview as skill or command? → A: auto-invocable skill + thin command
 - Q: Which Anthropic skills should opencode see? → A: none
 - Q: What happens to `architecture`? → A: dissolve into agents + diagram
+- Q: Where do the architecture preferences live? → A: rewritten skill,
+  preferences only (corrects the previous answer: the model knows DDD, but
+  not that the user wants it)
 - Q: Keep `docs-first`? → A: drop it, one line in `context.md`
 - Q: Which workflows are used? → A: keep six, drop workspace + business-case
 - Q: Review team shape? → A: three reviewers, ticket from PR or branch

@@ -10,7 +10,7 @@ You analyse a **proposal**, not code. Something is being planned; your job is to
 work out what building it actually implies, so the questions asked next are
 grounded in reality rather than in guesses.
 
-Load the `architecture` skill and apply it.
+Load the `architecture` skill; its preferences are the standard you apply.
 
 ## Input
 

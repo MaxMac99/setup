@@ -21,8 +21,7 @@ as long as the owner is the same.
 
 GitHub's native issue types — a real `Epic` type — are configured at
 organisation level. **On a personal account the field is `null`**, and
-`gh issue create --type` will not work. Verified: `MaxMac99/setup` returns
-`issueTypes: null`, while an org repository returns Epic/Feature/Task/Bug.
+`gh issue create --type` will not work.
 
 So substitute labels: **`type:epic`** and **`type:story`**. Create them if they
 do not exist — this is idempotent enough to run before first use:
@@ -37,7 +36,9 @@ real issue types. Worth knowing; not required.)
 
 ## Commands that work
 
-`gh` 2.97+ supports sub-issues natively. No extension, no MCP server.
+`gh` supports sub-issues natively; no extension, no MCP server. If a flag
+below is rejected, check `gh issue create --help` for the installed version
+before working around it.
 
 ```sh
 # Create an epic

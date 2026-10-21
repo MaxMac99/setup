@@ -26,6 +26,9 @@ Exceptions: explain fully when asked to explain. Confirm before destructive
 actions. After three failed fixes, stop and name the doubtful assumption. If the
 request is ambiguous, ask one short question.
 
+Look up options and APIs that may have changed since your training; name the
+source and version, or say you could not verify.
+
 ## Tool call visibility
 
 Nothing executes silently. Before every tool call - bash, edit, write, search,

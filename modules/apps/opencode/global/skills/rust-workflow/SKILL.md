@@ -43,12 +43,12 @@ include the result in the same logical change.
 
 ## Available tooling
 
-On PATH: `rustc`, `cargo`, `cargo-clippy`, `rustfmt`, `rust-analyzer`.
-
-**Not installed:** `cargo-nextest`, `bacon`, `cargo-watch`, `taplo`. Do not
-suggest commands that depend on them, and do not silently substitute
-`cargo nextest run` for `cargo test`. If a watch loop or a faster runner would
-genuinely help, say so and let the user decide whether to add it to
+The baseline is `rustc`, `cargo`, `cargo-clippy`, `rustfmt` and
+`rust-analyzer`. Anything beyond that (`cargo-nextest`, `bacon`,
+`cargo-watch`, `taplo`) is not part of the setup unless the project's flake
+adds it: check with `which` before suggesting it, and never silently
+substitute `cargo nextest run` for `cargo test`. If a tool would genuinely
+help, say so and let the user decide whether to add it to
 `modules/profiles/development.nix`.
 
 ## Workspaces
@@ -62,14 +62,3 @@ cargo test -p <crate>
 
 Run the full workspace before proposing a commit, since a change in one crate
 routinely breaks a sibling.
-
-## Conventions
-
-- Return `Result` rather than panicking in library code. `unwrap()` and
-  `expect()` belong in tests, `main`, and cases where a panic is genuinely the
-  correct response to a broken invariant — and then `expect()` with a message
-  explaining the invariant.
-- Prefer `?` over matching solely to re-wrap an error.
-- Derive the scope for a commit from the crate name.
-- When adding a dependency, check whether the workspace already has something
-  equivalent before introducing a second library for the same job.

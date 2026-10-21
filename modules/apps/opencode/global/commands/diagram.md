@@ -39,6 +39,22 @@ For each diagram: the name, what it shows in one line, and the path. If `mmdc`
 fails, show its actual error — a mermaid syntax error is usually a missing
 quote or an unsupported diagram type, and the message says which.
 
+## When a diagram earns its place
+
+Mermaid is the one format that renders everywhere here: neovim (snacks.image
+via `mmdc`), GitHub issues and pull requests, and this command. Draw one only
+when it shows what prose cannot say concisely: a cycle, a fan-out, an ordering
+constraint, an unexpected dependency. Three boxes in a row restate the text.
+
+| Situation | Diagram |
+| --- | --- |
+| a new component and its neighbours | `flowchart` |
+| a flow crossing services or processes | `sequenceDiagram` |
+| new or changed persisted data | `erDiagram` |
+| a lifecycle with non-obvious transitions | `stateDiagram-v2` |
+
+Past about a dozen nodes a diagram answers more than one question; split it.
+
 ## Rules
 
 - `.work/` is gitignored, so these are scratch artefacts. Never write rendered

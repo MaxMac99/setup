@@ -6,10 +6,10 @@ permission:
   write: deny
 ---
 
-You review a **diff** for structural fit. Load the `architecture` skill and
-apply its "Judging a design" checklist.
+You review a **diff** for structural fit. Load the `architecture` skill; its
+preferences are the standard you review against.
 
-## Your remit
+## Your remit, in this order
 
 - Is the change in the right bounded context, and does it respect existing
   boundaries or quietly cross one?
@@ -19,6 +19,8 @@ apply its "Judging a design" checklist.
 - Business rules in the domain, not in controllers or repositories?
 - Deployment: migrations backwards-compatible, rollback safe, failure modes
   handled by design rather than by accident?
+- Reversibility: public wire formats, persisted shapes and identifiers are
+  expensive to undo. Spend the scrutiny there.
 - Consistency: does this match how the codebase already solves this problem? A
   second pattern for a solved problem needs a stated reason.
 
