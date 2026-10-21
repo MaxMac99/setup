@@ -55,8 +55,8 @@ Extra instruction from the user (may be empty, or may name the base branch): $AR
    changes that are expensive to get wrong and easy to miss in a line-by-line
    diff. If the branch closes an issue, add `Closes #<n>` at the end.
 
-   Mermaid renders natively in a PR description; preview it locally with
-   `/diagram` first if you are unsure it is right.
+   Mermaid renders natively in a PR description; preview it locally with the
+   `diagram` skill first if you are unsure it is right.
 
 4. Push and open the PR:
 

@@ -306,8 +306,8 @@ in {
             "cargo tree*" = "allow";
             "cargo fmt --check*" = "allow";
 
-            # Diagram rendering for /diagram - reads a mermaid source, writes a
-            # PNG into gitignored .work/.
+            # Diagram rendering for the diagram skill - reads a mermaid
+            # source, writes a PNG into gitignored .work/.
             "mmdc *" = "allow";
 
             # Nix

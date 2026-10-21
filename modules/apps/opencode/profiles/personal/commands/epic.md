@@ -104,4 +104,4 @@ The epic URL, the story numbers with their titles, and the dependency edges.
 - Never create issues before the approval gate.
 - Do not implement anything. This command produces tickets.
 - If mermaid would clarify the design, include it in the Design section — it
-  renders natively in the issue body, and `/diagram` will preview it locally.
+  renders natively in the issue body, and the `diagram` skill will preview it locally.
