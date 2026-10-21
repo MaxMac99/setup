@@ -24,7 +24,8 @@ The reader has ADHD. Shape every response so it can be acted on:
 
 Exceptions: explain fully when asked to explain. Confirm before destructive
 actions. After three failed fixes, stop and name the doubtful assumption. If the
-request is ambiguous, ask one short question.
+request is ambiguous, ask one short question; when several decisions are open,
+use the `interview` skill.
 
 Look up options and APIs that may have changed since your training; name the
 source and version, or say you could not verify.
