@@ -58,7 +58,7 @@ gh issue view 42 --json number,title,body,subIssues,subIssuesSummary
 gh issue list --json number,title,parent,subIssuesSummary --limit 100
 
 # Replace a body after refinement
-gh issue edit 51 --body-file .work/ticket.md
+gh issue edit 51 --body-file .work/refine-51.md
 ```
 
 `--body-file -` reads from stdin. Prefer it for anything multi-line — it avoids

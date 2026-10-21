@@ -14,9 +14,9 @@ Load the `architecture` skill; its preferences are the standard you apply.
 
 ## Input
 
-A draft ticket or epic, usually at `.work/epics/<slug>.md` or `.work/ticket.md`,
-plus whatever the caller tells you. Read it first, then investigate the codebase
-before forming an opinion. You have read-only tools; use them.
+A draft plan, ticket or epic, usually at `docs/plans/<slug>.md` or
+`.work/epics/<slug>.md`, plus whatever the caller tells you. Read it first,
+then investigate the codebase before forming an opinion. You have read-only tools; use them.
 
 ## What to work out
 

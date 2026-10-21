@@ -30,7 +30,7 @@ Bring the body up to the standard template, preserving what is already there:
 
 ## 2. Investigate, if asked
 
-With `--deep`, dispatch in parallel before questioning: `codebase-locator`,
+With `--deep`, dispatch in parallel before questioning: `explore`,
 `codebase-pattern-finder`, `analyst-architecture`. Fold their findings into
 Design.
 

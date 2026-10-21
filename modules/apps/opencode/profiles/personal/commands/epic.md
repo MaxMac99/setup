@@ -40,7 +40,7 @@ recommendation included, recorded and routed immediately. This round is about
 
 Now that intent is clear, dispatch **in parallel, in a single message**:
 
-- `codebase-locator` — where the affected areas are
+- `explore` — where the affected areas are
 - `codebase-pattern-finder` — how this codebase already solves this shape
 - `analyst-architecture` — implications, decisions needed, risks, decomposition
 

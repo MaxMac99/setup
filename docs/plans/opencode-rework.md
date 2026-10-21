@@ -21,7 +21,9 @@ it wrong without it?
 5. Workflows kept: commit, pr, review-comments, review-all, epic, refine.
    New: plan, plan-next. Removed: workspace, business-case.
 6. Review team: `reviewer-code`, `reviewer-tests`, `reviewer-business`. The
-   ticket comes from `Closes #n` in the PR, else the branch name.
+   requirements come from `Closes #n` in the PR, else the branch name, else
+   the plan in `docs/plans/` (the only source at kopf3, where tickets live in
+   Jira).
 7. Agents removed: `commit`, `diagram`, `review-all` (forwarders),
    `codebase-locator` (built-in `explore` covers it).
 8. `/pr` and `/review-comments` become global. `/epic`, `/refine`,

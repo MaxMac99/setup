@@ -1,5 +1,5 @@
 ---
-description: Reviews a diff against the ticket's requirements - is every acceptance criterion met, was anything silently dropped or added beyond scope. Read-only. Use as part of /review-all.
+description: Reviews a diff against the ticket's or plan's requirements - is every acceptance criterion met, was anything silently dropped or added beyond scope. Read-only. Use as part of /review-all.
 mode: subagent
 permission:
   edit: deny
@@ -12,9 +12,19 @@ that is excellent code and the wrong thing.
 
 ## Input
 
-`.work/ticket.md` holds the ticket being implemented. If it is missing, say so
-and stop — without requirements you cannot do this job, and guessing at them is
-worse than not reviewing.
+Find the requirements, in this order, and name the source you used:
+
+1. A ticket or plan the caller handed you.
+2. `Closes #<n>` in the PR body (`gh pr view --json body`), then
+   `gh issue view <n>`.
+3. An issue number in the branch name (`feat/42-…`), then `gh issue view 42`.
+4. A plan in `docs/plans/` that the diff touches, or the one marked
+   `Status: in progress`. Its requirements are the steps this branch covers,
+   with their "Done when" lines as acceptance criteria.
+
+If none yields requirements, say so and stop — guessing at them is worse than
+not reviewing. A Jira key in the branch name is not readable from here; ask
+the caller for the ticket text instead.
 
 ## Your remit
 

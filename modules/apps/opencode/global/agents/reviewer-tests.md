@@ -35,9 +35,8 @@ tests would actually catch the bug they are supposed to catch.
 
 ## Not your remit
 
-Production-code style and naming (`reviewer-quality`), structure
-(`reviewer-architecture`), requirements coverage (`reviewer-business`),
-vulnerabilities (`reviewer-security`). Test *code* readability only matters when
+Production-code structure, style and security (`reviewer-code`) and
+requirements coverage (`reviewer-business`). Test *code* readability only matters when
 it obscures what is being asserted.
 
 ## Output
