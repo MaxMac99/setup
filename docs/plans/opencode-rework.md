@@ -39,6 +39,8 @@ it wrong without it?
     `profiles/*/command/` → `profiles/*/commands/`.
   - Done when: `nix flake check` passes and `/api/command` lists every
     profile command.
+  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
+    check `opencode api get /api/command`.
 
 - [ ] **2. Remove the Anthropic collection from opencode**
   - Goal: no Anthropic skill reaches opencode, claude-code is unaffected.
@@ -47,8 +49,10 @@ it wrong without it?
     `~/.claude/skills`; fall back to `deny` per skill ID.
   - Done when: `/api/skill` lists none of the 17, and `ls ~/.claude/skills`
     still does.
+  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
+    check `opencode api get /api/skill`.
 
-- [ ] **3. Prune knowledge skills**
+- [x] **3. Prune knowledge skills**
   - Goal: only the knowledge the model lacks remains.
   - Files: `global/skills/{architecture,docs-first,rust-workflow}`,
     `profiles/personal/skills/github-issues`, `global/context.md`,
@@ -62,12 +66,16 @@ it wrong without it?
   - Files: new `global/skills/interview/`, `global/skills/refinement-loop/`
     (shrinks to the ticket part), new `/interview` command, `global/context.md`.
   - Done when: `/interview` and a plain unclear request both trigger the format.
+  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
+    try `/interview` with a real topic.
 
 - [ ] **5. Workflow pattern for commit, review-all, diagram**
   - Goal: workflow skill plus thin command; forwarding agents gone.
   - Files: `global/commands/`, new `global/skills/{commit,review-all,diagram}/`,
     `global/agents/{commit,diagram,review-all}.md` (delete).
   - Done when: `/commit` works in the TUI and `@commit` works in T3 Code.
+  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
+    run `/commit` in the TUI and load `commit` by name in T3 Code.
 
 - [ ] **6. Review team of three**
   - Goal: `reviewer-code` replaces architecture, quality and security.
@@ -76,6 +84,8 @@ it wrong without it?
   - Done when: `/review-all` on a test branch returns one merged report from
     three reviewers, and `reviewer-business` finds the ticket without
     `.work/ticket.md`.
+  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
+    run `/review-all` on a branch with a plan or `Closes #n`.
 
 - [ ] **7. Profiles**
   - Goal: pr and review-comments global; epic and refine converted; workspace
@@ -83,6 +93,8 @@ it wrong without it?
   - Files: `profiles/personal/`, `global/`, fix of the `photonic` path becomes
     moot with `workspace.md` deleted.
   - Done when: in `~/projects/kopf3`, `/pr` exists and `/epic` does not.
+  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
+    open opencode in `~/projects/kopf3` and type `/`.
 
 - [ ] **8. Plan and plan-next**
   - Goal: big tasks get a step plan in `docs/plans/`, worked off one step per
@@ -90,6 +102,8 @@ it wrong without it?
   - Files: new `global/skills/{plan,plan-next}/` and their commands.
   - Done when: this very file could have been produced by `/plan`, and
     `/plan-next` ticks a step and stops.
+  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
+    run `/plan-next` on this file.
 
 - [ ] **9. Docs and final check**
   - Goal: the written docs match the new setup.
