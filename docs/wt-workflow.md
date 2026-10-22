@@ -101,8 +101,9 @@ photonic's for the reference wording). The short version for any agent:
   same path and naming: `.work/<repo>-<branch>`.
 - Never create worktrees outside `.work/`, never name them `<branch>` alone.
 
-The opencode `/workspace <issue>` command follows the same convention and
-additionally drops the ticket body into the worktree's `.work/ticket.md`.
+opencode has no worktree command of its own any more (`/workspace` was
+removed in the opencode rework): create the worktree with `wt new` and start
+the session inside it.
 
 ## IDE usage
 

@@ -418,9 +418,8 @@ in {
         // {i-have-adhd = "${adhdSkill}/skills/i-have-adhd";};
 
       # Output shaping, applied to every session on both Macs and in every repo.
-      # ⚠️ Writing ~/.config/opencode/AGENTS.md SUPPRESSES ~/.claude/CLAUDE.md:
-      # opencode takes the first match per category, so a global Claude-side
-      # rules file added later would be ignored with no error. None exists today.
+      # OpenCode 2 reads AGENTS.md only, so ~/.claude/CLAUDE.md never reaches
+      # it; rules meant for both agents have to live here too.
       context = ./global/context.md;
 
       tui = {

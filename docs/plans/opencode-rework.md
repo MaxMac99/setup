@@ -112,6 +112,9 @@ it wrong without it?
     "AGENTS.md suppresses CLAUDE.md" is obsolete).
   - Done when: both mention no removed command or agent, and `/api/skill`
     plus `/api/command` show exactly the target set.
+  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
+    compare `/api/skill` and `/api/command` with the inventory in
+    `docs/opencode-workflow.md`.
 
 ## Clarifications
 

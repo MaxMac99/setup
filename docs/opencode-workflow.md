@@ -1,36 +1,69 @@
-# opencode ticket workflow
+# opencode workflow
 
-Design notes for a ticket-driven development pipeline in opencode: rough idea →
-refined epic → child tickets → isolated implementation → multi-perspective
-review → small commits.
+Design notes for how opencode is set up to work: plan or refine → implement →
+review → small commits → pull request. The wiring lives in
+`modules/apps/opencode/`; the rework that produced this shape is
+[plans/opencode-rework.md](plans/opencode-rework.md).
 
-Status: **base config built, pipeline not yet built.** See [Status](#status).
+## Building blocks
 
-## Pipeline
+| Kind | What it is | Who triggers it |
+| --- | --- | --- |
+| Knowledge skill | Facts and preferences the model does not have on its own | the model, when relevant |
+| Workflow skill | A multi-step procedure with side effects (`disable-model-invocation: true`) | the user only |
+| Command | One line that loads a workflow skill, so the TUI has `/name` | the user, TUI only |
+| Agent | A separate worker with its own context, permissions and report format | a workflow, in parallel |
 
-| # | Step | Command | Scope |
+One test decides whether a skill exists: **would the model get it wrong
+without it?** General knowledge (DDD, framework docs, file formats) fails the
+test; your conventions, environment and preferences pass it.
+
+Workflows live once, in the skill. The command only forwards arguments,
+because T3 Code does not surface opencode commands but can load a skill by
+name.
+
+## Pipelines
+
+**Plan-driven** (everywhere, the only one at kopf3):
+
+| # | Step | Surface |
+| --- | --- | --- |
+| 1 | Interview → step plan in `docs/plans/<slug>.md` | `/plan` |
+| 2 | Implement one step, verify, tick, stage, stop | `/plan-next` |
+| 3 | Review the branch | `/review-all` |
+| 4 | Stage small commits | `/commit` |
+| 5 | Open the pull request | `/pr` |
+| 6 | Work through PR review comments | `/review-comments` |
+
+**Ticket-driven** (personal, GitHub issues):
+
+| # | Step | Surface |
+| --- | --- | --- |
+| 1 | Rough idea → epic with stories as issues | `/epic` |
+| 2 | Refine one story | `/refine <n> [--deep]` |
+| 3 | Branch from the story, implement | built-in worktrees + `build` agent |
+| 4 | Review, commit, PR, comments | as above |
+
+`/interview` runs the question format on its own, for decisions that do not
+need a plan.
+
+## Inventory
+
+| Scope | Knowledge skills | Workflow skills + commands | Agents |
 | --- | --- | --- | --- |
-| 1 | Rough description → local draft | `/epic` | personal |
-| 2 | Q&A refinement until confident | `refinement-loop` skill | global |
-| 3 | Codebase grounding + architecture analysis | `codebase-locator`, `codebase-pattern-finder`, `analyst-architecture` | global |
-| 4 | Architecture pass (DDD, deployment fit, mermaid) | `architecture` skill | global |
-| 5 | Business viability, only when asked | `/business-case` | personal |
-| 6 | Create epic + child stories | `/epic` (continues) | personal |
-| 7 | Refine a story | `/refine <id> [--deep]` | personal |
-| 8 | Take a ticket → worktree | `/workspace <id>` | personal |
-| 9 | Implement | built-in `build` agent | — |
-| 10 | Architecture / quality / tests / business / security review | `/review-all` | global |
-| 11 | Stage small commits, user commits | `/commit` | global |
-| 12 | Work through PR review comments | `/review-comments` | personal |
+| global | `architecture`, `conventional-commits`, `rust-workflow`, `interview`, `diagram`, `refinement-loop`, `i-have-adhd` (vendored) | `commit`, `pr`, `review-all`, `review-comments`, `plan`, `plan-next`; command `/interview` | `reviewer-code`, `reviewer-tests`, `reviewer-business`, `analyst-architecture`, `codebase-pattern-finder` |
+| personal | `github-issues`, `github-personal` | `epic`, `refine` | — |
+| work | — | — | — |
 
-Steps 9–11 loop until the ticket is done, then `/pr`. `/review-comments`
-picks up after reviewers have answered the PR: it judges every open review
-comment, fixes the justified ones (one commit per comment), rebuts the rest
-on GitHub, and finishes with rebase and push.
+Anthropic's skill collection reaches `~/.claude/skills` through
+`modules/apps/claude-code`. opencode scans that directory too, so its 17 IDs
+are denied in `permission.skill`: they are general knowledge and only cost
+context. claude-code keeps them.
 
-Anything that talks to a tracker is per-profile; anything that only reads
-`.work/ticket.md` or the diff is global. That is why `/epic`, `/refine` and
-`/workspace` sit in `profiles/personal/` while the reviewers do not.
+`global/context.md` becomes `~/.config/opencode/AGENTS.md`: the output-style
+rules, tool-call narration, the pointer to `interview`, and one line to look
+up APIs that may have changed. OpenCode V2 reads `AGENTS.md` only, never
+`CLAUDE.md`.
 
 ## Decisions
 
@@ -38,174 +71,105 @@ Settled during design; recorded so they are not re-litigated.
 
 | Decision | Choice | Why |
 | --- | --- | --- |
-| Hierarchy depth | Two levels: Epic → Story | A story is the unit you branch from; a third level needs its own refinement pass for little gain |
-| Ticket template | Context / Acceptance Criteria / Out of Scope / Design / Open Questions | `reviewer-business` checks the implementation against the criteria, so the shape must be consistent |
-| Open Questions at creation | Must be empty | Otherwise the thinking is deferred to implementation time, where it costs most |
-| Review strictness | Report, blocking marked, never gates | Matches the ask-before-writing posture; you decide whether to proceed |
-| Milestones | Untouched | Release containers on a different axis; an epic can span several |
-| Refinement budget | ≤3 rounds of 3-5 questions | Bounded, with a confidence check between rounds |
-| Analysts at refinement | Architecture only | Automatic in `/epic`, opt-in via `--deep` in `/refine` |
-| Security knowledge | In `reviewer-security.md`, not a skill | Only one agent uses it; a skill would be indirection with a standing context cost |
+| Architecture standard | `architecture` skill states preferences (DDD, inward layers, shipping rules) | The model knows DDD, but not that you want it |
+| Questions | One at a time, in chat, never a dialog; background, options, recommendation | A dialog hides the background needed to answer |
+| Plans | Committed in `docs/plans/`, kept with `Status: done` | They record why something was built that way |
+| Plan steps | Checkbox, goal, files, "Done when"; ticked only when verified | A new session has nothing but the file |
+| Tickets at kopf3 | None written by the agent; Jira stays manual | Plans replace tickets for agent work |
+| Hierarchy depth | Two levels: Epic → Story | A story is the unit you branch from |
+| Ticket template | Context / Acceptance Criteria / Out of Scope / Design / Open Questions | `reviewer-business` checks against the criteria |
+| Open Questions at creation | Must be empty | Otherwise the thinking is deferred to implementation |
+| Review strictness | Report, blocking marked, never gates | You decide whether to proceed |
+| Review team | Three: code, tests, business | Separate reviewers only where input or tools differ |
+| Who commits | The user, unless told otherwise | Staging is cheap to undo, a commit less so |
 | Model pins on agents | None | A pinned model is what rotted the upstream `agentic` files |
 
-## Tracker-agnostic seam
-
-Only `/epic`, `/refine` and `/start` know which tracker is in play. They write
-plain markdown into `.work/`, and every downstream step reads that. This keeps
-the tracker-specific surface to three files per profile instead of leaking
-GitHub and Jira details into the reviewers and the commit flow.
+## Working files
 
 ```
+docs/plans/<slug>.md   committed step plan, built by /plan
 .work/
-  epics/<slug>.md    epic draft; frontmatter records created issue numbers
-  ticket.md          the ticket currently being implemented
-  pr-body.md         generated PR body
-  commit-msg         multi-line commit message, when needed
-  review-comments/   reply drafts for /review-comments, one file per thread
+  epics/<slug>.md      epic draft; frontmatter records created issue numbers
+  refine-<n>.md        story body during /refine
+  pr-body.md           generated PR body
+  commit-msg           multi-line commit message, when needed
+  review-comments/     reply drafts for /review-comments, one file per thread
+  diagrams/            rendered mermaid
 ```
 
 `.work/` is ignored globally via `programs.git.ignores` in
-`modules/profiles/core-user/git.nix`, so no per-repo `.gitignore` edits.
+`modules/profiles/core-user/git.nix`. Worktrees follow the `wt` convention at
+`.work/<repo>-<branch>` (see [wt-workflow.md](wt-workflow.md)).
 
-Worktrees live inside the repo at `.work/<repo>-<branch>` — the `wt` convention
-(see [wt-workflow.md](wt-workflow.md)); the global `.work/` ignore covers both
-the ticket files and the worktrees themselves.
+## Interview protocol
 
-## Refinement protocol
+The `interview` skill, adapted from
+[`github/spec-kit`](https://github.com/github/spec-kit)'s `/speckit.clarify`
+(MIT) and sharpened in practice:
 
-Adapted from [`github/spec-kit`](https://github.com/github/spec-kit)'s
-`/speckit.clarify` (MIT). Its version caps at 5 questions in a single pass; this
-one loops.
+- Explore the code first; never ask what it can answer.
+- **One question per message**, as chat text, ending in `?`.
+- Each carries background, one consequence ("why it matters"), two to four
+  options and a recommendation, so "yes" is a complete answer.
+- **Record immediately** as a decision plus a `- Q: … → A: …` line.
+- If the user questions the question, answer that first, then re-ask.
+- If an answer exposes an earlier mistake, say so and re-ask that decision.
 
-- **Up to 3 rounds, 3–5 questions per round.** After each round the agent states
-  its confidence and stops early when high. Hard stop at 3 rounds.
-- **One question at a time.** Never reveal the queued questions in advance.
-- **Questions must be interrogative** and end in `?`. A topic label
-  ("Acceptance device matrix") is not a question and is invalid.
-- Each question carries one *why it matters* sentence, a
-  `**Recommended:** Option X — <reasoning>` line, and options as a markdown
-  table. The user may answer with a letter, "yes"/"recommended", or free text.
-- **Record immediately.** Append to a `## Clarifications` section under a
-  `### Session YYYY-MM-DD` heading as `- Q: <question> → A: <answer>`, then route
-  the answer into the correct section of the draft (functional → Requirements,
-  non-functional → Success Criteria as a measurable metric, edge case → Edge
-  Cases) and save. Do not batch writes to the end.
-
-## Ticket hierarchy
-
-### GitHub (personal)
-
-**Milestones are not epics.** They are flat, date-bound release buckets — no
-nesting, one per issue, and the only rollup is an issue count. Use them for
-releases (`v1.0`), not for work breakdown.
-
-**An epic is an ordinary issue with sub-issues.** GA since November 2025; limits
-are 100 sub-issues per parent and 8 levels of nesting. Sub-issues may cross
-repositories as long as the owner is the same.
-
-`gh` 2.97.0 supports this natively — no MCP server and no extension:
-
-```sh
-gh issue create --title "…" --body-file .work/epics/<slug>.md --label type:epic
-gh issue create --parent <epic#> --label type:story --body-file -
-gh issue edit <epic#> --add-sub-issue 51,52
-gh issue edit 52 --add-blocked-by 51
-gh issue view <epic#> --json number,title,subIssues,subIssuesSummary
-```
-
-`--body-file -` reads from stdin, which avoids shell-quoting problems with
-multi-line markdown.
-
-Gotchas worth not rediscovering:
-
-- **GitHub Issue Types (a real "Epic" type) are organization-only.** Verified:
-  `MaxMac99/setup` returns `issueTypes: null`, while `github/docs` returns
-  Epic/Feature/Task/Bug. On personal repos, substitute `type:epic` /
-  `type:story` labels. Moving personal repos under a free personal org would
-  unlock real issue types — the single highest-leverage change for Jira parity.
-- The REST sub-issue API (`POST /repos/{owner}/{repo}/issues/{n}/sub_issues`)
-  takes `sub_issue_id`, the child's **internal integer id** — not its issue
-  number, and not the GraphQL node id that `gh issue view --json id` returns.
-  Get it with `gh api repos/O/R/issues/<n> --jq .id`. Only needed for reordering
-  (`PATCH …/sub_issues/priority`), which `gh` does not expose. Note `gh api` is
-  deliberately *not* in the permission allowlist, so it prompts: `gh api … -f x=y`
-  implies POST, and any `gh api repos/*` allow would auto-approve issue creation.
-- Bulk creation is subject to secondary rate limiting. Fan out slowly.
-- `gh project` and `gh issue create --project` need a scope that is not granted
-  by default: `gh auth refresh -s project`.
-
-**Idempotency:** write created issue numbers back into the draft's frontmatter,
-so re-running `/epic` never duplicates tickets.
-
-### Jira (work)
-
-Not yet configured — deferred. When it is:
-
-- **Jira Cloud** → Atlassian Rovo MCP, remote at
-  `https://mcp.atlassian.com/v1/mcp/authv2`, browser OAuth. Cloud only; no Data
-  Center support. Rate limits are per-plan (Free 500/hr).
-- Tools: `createJiraIssue`, `editJiraIssue`, `getJiraIssue`,
-  `searchJiraIssuesUsingJql`, `getJiraIssueTypeMetaWithFields`.
-- `getAccessibleAtlassianResources` is a **mandatory first call** for the
-  `cloudId`.
-- There is no dedicated parent/child link tool — parenthood is the `parent`
-  **field** on create/edit, and its key differs between company-managed and
-  team-managed projects. Resolve it at runtime with
-  `getJiraIssueTypeMetaWithFields` rather than hardcoding.
-- For Data Center, Rovo does not work; use
-  [`sooperset/mcp-atlassian`](https://github.com/sooperset/mcp-atlassian)
-  (MIT, supports Jira DC 8.14+).
-- **Mermaid does not render in Jira Cloud** (descriptions are ADF). Diagrams
-  will appear as unrendered code blocks unless the instance has a plugin.
-  Mermaid does render natively on GitHub.
-
-## Visualisation
-
-Mermaid is the only diagram format that renders everywhere you need it, which
-is why the workflow standardises on it rather than anything richer.
-
-| Surface | How |
-| --- | --- |
-| GitHub issues and PRs | native mermaid rendering in markdown |
-| neovim | `snacks.image` (`nvf/utility.nix`) shells out to `mmdc` for mermaid blocks; Ghostty speaks the kitty graphics protocol |
-| opencode TUI | `/diagram` renders with `mmdc` and reads the PNG back as an attachment; opentui detects kitty graphics (`OPENTUI_GRAPHICS`, default on) |
-| ad hoc | `mmdc -i x.mmd -o x.png` for SVG/PNG/PDF |
-| IntelliJ / RustRover | built-in mermaid preview in markdown |
-
-The same source text therefore renders in the draft you are refining, the
-GitHub issue, and the pull request — with no additional infrastructure.
-
-`imagemagick` is in `development.nix` because `snacks.image` calls `identify`
-for image dimensions; `mmdc` emits PNG directly, so it is not needed for the
-conversion itself. Only mermaid is available — no `d2`, `plantuml` or Graphviz.
+`refinement-loop` adds only the ticket part: where an answer lands in the
+ticket's sections, and that refinement ends with Open Questions empty.
 
 ## Reviewers
 
-`/review-all` fans out to five subagents in parallel, each `edit: deny`,
-`write: deny`. Each burns its own context window, which is the point — findings
-come back, exploration does not. A bare `/review-all` runs all five;
-`/review-all quality tests` runs a subset for a cheap pass mid-implementation.
-
-Remits are deliberately disjoint, and each file carries an explicit "not your
-remit" section, so two reviewers never report the same thing.
+`/review-all` fans out to three read-only subagents in parallel. Each burns its
+own context window, which is the point — findings come back, exploration does
+not. `/review-all code tests` runs a subset.
 
 | Agent | Owns | Explicitly not |
 | --- | --- | --- |
-| `reviewer-architecture` | boundaries, layering, coupling, cycles, deployment fit | style, test depth |
-| `reviewer-quality` | conventions, naming, readability, error handling, dead code | test depth, structure |
-| `reviewer-tests` | meaningfulness, edge/error coverage, determinism, runs the suite | production-code style |
-| `reviewer-business` | acceptance criteria in `.work/ticket.md` met, scope drift | how it is built |
-| `reviewer-security` | injection, authz, secrets, deps, disclosure | general quality |
+| `reviewer-code` | structure (per `architecture`), quality, security — tagged per angle | test depth, requirements |
+| `reviewer-tests` | meaningfulness, edge/error coverage, determinism, runs the suite | production code |
+| `reviewer-business` | requirements met, scope drift | how it is built |
+
+`reviewer-business` finds requirements itself: what it is handed, else
+`Closes #n` in the PR, else the issue number in the branch, else the plan in
+`docs/plans/`. A Jira key is not readable; it asks for the text instead.
 
 Findings carry a severity (**blocking** / **advisory**), a category (**Gap** /
 **Bug** / **Verification miss** / **Scope drift**, borrowed from
 `agent-watchdog`), a `file:line`, and a concrete fix. `/review-all` merges,
-deduplicates, ranks, and names any reviewer that found nothing — silence is
-otherwise indistinguishable from failure.
+deduplicates, ranks, and names any reviewer that found nothing.
 
 The merged report and the PR body share a structure: behaviour before → after,
-then Schema, Contracts and Structure sections, omitted when empty. That
-taxonomy is the one genuinely good idea taken from `visual-recap`.
+then Schema, Contracts and Structure sections, omitted when empty.
+
+## GitHub issue hierarchy (personal)
+
+**Milestones are not epics.** They are flat, date-bound release buckets — no
+nesting, one per issue. Use them for releases (`v1.0`), not for work
+breakdown.
+
+**An epic is an ordinary issue with sub-issues.** Limits: 100 sub-issues per
+parent, 8 levels of nesting; sub-issues may cross repositories with the same
+owner. `gh` handles it natively; the commands and traps are in the
+`github-issues` skill.
+
+GitHub's real issue types (an `Epic` type) are organisation-only; personal
+repositories use `type:epic` / `type:story` labels instead.
+
+## Visualisation
+
+Mermaid is the only diagram format that renders everywhere it is needed.
+
+| Surface | How |
+| --- | --- |
+| GitHub issues and PRs | native mermaid rendering |
+| neovim | `snacks.image` (`nvf/utility.nix`) shells out to `mmdc`; Ghostty speaks the kitty graphics protocol |
+| opencode | the `diagram` skill renders with `mmdc` and reads the PNG back as an attachment |
+| IntelliJ / RustRover | built-in mermaid preview |
+
+`imagemagick` is in `development.nix` because `snacks.image` calls `identify`.
+Only mermaid is available — no `d2`, `plantuml` or Graphviz. Mermaid does not
+render in Jira Cloud.
 
 ## Prior art
 
@@ -213,83 +177,31 @@ Surveyed before building. Conclusion: **build our own, steal two ideas.**
 
 | Project | Verdict |
 | --- | --- |
-| [`github/spec-kit`](https://github.com/github/spec-kit) | 125k★, MIT, healthy, officially opencode-integrated. But local-markdown only: `/speckit.taskstoissues` creates one **flat** issue per task — no epic, no parent, no Jira. Steal the `clarify` question protocol. |
-| [`mbachorik/spec-kit-jira`](https://github.com/mbachorik/spec-kit-jira) | 33★, MIT, stale. Steal the Epic/Story/Task mapping-config shape. |
-| `Fission-AI/OpenSpec` | 63k★, same local-markdown limitation, global npm install. Skip. |
-| `Cluster444/agentic` | MIT but abandoned (38 commits, one week, ~11 months cold). Two agent files worth adapting; best idea is enforcing role separation with `read: false` rather than instructions. |
-| `darrenhinde/OpenAgentsControl` | 4.7k★, maintained, but `curl \| bash` install, TypeScript/Next.js content, and its `/commit` auto-pushes without asking. Skip. |
-| `oh-my-openagent` | 67k★, hyperactive. Mutates `~/.config/opencode`, prebuilt npm binaries, telemetry on by default, auto-merges PRs. SUL-1.0, not open source. Skip. |
-| `spec-kit-worktree`, `spec-kit-review` | A paragraph of prose and a quality-only reviewer respectively. Not dependencies. |
-| [`BuilderIO/skills`](https://github.com/BuilderIO/skills) | 3.9k★, MIT, actively maintained. Took `read-the-damn-docs` (forked as `docs-first`). Rejected the visual skills — see below. |
-
-Nothing surveyed contains a single line about Nix, Pulumi or Kubernetes.
+| [`github/spec-kit`](https://github.com/github/spec-kit) | MIT, opencode-integrated, but flat issues only. Took the `clarify` question protocol. |
+| [`mbachorik/spec-kit-jira`](https://github.com/mbachorik/spec-kit-jira) | Stale. Epic/Story/Task mapping shape noted. |
+| `Fission-AI/OpenSpec` | Same local-markdown limitation, global npm install. Skip. |
+| `Cluster444/agentic` | MIT but abandoned. Adapted `codebase-pattern-finder`. |
+| `darrenhinde/OpenAgentsControl` | `curl \| bash` install, and its `/commit` auto-pushes. Skip. |
+| `oh-my-openagent` | Mutates `~/.config/opencode`, telemetry on by default, not open source. Skip. |
+| [`BuilderIO/skills`](https://github.com/BuilderIO/skills) | MIT. `read-the-damn-docs` was forked as `docs-first`, later reduced to one line in `context.md`. Visual skills rejected, see below. |
 
 ### Why `visual-plan` / `visual-recap` were rejected
 
-They are well made, and the temptation is real. Three disqualifying reasons:
+1. **They refuse to produce markdown**, while this workflow's output is
+   markdown in issues, PRs and `docs/plans/`.
+2. **Hosted mode uploads the diff** to a third-party database; secret
+   redaction is an LLM instruction, not a filter.
+3. **Local mode is not offline and not vendorable.**
 
-1. **They refuse to produce markdown.** From their own `references/
-   connection.md`: *"The deliverable is ALWAYS a published Agent-Native Plan,
-   never inline chat content… Falling back to inline content is a defect, not a
-   degraded mode."* This workflow's entire output is markdown in a GitHub issue
-   or PR body. GitHub does not render MDX/JSX.
-2. **Hosted mode uploads the diff** — real paths, verbatim hunks, schema with
-   column types, API routes — to a third-party database. Secret redaction is an
-   LLM instruction, not a filter. Unacceptable for work code.
-3. **Local mode is not offline and not vendorable.** It needs
-   `npx @agent-native/core plan local serve` at runtime, the renderer is still
-   `plan.agent-native.com` reading from a localhost bridge, and valid MDX
-   requires a live `get-plan-blocks` call because the tag names drift.
+Worth taking was the diff taxonomy (schema, contract, structure,
+before/after), now used in `/pr` and `/review-all`.
 
-What was worth taking: the diff taxonomy — schema change, contract change,
-structural move, before/after as the headline — now used in `/pr` and
-`/review-all` with mermaid, which renders natively where it is needed.
+**Do not install any of them.** Every installer is incompatible with
+declarative Nix management.
 
-Also rejected: `plow-ahead` (converts clarifying questions into assumptions —
-the exact inverse of the refinement design), `rewind` (a signed macOS
-screen-recording app plus an MCP broker installed via npx).
+## Untested
 
-**Do not install any of them.** Every installer is incompatible with declarative
-Nix management.
-
-## Status
-
-Built:
-
-- Global skills — `conventional-commits`, `rust-workflow`, `refinement-loop`,
-  `architecture`, `docs-first`, plus vendored `i-have-adhd` (pinned from
-  `ayghri/i-have-adhd`, on demand via `/i-have-adhd`)
-- Global rules — `global/context.md` → `~/.config/opencode/AGENTS.md`, the
-  always-on short form of the `i-have-adhd` output rules. Applies to every
-  session on both Macs. ⚠️ It also suppresses `~/.claude/CLAUDE.md`, which
-  opencode would otherwise use as the global rules file
-- Global agents — `analyst-architecture`, `reviewer-{architecture,quality,
-  tests,business,security}`, `codebase-locator`, `codebase-pattern-finder`
-- Global commands — `commit`, `review-all`, `diagram`
-- Personal — `skills/{github-personal,github-issues,review-comments}`,
-  `command/{pr,epic,refine,workspace,business-case,review-comments}`
-
-⚠️ T3 Code 0.0.40 does not surface opencode `command/` definitions — its
-opencode driver loads models, agents and skills only (bin.mjs
-`loadInventoryFromCli`), so `/review-comments` is invisible there. The
-canonical workflow lives in the `review-comments` skill, which T3 Code *does*
-surface (`/skill:review-comments`); the command is a thin wrapper for the
-opencode CLI. Revisit when T3 Code ships command support.
-- Config — permission posture, profile anchor, `.work/` gitignore, Anthropic
-  skills pin, `imagemagick`
-
-Not built yet:
-
-- Work profile: `command/epic`, `command/refine`, `command/workspace`,
-  `skills/jira-issues`, and the Rovo MCP server. Deferred until Jira is wanted;
-  the GitHub versions are the reference implementation.
-
-Untested:
-
-- The whole pipeline is written but has not been exercised end to end. First
-  real run should be a small epic on a personal repository.
-- `/diagram` depends on the opencode TUI actually displaying an image
-  attachment. The capability exists (`OPENTUI_GRAPHICS`); it has not been
-  confirmed in practice.
-- Inline mermaid in neovim needs `imagemagick`, added at the same time as this
-  batch and not yet verified after a rebuild.
+- The pipelines have not been run end to end since the rework; the pending
+  checks are listed per step in [plans/opencode-rework.md](plans/opencode-rework.md).
+- Whether T3 Code loads a workflow skill when asked by name, given
+  `disable-model-invocation: true` hides it from the model's list.
