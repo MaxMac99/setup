@@ -1,7 +1,6 @@
 ---
 name: review-all
-description: Review the current change from three perspectives in parallel - code (structure, quality, security), tests, and business requirements. Run only when the user asks for it.
-disable-model-invocation: true
+description: Only when the user explicitly asks for the review-all workflow: review the current change from three perspectives in parallel - code (structure, quality, security), tests, and business requirements.
 ---
 
 # Review all

@@ -1,7 +1,6 @@
 ---
 name: plan-next
-description: Work off the next open step of a plan in docs/plans/ - implement it, verify it, tick it, stage it, and stop for the commit. Run only when the user asks for it.
-disable-model-invocation: true
+description: Only when the user explicitly asks for the plan-next workflow: work off the next open step of a plan in docs/plans/ - implement it, verify it, tick it, stage it, and stop for the commit.
 ---
 
 # Plan-next workflow

@@ -1,7 +1,6 @@
 ---
 name: epic
-description: Turn a rough feature idea into a refined epic and its child stories, then create them as GitHub issues. Run only when the user asks for it.
-disable-model-invocation: true
+description: Only when the user explicitly asks for the epic workflow: turn a rough feature idea into a refined epic and its child stories, then create them as GitHub issues.
 ---
 
 # Epic workflow

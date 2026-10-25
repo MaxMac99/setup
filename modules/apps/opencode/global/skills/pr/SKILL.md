@@ -1,7 +1,6 @@
 ---
 name: pr
-description: Push the current branch and open a GitHub pull request with a generated title and body. Run only when the user asks for it.
-disable-model-invocation: true
+description: Only when the user explicitly asks for the pr workflow: push the current branch and open a GitHub pull request with a generated title and body.
 ---
 
 # Pull request workflow

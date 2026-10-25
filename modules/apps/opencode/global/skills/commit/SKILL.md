@@ -1,7 +1,6 @@
 ---
 name: commit
-description: Group the working tree into small logical commits, stage the first, and propose a Conventional Commit message. Run only when the user asks for it.
-disable-model-invocation: true
+description: Only when the user explicitly asks for the commit workflow: group the working tree into small logical commits, stage the first, and propose a Conventional Commit message.
 ---
 
 # Commit workflow

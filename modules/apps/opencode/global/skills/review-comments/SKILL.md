@@ -1,7 +1,6 @@
 ---
 name: review-comments
-description: Work through the open review comments on a GitHub pull request - judge every comment, fix the justified ones (one commit per comment), rebut the rest on GitHub, rebase and push. Run only when the user asks for it.
-disable-model-invocation: true
+description: Only when the user explicitly asks for the review-comments workflow: work through the open review comments on a GitHub pull request - judge every comment, fix the justified ones (one commit per comment), rebut the rest on GitHub, rebase and push.
 ---
 
 # Review comments workflow

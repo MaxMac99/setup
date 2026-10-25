@@ -1,7 +1,6 @@
 ---
 name: plan
-description: Turn a large task into a step-by-step plan in docs/plans/, shaped by an interview with the user, to be worked off one step at a time with plan-next. Run only when the user asks for it.
-disable-model-invocation: true
+description: Only when the user explicitly asks for the plan workflow: turn a large task into a step-by-step plan in docs/plans/, shaped by an interview with the user, to be worked off one step at a time with plan-next.
 ---
 
 # Plan workflow

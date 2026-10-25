@@ -10,8 +10,10 @@ it wrong without it?
 
 1. Skills the model loads on its own carry knowledge only: `conventional-commits`,
    `rust-workflow`, `github-issues`, `github-personal`, `interview`, `diagram`.
-2. Workflows exist once, as a skill with `disable-model-invocation: true`, plus a
-   one-line command for the TUI. T3 Code does not surface opencode commands.
+2. Workflows exist once, as a skill whose description starts "Only when the
+   user explicitly asks for the … workflow", plus a one-line command for the
+   TUI. Not `disable-model-invocation`: that hides the skill, and outside the
+   TUI `@skill-id` is plain text, so T3 Code could not reach it.
 3. The Anthropic collection (`~/.claude/skills`) is removed from opencode
    entirely. claude-code keeps it.
 4. `architecture` is rewritten as the user's preferences (DDD, inward layers,
@@ -33,24 +35,24 @@ it wrong without it?
 
 ## Steps
 
-- [ ] **1. Wiring for V2 commands**
+- [x] **1. Wiring for V2 commands**
   - Goal: commands may carry `agent`, `model`, `subagent` frontmatter.
   - Files: `modules/apps/opencode/default.nix` (`profileCommands`),
     `profiles/*/command/` → `profiles/*/commands/`.
   - Done when: `nix flake check` passes and `/api/command` lists every
     profile command.
-  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
-    check `opencode api get /api/command`.
 
-- [ ] **2. Remove the Anthropic collection from opencode**
+- [x] **2. Remove the Anthropic collection from opencode**
   - Goal: no Anthropic skill reaches opencode, claude-code is unaffected.
   - Files: `modules/apps/opencode/default.nix`.
   - First: check the V2 docs for a switch that stops scanning
     `~/.claude/skills`; fall back to `deny` per skill ID.
   - Done when: `/api/skill` lists none of the 17, and `ls ~/.claude/skills`
     still does.
-  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
-    check `opencode api get /api/skill`.
+  - Verified differently: `/api/skill` lists every registered skill regardless
+    of permissions, so the check is a fresh session loading one, which fails
+    with `Permission denied: skill`. Sessions started before the rebuild keep
+    their old rules.
 
 - [x] **3. Prune knowledge skills**
   - Goal: only the knowledge the model lacks remains.
@@ -69,13 +71,16 @@ it wrong without it?
   - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
     try `/interview` with a real topic.
 
-- [ ] **5. Workflow pattern for commit, review-all, diagram**
+- [x] **5. Workflow pattern for commit, review-all, diagram**
   - Goal: workflow skill plus thin command; forwarding agents gone.
   - Files: `global/commands/`, new `global/skills/{commit,review-all,diagram}/`,
     `global/agents/{commit,diagram,review-all}.md` (delete).
-  - Done when: `/commit` works in the TUI and `@commit` works in T3 Code.
-  - Pending: after `sudo darwin-rebuild switch` and `opencode service restart`,
-    run `/commit` in the TUI and load `commit` by name in T3 Code.
+  - Done when: `/commit` works in the TUI and asking for the commit workflow
+    works in T3 Code.
+  - Verified 2026-10-25 with `opencode run` (plain text, as T3 Code sends it):
+    "Run the commit workflow." loads `commit` and starts with
+    `git status --short`; a general question about splitting commits loads
+    nothing.
 
 - [ ] **6. Review team of three**
   - Goal: `reviewer-code` replaces architecture, quality and security.
@@ -136,3 +141,9 @@ it wrong without it?
   global; new `/plan`
 - Q: How is a plan worked off? → A: checkboxes + `/plan-next`
 - Q: What happens to a finished plan? → A: stays committed, `Status: done`
+
+### Session 2026-10-24
+
+- Q: How do workflow skills become reachable in T3 Code? → A: drop
+  `disable-model-invocation`, guard with the description (corrects decision 2:
+  hidden skills cannot be loaded by name outside the TUI)

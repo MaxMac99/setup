@@ -1,7 +1,6 @@
 ---
 name: refine
-description: Refine an existing GitHub issue until it is implementable, then update it. Run only when the user asks for it.
-disable-model-invocation: true
+description: Only when the user explicitly asks for the refine workflow: refine an existing GitHub issue until it is implementable, then update it.
 ---
 
 # Refine workflow

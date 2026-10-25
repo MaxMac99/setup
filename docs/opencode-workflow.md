@@ -10,7 +10,7 @@ review → small commits → pull request. The wiring lives in
 | Kind | What it is | Who triggers it |
 | --- | --- | --- |
 | Knowledge skill | Facts and preferences the model does not have on its own | the model, when relevant |
-| Workflow skill | A multi-step procedure with side effects (`disable-model-invocation: true`) | the user only |
+| Workflow skill | A multi-step procedure with side effects; its description starts "Only when the user explicitly asks for the … workflow" | the user, by asking for it |
 | Command | One line that loads a workflow skill, so the TUI has `/name` | the user, TUI only |
 | Agent | A separate worker with its own context, permissions and report format | a workflow, in parallel |
 
@@ -19,8 +19,15 @@ without it?** General knowledge (DDD, framework docs, file formats) fails the
 test; your conventions, environment and preferences pass it.
 
 Workflows live once, in the skill. The command only forwards arguments,
-because T3 Code does not surface opencode commands but can load a skill by
-name.
+because T3 Code does not surface opencode commands; there, ask for the
+workflow by name ("run the commit workflow").
+
+Workflow skills are deliberately **not** `disable-model-invocation: true`.
+That flag hides a skill from the model's list, and only the TUI resolves
+`@skill-id` mentions; a client like T3 Code sends plain text, so a hidden
+skill becomes unreachable there (verified with `opencode run`, 2026-10). The
+description guard plus the permission prompts on commit, push and `gh`
+writes keep an unasked-for run from doing harm.
 
 ## Pipelines
 
@@ -203,5 +210,5 @@ declarative Nix management.
 
 - The pipelines have not been run end to end since the rework; the pending
   checks are listed per step in [plans/opencode-rework.md](plans/opencode-rework.md).
-- Whether T3 Code loads a workflow skill when asked by name, given
-  `disable-model-invocation: true` hides it from the model's list.
+- Whether the description guard reliably stops the model from starting a
+  workflow nobody asked for.
