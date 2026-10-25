@@ -76,17 +76,21 @@ On every host the **fetch runs as `max`** and only `nixos-rebuild` runs as root
 ```bash
 # brink-server / winkel-pi
 cd /etc/nixos
-git fetch origin multi-site; echo "fetch exit=$?"   # ⚠️ check this
-git reset --hard origin/multi-site
+git fetch origin main; echo "fetch exit=$?"   # ⚠️ check this
+git reset --hard origin/main
 sudo nixos-rebuild switch --flake /etc/nixos#<host>
 ```
 
-⚠️ **Never `git pull` on these clones.** `multi-site` has been rebased and
-force-pushed before, leaving a clone on an orphaned commit that no ref
-contained — invisible locally, and `pull` would *merge* the two histories
+Every clone deploys from `main`. The `multi-site` branch is gone from the
+remote; brink-server and winkel-pi were moved off it on 2026-10-25 and still
+carry a stale local `multi-site` branch — ignore it.
+
+⚠️ **Never `git pull` on these clones.** `multi-site` was rebased and
+force-pushed while it existed, leaving a clone on an orphaned commit that no
+ref contained — invisible locally, and `pull` would *merge* the two histories
 rather than fail. Repair and routine update are both
-`git fetch && git reset --hard origin/multi-site`. Detect with
-`git merge-base --is-ancestor HEAD origin/multi-site`.
+`git fetch && git reset --hard origin/main`. Detect with
+`git merge-base --is-ancestor HEAD origin/main`.
 
 ⚠️ **A failed `git fetch` makes every later check lie.** It prints an error
 that is easy to miss mid-script, and then `merge-base --is-ancestor` cheerfully
@@ -184,6 +188,11 @@ migration doc's decision log has the full accounting.
 - ⚠️ **`__NIXOS_SET_ENVIRONMENT_DONE` hides new env vars from the shell that
   ran the rebuild.** A correct `environment.variables` change looks like it did
   nothing. Reconnect before concluding it failed.
+- ⚠️ **A hung ionos reboot looks like a hung boot.** On 2026-10-25 the qxl
+  driver blocked PID 1 during *shutdown*: ping answered, every port refused,
+  and the journal showed the old boot running until the panel reset. Check
+  `journalctl --list-boots` before debugging boot. qxl is now blacklisted
+  (`hosts/nixos/ionos/hardware-configuration.nix`).
 - ⚠️ **`sops-install-secrets` is never cached** — it ships from the sops-nix
   flake, so every host compiles it and runs its test suite whenever the input
   moves. 20 minutes on ionos.
