@@ -82,10 +82,7 @@ in {
           # Nix tooling
           nixpkgs-fmt
           selene
-          # TEMP-FIX(2026-09-27): statix's own check phase fails on this
-          # nixpkgs rev; retry without override at the next nixpkgs release
-          # jump. See docs/workarounds.md.
-          (statix.overrideAttrs (_: {doCheck = false;}))
+          statix
 
           # Cloud / API
           azure-cli
