@@ -94,6 +94,16 @@
     # Enable IPv6
     enableIPv6 = true;
 
+    # ⚠️ Overrides flake.nix's `mkDefault true`, which runs dhcpcd on *every*
+    # interface — flannel.1, cni0 and each pod's veth included. On 2026-10-25,
+    # after a reboot, dhcpcd put IPv4LL addresses on those and the flannel
+    # routes to the other nodes' pod CIDRs (10.42.{1,2,3}.0/24) were gone.
+    # flannel's vxlan backend never re-adds them, so traefik-public timed out
+    # on every pod outside ionos (504 → ChatGPT's MCP "Internal error -32603")
+    # until k3s was restarted. With the global switch off, NixOS limits dhcpcd
+    # to the interfaces that set `useDHCP` themselves — ens6 below.
+    useDHCP = false;
+
     # Configure ens6 interface for public access
     interfaces.ens6 = {
       useDHCP = true; # Get IPv4 via DHCP
