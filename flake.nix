@@ -28,10 +28,12 @@
       url = "github:mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nvf = {
-      url = "github:notashelf/nvf";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # ⚠️ Deliberately no `inputs.nixpkgs.follows`: nvf pins hashes of the
+    # packages it builds itself (jls `mvnHash`, pnpmDeps, …) against its own
+    # nixpkgs, and overriding that is unsupported upstream
+    # (https://github.com/NotAShelf/nvf/issues/1844). With `follows`, the
+    # maven 3.10.0 bump broke jls on 2026-10-25. See docs/workarounds.md.
+    nvf.url = "github:notashelf/nvf";
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
     nixos-raspberrypi.url = "github:nvmd/nixos-raspberrypi/main";
     zfs-exporter = {

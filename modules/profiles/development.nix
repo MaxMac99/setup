@@ -31,6 +31,32 @@
     ];
   });
 in {
+  # TEMP-FIX(2026-10-25): nixpkgs bumped invoke to 3.x, which no released
+  # fabric supports, so fabric is marked broken and azure-cli (which depends
+  # on it) refuses to evaluate. Mirror NixOS/nixpkgs#576874: build fabric from
+  # the unreleased commit that adds invoke 3 support. Expires when #576874
+  # (or another fabric fix) lands in our nixpkgs. See docs/workarounds.md.
+  nixpkgs.overlays = [
+    (final: prev: {
+      pythonPackagesExtensions =
+        prev.pythonPackagesExtensions
+        ++ [
+          (_: pyPrev: {
+            fabric = pyPrev.fabric.overridePythonAttrs (old: {
+              version = "3.2.3-unstable-2026-04-07";
+              src = final.fetchFromGitHub {
+                owner = "fabric";
+                repo = "fabric";
+                rev = "cc098ad475dbbe2e10aba72692d83aee58919570";
+                hash = "sha256-Z1tGcjdLrzbqcbS6XwapSgDNpyLbBiO21yeqi7XhbpQ=";
+              };
+              meta = old.meta // {broken = false;};
+            });
+          })
+        ];
+    })
+  ];
+
   home-manager.users.${config.hostSpec.username} = {
     programs.direnv = {
       enable = true;
