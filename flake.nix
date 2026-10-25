@@ -181,6 +181,18 @@
   in {
     formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.alejandra);
 
+    # The OpenCode setup for hosts outside home-manager - the always-on T3 Code
+    # pod in homelab-k8s (apps/t3code.ts) builds both from a pinned rev.
+    packages = nixpkgs.lib.genAttrs ["x86_64-linux"] (system: let
+      core = import ./modules/apps/opencode/core.nix {
+        inherit lib inputs;
+        pkgs = nixpkgs.legacyPackages.${system};
+      };
+    in {
+      opencode-config = core.tree "personal";
+      meridian = core.meridian.service;
+    });
+
     # ⚠️ mkRPiInstaller is deliberately not exposed as a flake output.
     #
     # Mixing nixpkgs' stock `installer/sd-card/installation-device.nix`

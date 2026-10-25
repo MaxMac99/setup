@@ -32,3 +32,11 @@ jobs:
           nix build .#nixosConfigurations.ionos.config.system.build.toplevel --dry-run
           nix build .#nixosConfigurations.brink-server.config.system.build.toplevel --dry-run
           nix build .#nixosConfigurations.winkel-pi.config.system.build.toplevel --dry-run
+
+      # A real build, not a dry run: homelab-k8s pins a rev of this repo and
+      # the T3 Code pod builds these on start, so a broken rev must fail here.
+      - name: Build opencode packages for the T3 Code pod
+        run: |
+          nix build .#opencode-config .#meridian
+          jq -e '.provider.anthropic.options.baseURL == "http://127.0.0.1:3456/v1"' result/opencode.json
+          test -f result/skills/plan/SKILL.md
