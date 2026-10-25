@@ -5,7 +5,7 @@
   pkgs,
   ...
 }: let
-  # Same pin as `adhdSkill` in modules/apps/opencode/default.nix. Identical
+  # Same pin as `adhdSkill` in modules/apps/opencode/core.nix. Identical
   # owner/repo/rev/hash means nix resolves both to ONE store path and one fetch,
   # so opencode gets the skill and claude-code gets the plugin out of the same
   # tree. ⚠️ They are still two separate expressions: bumping one rev and not
