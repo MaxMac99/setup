@@ -114,6 +114,37 @@
       commands = profileCommands (dir + "/commands");
     }
     // profileSettings.${name};
+  # A profile's own skills, one entry per directory like the global ones.
+  profileSkills = name: let
+    dir = ./profiles + "/${name}/skills";
+  in
+    lib.mapAttrs (skill: _: dir + "/${skill}")
+    (lib.filterAttrs (_: t: t == "directory") (builtins.readDir dir));
+
+  # The subagents in Claude Code's format: `name` is required there, and the
+  # read-only permission block becomes a tool denylist. Only `mode: subagent`
+  # translates - a primary agent like `milestone` is a permission set for a
+  # whole session, which Claude Code has no per-agent equivalent for. Any
+  # other frontmatter line fails evaluation instead of being dropped.
+  agentFront = file: lib.splitString "\n" (lib.head (lib.splitString "\n---\n" (lib.removePrefix "---\n" (builtins.readFile (./global/agents + "/${file}")))));
+  claudeAgents =
+    lib.mapAttrs' (file: _: let
+      name = lib.removeSuffix ".md" file;
+      front = agentFront file;
+      known = line: lib.hasPrefix "description: " line || lib.elem line ["mode: subagent" "permission:" "  edit: deny" "  write: deny"];
+      body = lib.concatStringsSep "\n---\n" (lib.tail (lib.splitString "\n---\n" (lib.removePrefix "---\n" (builtins.readFile (./global/agents + "/${file}")))));
+    in
+      assert lib.assertMsg (lib.all known front) "claude-code: agents/${file}: unsupported frontmatter";
+        lib.nameValuePair name (pkgs.writeText "${name}.md" (lib.concatStringsSep "\n" ([
+            "---"
+            "name: ${name}"
+            (lib.findFirst (lib.hasPrefix "description: ") "" front)
+          ]
+          ++ lib.optional (lib.elem "  edit: deny" front) "disallowedTools: Edit, Write, NotebookEdit"
+          ++ ["---" body]))))
+    (lib.filterAttrs (file: t: t == "regular" && lib.hasSuffix ".md" file && lib.elem "mode: subagent" (agentFront file))
+      (builtins.readDir ./global/agents));
+
   profileConfig = name:
     (pkgs.formats.json {}).generate "opencode-${name}.json" ({
         "$schema" = "https://opencode.ai/config.json";
@@ -410,4 +441,27 @@ in
           inherit path;
         })
         self.skills);
+
+    # The same skills, subagents and context for Claude Code, so T3 can run
+    # them on its `claude` provider - which, unlike opencode behind Meridian,
+    # shows token use and context size and can compact. The commands are left
+    # out: Claude Code makes every skill a slash command of its own name, and
+    # each command only loads the skill of that name. Link the entries one by
+    # one - ~/.claude/skills also holds skills synced from claude.ai.
+    claudeTree = profile:
+      pkgs.linkFarm "claude-config-${profile}" ([
+          {
+            name = "CLAUDE.md";
+            path = self.context;
+          }
+        ]
+        ++ lib.mapAttrsToList (name: path: {
+          name = "agents/${name}.md";
+          inherit path;
+        })
+        claudeAgents
+        ++ lib.mapAttrsToList (name: path: {
+          name = "skills/${name}";
+          inherit path;
+        }) (self.skills // profileSkills profile));
   }
