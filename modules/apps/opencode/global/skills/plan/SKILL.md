@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Only when the user explicitly asks for the plan workflow: turn a large task into a step-by-step plan in docs/plans/, shaped by an interview with the user, to be worked off one step at a time with plan-next.
+description: Only when the user explicitly asks for the plan workflow: turn a large task into a step-by-step plan in docs/plans/, grouped into milestones, shaped by an interview with the user, to be worked off with plan-next or milestone.
 ---
 
 # Plan workflow
@@ -69,10 +69,27 @@ If two steps always change together, merge them. If one has no clear check,
 split it or sharpen it. A diagram belongs in the plan only per the `diagram`
 skill.
 
+## 4b. Group into milestones
+
+A plan with more than about five steps groups them into milestones. A
+milestone is one pull request: it ships on its own, leaves the repository
+working, and is reviewable in one sitting. Number steps continuously across
+milestones.
+
+```markdown
+### Milestone 1: <outcome, not activity>
+
+- [ ] **1. <imperative title>**
+  …
+```
+
+A short plan needs no headings; it is one milestone.
+
 ## 5. Approve
 
 Show the steps and stop. On approval, set `Status: in progress` and propose
-committing the plan on its own. Next is `/plan-next`.
+committing the plan on its own. Next is `/plan-next` (one step, local,
+reviewed by the user) or `/milestone` (a whole milestone as a PR).
 
 ## Rules
 
