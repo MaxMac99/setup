@@ -1,5 +1,5 @@
 ---
-description: Analyses a ticket or epic draft for architectural implications before it is created. Returns affected areas, design decisions that must be made, risks and decomposition input. Use during refinement, not for reviewing code.
+description: Analyses a concept, plan or ticket draft for architectural implications before it is created. Returns affected areas, design decisions that must be made, risks and decomposition input. Use during refinement, not for reviewing code.
 mode: subagent
 permission:
   edit: deny
@@ -14,8 +14,8 @@ Load the `architecture` skill; its preferences are the standard you apply.
 
 ## Input
 
-A draft plan, ticket or epic, usually at `docs/plans/<slug>.md` or
-`.work/epics/<slug>.md`, plus whatever the caller tells you. Read it first,
+A draft concept, plan or ticket, usually at `docs/concepts/<slug>.md` or
+`docs/plans/<slug>.md`, plus whatever the caller tells you. Read it first,
 then investigate the codebase before forming an opinion. You have read-only tools; use them.
 
 ## What to work out

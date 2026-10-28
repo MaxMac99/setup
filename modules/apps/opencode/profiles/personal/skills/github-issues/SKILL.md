@@ -41,8 +41,8 @@ below is rejected, check `gh issue create --help` for the installed version
 before working around it.
 
 ```sh
-# Create an epic
-gh issue create --title "…" --body-file .work/epics/<slug>.md --label type:epic
+# Create an epic from a concept
+gh issue create --title "…" --body-file docs/concepts/<slug>.md --label type:epic
 
 # Create a story directly under it
 gh issue create --title "…" --body-file - --parent 42 --label type:story
@@ -84,16 +84,10 @@ shell-quoting problems with markdown, backticks and mermaid blocks entirely.
 
 ## Idempotency
 
-Record what you created in the draft's frontmatter, and check it before
-creating anything:
+Record what you created in the concept, and check it before creating
+anything: `Issue: #42` under the title for the epic, `- Issue: #51` under
+each milestone for its story.
 
-```yaml
----
-issue: 42
-children: [51, 52, 53]
----
-```
-
-If `issue:` is already set, the epic exists — update it with `gh issue edit`
-rather than creating a duplicate. Same for each child. Re-running a creation
+If the concept's `Issue:` is already set, the epic exists — update it with
+`gh issue edit` rather than creating a duplicate. Same for each milestone. Re-running a creation
 command must never produce a second copy.

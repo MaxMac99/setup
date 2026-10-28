@@ -50,7 +50,7 @@ same standard of proof). Differences from that workflow:
 2. Reply `Fixed in <hash>. <one line>` on each fixed comment.
 3. `gh pr checks <number> --watch --fail-fast` - the pipeline and
    CodeRabbit's incremental review.
-4. Red pipeline: fix as in the milestone workflow section 8.
+4. Red pipeline: fix as in the milestone workflow section 9.
 5. Fetch both endpoints again. Any CodeRabbit comment or review created after
    the noted time - including answers to your rebuttals - ends the run. Do not
    act on it.

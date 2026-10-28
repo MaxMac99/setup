@@ -31,25 +31,48 @@ writes keep an unasked-for run from doing harm.
 
 ## Pipelines
 
-**Plan-driven** (everywhere, the only one at kopf3):
+Three levels, like epic → story → subtask:
+
+| Level | Artefact | Ships as | Built by |
+| --- | --- | --- | --- |
+| Concept | `docs/concepts/<slug>.md` | several milestones | `/concept` |
+| Milestone | `docs/plans/<slug>-m<n>.md` | one PR; several only if unavoidable (repos, forced order) | `/plan` |
+| Step | checkbox in the plan | one commit | `/plan-next` or `/milestone` |
+
+**Concept** (everywhere): rough idea → interview → goals, decisions, design,
+milestones → `/concept`. In the personal profile it can also create the
+concept as an epic issue with one story per milestone; `/refine <n>` then
+sharpens a story.
+
+**Local, step by step** - small plans, or when every step should be checked:
 
 | # | Step | Surface |
 | --- | --- | --- |
-| 1 | Interview → step plan in `docs/plans/<slug>.md` | `/plan` |
+| 1 | Interview → plan for one milestone | `/plan` (or `/plan <concept> M<n>`) |
 | 2 | Implement one step, verify, tick, stage, stop | `/plan-next` |
 | 3 | Review the branch | `/review-all` |
 | 4 | Stage small commits | `/commit` |
 | 5 | Open the pull request | `/pr` |
 | 6 | Work through PR review comments | `/review-comments` |
 
-**Ticket-driven** (personal, GitHub issues):
+**Autonomous, one milestone per PR** - `/milestone <plan>` or
+`/milestone <concept> M<n>`:
 
-| # | Step | Surface |
-| --- | --- | --- |
-| 1 | Rough idea → epic with stories as issues | `/epic` |
-| 2 | Refine one story | `/refine <n> [--deep]` |
-| 3 | Branch from the story, implement | built-in worktrees + `build` agent |
-| 4 | Review, commit, PR, comments | as above |
+1. The calling thread writes the plan if it is missing (interview) and checks
+   that every repository the plan names is a T3 project; otherwise it stops
+   before creating anything.
+2. Per PR section (a plan without sections is one) it creates a worktree with
+   `wt new` and launches a T3 thread bound to it. Sections that wait for
+   another start once their predecessors are green.
+3. Each thread commits per step, pushes, opens its PR and watches the
+   pipeline until it is green. At kopf3 it then does one CodeRabbit round
+   (`coderabbit-round`, work profile).
+4. Each reports once: green, stuck, or new CodeRabbit comments after its
+   round.
+
+The `milestone` agent allows commit, push and `gh pr create` without a prompt
+for this workflow only. T3 does not expand opencode commands, so a launched
+thread runs with T3's runtime mode instead of that agent.
 
 `/interview` runs the question format on its own, for decisions that do not
 need a plan.
@@ -58,9 +81,9 @@ need a plan.
 
 | Scope | Knowledge skills | Workflow skills + commands | Agents |
 | --- | --- | --- | --- |
-| global | `architecture`, `conventional-commits`, `rust-workflow`, `interview`, `diagram`, `refinement-loop`, `i-have-adhd` (vendored) | `commit`, `pr`, `review-all`, `review-comments`, `plan`, `plan-next`; command `/interview` | `reviewer-code`, `reviewer-tests`, `reviewer-business`, `analyst-architecture`, `codebase-pattern-finder` |
-| personal | `github-issues`, `github-personal` | `epic`, `refine` | — |
-| work | — | — | — |
+| global | `architecture`, `conventional-commits`, `rust-workflow`, `interview`, `diagram`, `refinement-loop`, `i-have-adhd` (vendored) | `commit`, `pr`, `review-all`, `review-comments`, `concept`, `plan`, `plan-next`, `milestone`; command `/interview` | `reviewer-code`, `reviewer-tests`, `reviewer-business`, `analyst-architecture`, `codebase-pattern-finder`, `milestone` (primary) |
+| personal | `github-issues`, `github-personal` | `refine` | — |
+| work | `coderabbit-round` | — | — |
 
 Anthropic's skill collection reaches `~/.claude/skills` through
 `modules/apps/claude-code`. opencode scans that directory too, so its 17 IDs
@@ -83,21 +106,24 @@ Settled during design; recorded so they are not re-litigated.
 | Plans | Committed in `docs/plans/`, kept with `Status: done` | They record why something was built that way |
 | Plan steps | Checkbox, goal, files, "Done when"; ticked only when verified | A new session has nothing but the file |
 | Tickets at kopf3 | None written by the agent; Jira stays manual | Plans replace tickets for agent work |
-| Hierarchy depth | Two levels: Epic → Story | A story is the unit you branch from |
+| Hierarchy depth | Three levels: Concept → Milestone → Step; never a fourth | A milestone's PR section is the unit you branch from; PR sections are a delivery split, not a fourth level; a too-long plan means split the milestone |
+| Concepts | Committed in `docs/concepts/`; replace the former `/epic` | Works at kopf3 without issues; issues are an optional export |
 | Ticket template | Context / Acceptance Criteria / Out of Scope / Design / Open Questions | `reviewer-business` checks against the criteria |
 | Open Questions at creation | Must be empty | Otherwise the thinking is deferred to implementation |
 | Review strictness | Report, blocking marked, never gates | You decide whether to proceed |
 | Review team | Three: code, tests, business | Separate reviewers only where input or tools differ |
-| Who commits | The user, unless told otherwise | Staging is cheap to undo, a commit less so |
+| Who commits | The user, unless told otherwise; `/milestone` commits and pushes feature branches itself | Staging is cheap to undo, a commit less so; a milestone runs unattended |
 | Model pins on agents | None | A pinned model is what rotted the upstream `agentic` files |
 
 ## Working files
 
 ```
-docs/plans/<slug>.md   committed step plan, built by /plan
+docs/concepts/<slug>.md  committed concept with milestones, built by /concept
+docs/plans/<slug>.md     committed step plan for one milestone, built by /plan
 .work/
-  epics/<slug>.md      epic draft; frontmatter records created issue numbers
+  <repo>-<branch>/     worktree per milestone, created by /milestone via wt
   refine-<n>.md        story body during /refine
+  coderabbit/          reply drafts for the CodeRabbit round
   pr-body.md           generated PR body
   commit-msg           multi-line commit message, when needed
   review-comments/     reply drafts for /review-comments, one file per thread
