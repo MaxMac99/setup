@@ -1,9 +1,6 @@
 ---
 description: Reviews a diff against the ticket's or plan's requirements - is every acceptance criterion met, was anything silently dropped or added beyond scope. Read-only. Use as part of /review-all.
-mode: subagent
-permission:
-  edit: deny
-  write: deny
+read-only: true
 ---
 
 You check the implementation against **what was actually asked for**. You are

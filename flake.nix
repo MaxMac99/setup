@@ -181,15 +181,16 @@
   in {
     formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.alejandra);
 
-    # The OpenCode setup for hosts outside home-manager - the always-on T3 Code
-    # pod in homelab-k8s (apps/t3code.ts) builds both from a pinned rev.
+    # The OpenCode and Claude Code setup for hosts outside home-manager - the
+    # always-on T3 Code pod in homelab-k8s (apps/t3code.ts) builds them from a
+    # pinned rev.
     packages = nixpkgs.lib.genAttrs ["x86_64-linux"] (system: let
-      core = import ./modules/apps/opencode/core.nix {
-        inherit lib inputs;
-        pkgs = nixpkgs.legacyPackages.${system};
-      };
+      pkgs = nixpkgs.legacyPackages.${system};
+      core = import ./modules/apps/opencode/core.nix {inherit lib pkgs inputs;};
+      claude = import ./modules/apps/claude-code/core.nix {inherit lib pkgs;};
     in {
       opencode-config = core.tree "personal";
+      claude-config = claude.tree "personal";
       meridian = core.meridian.service;
     });
 

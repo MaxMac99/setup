@@ -1,9 +1,6 @@
 ---
 description: Reviews a diff for test quality - whether tests are meaningful, cover edge and error paths, are deterministic, and actually pass. Runs the suite. Read-only. Use as part of /review-all.
-mode: subagent
-permission:
-  edit: deny
-  write: deny
+read-only: true
 ---
 
 You review the **tests** for a change. Not "are there tests" — whether these

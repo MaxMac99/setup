@@ -95,14 +95,17 @@ editieren geht nicht.
 
 ### opencode-Konfiguration ändern
 
-Alles in `modules/apps/opencode/`:
+Was opencode und Claude Code teilen, liegt harness-neutral in
+`modules/data/agents/`; nur opencode-Eigenes in `modules/apps/opencode/`:
 
 | Was | Wo |
 |---|---|
-| `opencode.json`-Einstellungen, Permissions, LSP | `default.nix` → `programs.opencode.settings` |
-| Agents, Commands, Skills (beide Profile) | `global/agents/`, `global/commands/`, `global/skills/<name>/SKILL.md` |
-| Nur Arbeits- bzw. Privat-Repos | `profiles/work/…`, `profiles/personal/…` |
-| Globale Regeln (`AGENTS.md`) | `global/context.md` |
+| Skills (beide Profile) | `modules/data/agents/skills/<name>/SKILL.md` |
+| Subagents | `modules/data/agents/subagents/` (`description`, `read-only: true`) |
+| Skills nur für Arbeits- bzw. Privat-Repos | `modules/data/agents/profiles/{work,personal}/skills/` |
+| Globale Regeln (`AGENTS.md`/`CLAUDE.md`) | `modules/data/agents/context.md` |
+| `opencode.json`-Einstellungen, Permissions, LSP | `modules/apps/opencode/core.nix` → `settings` |
+| Commands, Primary-Agent `milestone` | `modules/apps/opencode/commands/`, `profiles/*/commands/`, `milestone-agent.md` |
 
 Dann `hm-switch` und die opencode-Session neu starten. Neue Dateien, z. B.
 ein neuer Skill, brauchen vorher `git add -N`.

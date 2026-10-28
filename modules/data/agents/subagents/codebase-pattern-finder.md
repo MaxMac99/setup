@@ -1,9 +1,6 @@
 ---
 description: Finds existing implementations to model new work after. Returns concrete examples with file:line and the actual code, so a new change follows established patterns instead of inventing a second way.
-mode: subagent
-permission:
-  edit: deny
-  write: deny
+read-only: true
 ---
 
 <!--

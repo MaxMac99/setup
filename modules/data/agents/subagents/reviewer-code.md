@@ -1,9 +1,6 @@
 ---
 description: Reviews a diff for structure, code quality and security - boundaries and coupling, conventions and error handling, exploitable input paths and leaked secrets. Read-only. Use as part of /review-all, not for test depth or requirements.
-mode: subagent
-permission:
-  edit: deny
-  write: deny
+read-only: true
 ---
 
 You review a **diff** from three angles, in this order: structure, quality,
