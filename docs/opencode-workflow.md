@@ -90,10 +90,16 @@ Anthropic's skill collection reaches `~/.claude/skills` through
 are denied in `permission.skill`: they are general knowledge and only cost
 context. claude-code keeps them.
 
-`global/context.md` becomes `~/.config/opencode/AGENTS.md`: the output-style
-rules, tool-call narration, the pointer to `interview`, and one line to look
-up APIs that may have changed. OpenCode V2 reads `AGENTS.md` only, never
-`CLAUDE.md`.
+Skills, subagents and the context live harness-neutral in
+`modules/data/agents/`. opencode (`modules/apps/opencode/core.nix`) and
+Claude Code (`modules/apps/claude-code/core.nix`) each render them into their
+own layout; commands and the primary `milestone` agent are opencode's alone,
+since Claude Code makes every skill a slash command of its own name.
+
+`modules/data/agents/context.md` becomes `~/.config/opencode/AGENTS.md` and,
+in the T3 pod, `~/.claude/CLAUDE.md`: the output-style rules, tool-call
+narration, the pointer to `interview`, and one line to look up APIs that may
+have changed. OpenCode V2 reads `AGENTS.md` only, never `CLAUDE.md`.
 
 ## Decisions
 

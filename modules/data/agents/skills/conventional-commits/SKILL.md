@@ -31,6 +31,7 @@ actually changed, not from the ticket:
 | Change touches | Scope |
 | --- | --- |
 | `modules/apps/opencode/` | `opencode` |
+| `modules/data/agents/` | `agents` |
 | `modules/profiles/core-user/nvf/` | `nvf` |
 | `hosts/nixos/maxdata/` | `maxdata` |
 | a Rust crate | the crate name |

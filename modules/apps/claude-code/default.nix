@@ -2,21 +2,13 @@
 # Homebrew cask in modules/system/darwin-homebrew.nix; nothing here installs it.
 {
   config,
+  lib,
   pkgs,
   ...
 }: let
-  # Same pin as `adhdSkill` in modules/apps/opencode/core.nix. Identical
-  # owner/repo/rev/hash means nix resolves both to ONE store path and one fetch,
-  # so opencode gets the skill and claude-code gets the plugin out of the same
-  # tree. ⚠️ They are still two separate expressions: bumping one rev and not
-  # the other leaves the two agents on different versions of the same ruleset,
-  # with no error anywhere. Bump them together.
-  adhdPlugin = pkgs.fetchFromGitHub {
-    owner = "ayghri";
-    repo = "i-have-adhd";
-    rev = "2ed064090711586e0c97a2fbbf15465fe8f1808b";
-    hash = "sha256-/h4HxkUbtRGoqgyFvjJrd++XmOd1KSVku5dR2/f9b/s=";
-  };
+  # The pin in modules/data/agents that opencode takes its skill from, so both
+  # agents always run the same version of the ruleset.
+  adhdPlugin = (import ./core.nix {inherit lib pkgs;}).adhd;
 
   # Anthropic's skill collection, and the only thing here that both agents read:
   # claude-code loads ~/.claude/skills natively and opencode scans the same path,
@@ -219,8 +211,8 @@ in {
 
     # Without this flag the ADHD plugin is inert until someone types
     # /i-have-adhd. The flag arms its SessionStart hook, which is what makes the
-    # ruleset always-on and so matches what ./opencode/global/context.md already
-    # does for opencode. Delete this line to go back to on-demand.
+    # ruleset always-on and so matches what modules/data/agents/context.md
+    # already does for opencode. Delete this line to go back to on-demand.
     home.file.".claude/.i-have-adhd-always".text = "";
   };
 }

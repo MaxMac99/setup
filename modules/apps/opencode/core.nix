@@ -1,7 +1,8 @@
-# The portable part of the OpenCode setup: settings, skills, commands, agents,
-# AGENTS.md, TUI and the Meridian runtime it is fronted by. No darwin, no
-# home-manager, no secrets - ./default.nix feeds this into programs.opencode
-# on the Macs, and the same values build the config for Linux hosts.
+# The portable part of the OpenCode setup: settings, commands, agents, TUI and
+# the Meridian runtime it is fronted by, plus the shared skills and context
+# from modules/data/agents. No darwin, no home-manager, no secrets -
+# ./default.nix feeds this into programs.opencode on the Macs, and the same
+# values build the config for Linux hosts.
 {
   lib,
   pkgs,
@@ -56,16 +57,28 @@
     };
   };
 
-  # The output-shaping ruleset. Its short form is always on via ./global/context.md;
-  # this pin only adds the long form, behind an explicit /i-have-adhd. Upstream's
-  # own installers (`npx skills add`, `claude plugin marketplace`) all mutate the
-  # config directory in place, so the skill is vendored instead.
-  adhdSkill = pkgs.fetchFromGitHub {
-    owner = "ayghri";
-    repo = "i-have-adhd";
-    rev = "2ed064090711586e0c97a2fbbf15465fe8f1808b";
-    hash = "sha256-/h4HxkUbtRGoqgyFvjJrd++XmOd1KSVku5dR2/f9b/s=";
-  };
+  # Skills, subagents and context, shared with claude-code.
+  agents = import ../../data/agents {inherit lib pkgs;};
+
+  # The shared subagents as opencode agent files, plus the opencode-only
+  # primary agent of the /milestone workflow.
+  agentFiles = pkgs.linkFarm "opencode-agents" (lib.mapAttrsToList (name: a: {
+      name = "${name}.md";
+      path = pkgs.writeText "${name}.md" (lib.concatStringsSep "\n" ([
+          "---"
+          "description: ${a.description}"
+          "mode: subagent"
+        ]
+        ++ lib.optionals a.readOnly ["permission:" "  edit: deny" "  write: deny"]
+        ++ ["---" a.body]));
+    })
+    agents.subagents
+    ++ [
+      {
+        name = "milestone.md";
+        path = ./milestone-agent.md;
+      }
+    ]);
 
   # A profile's commands/*.md, as `commands` entries. Frontmatter must be flat
   # `key: value` lines; `true`/`false` become booleans. Only fields V2 commands
@@ -106,44 +119,12 @@
     work = {share = "disabled";};
     personal = {share = "manual";};
   };
-  profileAttrs = name: let
-    dir = ./profiles + "/${name}";
-  in
+  profileAttrs = name:
     {
-      skills = ["${dir}/skills"];
-      commands = profileCommands (dir + "/commands");
+      skills = ["${agents.profileSkillDir name}"];
+      commands = profileCommands (./profiles + "/${name}/commands");
     }
     // profileSettings.${name};
-  # A profile's own skills, one entry per directory like the global ones.
-  profileSkills = name: let
-    dir = ./profiles + "/${name}/skills";
-  in
-    lib.mapAttrs (skill: _: dir + "/${skill}")
-    (lib.filterAttrs (_: t: t == "directory") (builtins.readDir dir));
-
-  # The subagents in Claude Code's format: `name` is required there, and the
-  # read-only permission block becomes a tool denylist. Only `mode: subagent`
-  # translates - a primary agent like `milestone` is a permission set for a
-  # whole session, which Claude Code has no per-agent equivalent for. Any
-  # other frontmatter line fails evaluation instead of being dropped.
-  agentFront = file: lib.splitString "\n" (lib.head (lib.splitString "\n---\n" (lib.removePrefix "---\n" (builtins.readFile (./global/agents + "/${file}")))));
-  claudeAgents =
-    lib.mapAttrs' (file: _: let
-      name = lib.removeSuffix ".md" file;
-      front = agentFront file;
-      known = line: lib.hasPrefix "description: " line || lib.elem line ["mode: subagent" "permission:" "  edit: deny" "  write: deny"];
-      body = lib.concatStringsSep "\n---\n" (lib.tail (lib.splitString "\n---\n" (lib.removePrefix "---\n" (builtins.readFile (./global/agents + "/${file}")))));
-    in
-      assert lib.assertMsg (lib.all known front) "claude-code: agents/${file}: unsupported frontmatter";
-        lib.nameValuePair name (pkgs.writeText "${name}.md" (lib.concatStringsSep "\n" ([
-            "---"
-            "name: ${name}"
-            (lib.findFirst (lib.hasPrefix "description: ") "" front)
-          ]
-          ++ lib.optional (lib.elem "  edit: deny" front) "disallowedTools: Edit, Write, NotebookEdit"
-          ++ ["---" body]))))
-    (lib.filterAttrs (file: t: t == "regular" && lib.hasSuffix ".md" file && lib.elem "mode: subagent" (agentFront file))
-      (builtins.readDir ./global/agents));
 
   profileConfig = name:
     (pkgs.formats.json {}).generate "opencode-${name}.json" ({
@@ -207,7 +188,7 @@
       # `gh api` is deliberately absent: `gh api repos/O/R/issues -f title=x`
       # implies POST, so any `gh api repos/*` allow would auto-approve writes.
       #
-      # ./global/context.md's "Tool call visibility" rule makes every call
+      # modules/data/agents/context.md's "Tool call visibility" rule makes every call
       # narrate (`read|write · what · why`), so allowlisting reads here costs
       # no visibility - it only skips the approval prompt, not the
       # explanation. Adding an allow never silences a call. The deny rules
@@ -367,25 +348,16 @@
     };
 
     # Universal habits, shared by both profiles. Identity-specific commands
-    # and skills live in profiles/*/ instead.
-    commands = ./global/commands;
-    agents = ./global/agents;
+    # live in ./profiles/*/commands instead. Commands are opencode's alone: Claude Code
+    # makes every skill a slash command of its own name.
+    commands = ./commands;
+    # A string, not the derivation: programs.opencode would read a
+    # derivation's attributes as agent definitions.
+    agents = "${agentFiles}";
 
     # These are opencode's *own* skills. The ones it picks up from
     # ~/.claude/skills are denied in `permission.skill` above.
-    #
-    # programs.opencode takes either a directory *or* an attrset, never both, so
-    # pulling in one out-of-tree skill means enumerating the in-tree ones too.
-    # readDir keeps that a one-place change when a skill is added.
-    skills =
-      lib.mapAttrs (name: _: ./global/skills + "/${name}")
-      (lib.filterAttrs (_: t: t == "directory") (builtins.readDir ./global/skills))
-      // {i-have-adhd = "${adhdSkill}/skills/i-have-adhd";};
-
-    # Output shaping, applied to every session on every host and in every repo.
-    # OpenCode 2 reads AGENTS.md only, so ~/.claude/CLAUDE.md never reaches
-    # it; rules meant for both agents have to live here too.
-    context = ./global/context.md;
+    inherit (agents) skills context;
 
     tui = {
       theme = "tokyonight";
@@ -441,27 +413,4 @@ in
           inherit path;
         })
         self.skills);
-
-    # The same skills, subagents and context for Claude Code, so T3 can run
-    # them on its `claude` provider - which, unlike opencode behind Meridian,
-    # shows token use and context size and can compact. The commands are left
-    # out: Claude Code makes every skill a slash command of its own name, and
-    # each command only loads the skill of that name. Link the entries one by
-    # one - ~/.claude/skills also holds skills synced from claude.ai.
-    claudeTree = profile:
-      pkgs.linkFarm "claude-config-${profile}" ([
-          {
-            name = "CLAUDE.md";
-            path = self.context;
-          }
-        ]
-        ++ lib.mapAttrsToList (name: path: {
-          name = "agents/${name}.md";
-          inherit path;
-        })
-        claudeAgents
-        ++ lib.mapAttrsToList (name: path: {
-          name = "skills/${name}";
-          inherit path;
-        }) (self.skills // profileSkills profile));
   }
