@@ -8,7 +8,8 @@
 }: let
   # The pin in modules/data/agents that opencode takes its skill from, so both
   # agents always run the same version of the ruleset.
-  adhdPlugin = (import ./core.nix {inherit lib pkgs;}).adhd;
+  core = import ./core.nix {inherit lib pkgs;};
+  adhdPlugin = core.adhd;
 
   # Anthropic's skill collection, and the only thing here that both agents read:
   # claude-code loads ~/.claude/skills natively and opencode scans the same path,
@@ -204,10 +205,16 @@ in {
     home.activation.claudeCodeSettings =
       lib.hm.dag.entryAfter ["writeBoundary"] "$DRY_RUN_CMD ${syncSettings}";
 
-    # ⚠️ Whole-directory symlink, so ~/.claude/skills is exactly this collection
-    # and nothing else. A second source cannot be dropped in beside it without
-    # merging both into one store directory first.
-    home.file.".claude/skills".source = "${anthropicSkills}/skills";
+    # ⚠️ Whole-directory symlinks, so ~/.claude/skills is exactly Anthropic's
+    # collection plus the shared and personal skills from core.nix, and nothing
+    # else - claude.ai-synced skills cannot land beside them. The work profile's
+    # skills are not linked: claude-code has one ~/.claude, no per-directory
+    # profile like opencode's wrapper.
+    home.file.".claude/skills".source = pkgs.symlinkJoin {
+      name = "claude-skills";
+      paths = ["${anthropicSkills}/skills" "${core.tree "personal"}/skills"];
+    };
+    home.file.".claude/agents".source = "${core.tree "personal"}/agents";
 
     # Without this flag the ADHD plugin is inert until someone types
     # /i-have-adhd. The flag arms its SessionStart hook, which is what makes the
