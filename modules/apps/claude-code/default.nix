@@ -154,8 +154,10 @@
   # ⚠️ `rust-analyzer-lsp` is force-disabled, not merely left out. Its command is
   # a bare `rust-analyzer` off PATH and it claims `.rs`, which nix-lsp also
   # claims - leaving both enabled points two servers at the same extension.
-  # swift-lsp is deliberately untouched: sourcekit-lsp comes from Xcode at
-  # /usr/bin, so there is no store path to pin and no duplicate to resolve.
+  # swift-lsp is the one official LSP plugin enabled rather than replaced:
+  # sourcekit-lsp must match the Swift compiler Xcode builds with, so a nixpkgs
+  # pin would be worse, and its bare `sourcekit-lsp` resolves through the
+  # /usr/bin xcrun shim to Xcode's toolchain anyway. nix-lsp claims no `.swift`.
   declared = (pkgs.formats.json {}).generate "claude-code-declared.json" {
     extraKnownMarketplaces = {
       "i-have-adhd".source = {
@@ -171,6 +173,7 @@
       "i-have-adhd@i-have-adhd" = true;
       "nix-lsp@nix-lsp" = true;
       "rust-analyzer-lsp@claude-plugins-official" = false;
+      "swift-lsp@claude-plugins-official" = true;
     };
   };
 
