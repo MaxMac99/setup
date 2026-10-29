@@ -11,6 +11,11 @@ milestone: it ships as one pull request, or several where one is technically
 impossible (section 4b). This produces the plan; it does not implement
 anything.
 
+**Too small for a plan?** A task that fits about three steps, touches one
+area and leaves no decision open does not need this workflow. Say so in one
+line, with the steps you would take, and offer to do it directly. Continue
+only if the user still wants the plan. Resuming an existing plan skips this.
+
 The milestone comes from one of two places:
 
 - **A concept** - the user names a concept and a milestone
@@ -32,6 +37,7 @@ Otherwise write the skeleton right away, so every answer has a home:
 
 ```markdown
 Status: draft
+Progress: 0/<n> · next: 1. <title>
 Concept: docs/concepts/<slug>.md, M<n>   (omit without a concept)
 Repos: <owner/name>
 
@@ -49,6 +55,11 @@ Repos: <owner/name>
 ```
 
 For a concept milestone, set its `Plan:` line in the concept to this file.
+
+`Progress:` is the plan's one-line state, for the user and for a resuming
+run. Whoever ticks a step updates it in the same edit: `<ticked>/<total> ·
+next: <k>. <title>`, with `· pending: <k>` for steps waiting on the user, and
+`<n>/<n> · done` at the end. Fill in the real count once the steps exist.
 
 ## 2. Explore
 

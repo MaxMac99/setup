@@ -18,6 +18,7 @@ permissions:
   - { action: shell, resource: "git push *", effect: allow }
   - { action: shell, resource: "gh pr create *", effect: allow }
   - { action: shell, resource: "gh pr edit *", effect: allow }
+  - { action: shell, resource: "gh pr ready *", effect: allow }
   - { action: shell, resource: "gh api repos/*/pulls/*/comments*", effect: allow }
   - { action: shell, resource: "gh api repos/*/pulls/*/reviews*", effect: allow }
 

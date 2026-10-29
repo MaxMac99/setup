@@ -115,14 +115,18 @@ path and leaves it untouched; its commits and PR are the record.
 
 ## 6. Implement: work the steps
 
-For each open step of your section, in order, announce
-"step <k> of <n>: <title>" and then:
+For each open step of your section, in order (`<k>/<n>` counts your
+section's steps):
 
-1. Implement, staying inside the step's Files - as in `plan-next` step 2.
-2. Verify with the step's "Done when" plus the repository's usual checks, and
+1. Post the progress line `▶ <k>/<n> · <title>`.
+2. Implement, staying inside the step's Files - as in `plan-next` step 2.
+3. Verify with the step's "Done when" plus the repository's usual checks, and
    show the real output.
-3. Commit per the `conventional-commits` skill, staging explicit paths - with
-   the ticked plan if it lives here. One step, one commit.
+4. Commit per the `conventional-commits` skill, staging explicit paths - with
+   the ticked plan and its updated `Progress:` line if it lives here. One
+   step, one commit.
+5. Make the progress visible (section 6b), then post
+   `✓ <k>/<n> · <title> · <short sha>`.
 
 Handle the exceptions like this:
 
@@ -136,6 +140,27 @@ Handle the exceptions like this:
   interview the user about the change, apply the answer to the plan if it
   lives here, else in the report; log it under Clarifications, continue.
 - **Needs a repository the plan does not name** - section 7.
+
+## 6b. Implement: keep progress visible
+
+The user follows the run from the T3 sidebar and the PR, not from this
+thread. After every step's commit:
+
+1. **Thread title** - `t3_thread_update` with `action: "rename"` to
+   `<launch title> · <k>/<n>`; later states replace the count:
+   `· ⏸ pending`, `· CI`, `· ✓ green`, `· ✗ red`. Without the T3 tools, skip
+   this.
+2. **Draft PR** - after the first commit, push and open the PR as a draft:
+   follow the `pr` skill from step 1 on with the PR base from the message,
+   add `--draft`, and put a `## Progress` section first in the body - one
+   checkbox per step of your section, ticked as committed. Fill in the
+   section's `PR:` line in the plan if it lives here (commit it with the
+   next step). If a PR already exists for the branch, keep it.
+3. **Every later step** - push, then tick its box in the PR body
+   (`gh pr edit <number> --body-file .work/pr-body.md`).
+
+A failing push or edit does not stop the step; say so in the progress line
+and retry with the next one.
 
 ## 7. Implement: an unplanned repository
 
@@ -158,17 +183,18 @@ When your section's steps are done (or pending):
    section is open, fill in the section's `PR:` line, and with a concept the
    milestone's `PRs:` line - including other sections' PRs you can see via
    `t3_thread_read`. Commit as `docs(plan): …`.
-2. Follow the `pr` skill from step 1 on, with the PR base from the message.
-   Push and create without asking - this workflow is authorised for that.
-   Verification lists the commands from every step; Notes lists pending
-   steps and links the other sections' PRs or threads. With a concept issue,
-   add `Closes #<story>` to the last PR of the milestone.
-3. Multi-repo milestone: the body starts, above Summary, with
+2. Finish the draft from section 6b: rewrite its body per the `pr` skill,
+   keeping `## Progress` first. Verification lists the commands from every
+   step; Notes lists pending steps and links the other sections' PRs or
+   threads. With a concept issue, add `Closes #<story>` to the last PR of
+   the milestone. Push, `gh pr edit`, then `gh pr ready <number>` - without
+   asking, this workflow is authorised for that. No PR yet (a resumed run)
+   → create it now, not as a draft.
+3. Multi-repo milestone: the body starts, above Progress, with
    `> Part <k> of <n> of a multi-repo change: <repo a> PR 1 → <repo b> PR 2.
    Merge in this order.` and links the other PRs as they exist.
 
-If a PR already exists for the branch, push and keep it; update the body only
-if it is now wrong.
+Rename the thread to `<launch title> · CI`.
 
 ## 9. Implement: get the pipeline green
 
@@ -179,10 +205,12 @@ gh pr checks <number> --watch --fail-fast
 Run it with a long timeout (up to 30 minutes). Then:
 
 - **Green** → if the `coderabbit-round` skill is available, load and follow
-  it. Then section 10.
+  it. Rename the thread to `… · ✓ green`, or `… · ⏸ pending` when steps wait
+  on the user. Then section 10.
 - **Red** → `gh run view <run-id> --log-failed`, fix the cause, commit
   (`fix(<scope>): …` or `ci: …`), push, watch again. After three attempts,
-  stop and report location, cause and what you tried.
+  stop, rename the thread to `… · ✗ red` and report location, cause and
+  what you tried.
 - **No checks** a few minutes after opening → report that there is no
   pipeline instead of waiting.
 
@@ -210,13 +238,13 @@ Only now, in one message:
 
 ## Rules
 
-- Allowed without asking: create worktrees under `.work/`, launch T3 threads
-  for them, commit, push the feature branch, open the PR, reply to review
-  comments.
+- Allowed without asking: create worktrees under `.work/`, launch and
+  rename T3 threads for them, commit, push the feature branch, open the PR
+  as a draft, edit its body, mark it ready, reply to review comments.
 - Never: work in a main checkout, push to `main`/`master`, force-push,
   rebase a pushed branch, merge, enable auto-merge, add reviewers or labels,
   remove worktrees (`wt prune` is the user's).
 - One PR per thread, one milestone per dispatch. Do not start the next
   milestone.
-- The plan file stays the source of truth: tick as you go, so an interrupted
-  run can resume.
+- The plan file stays the source of truth: tick as you go and keep its
+  `Progress:` line current, so an interrupted run can resume.

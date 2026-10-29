@@ -11,6 +11,12 @@ later gets its own plan (`plan`) and ships as one pull request (`milestone`),
 or several where one is technically impossible.
 This workflow writes neither plans nor code.
 
+**Too small for a concept?** An idea that fits one pull request is a plan,
+not a concept; one that fits about three steps needs neither. Say which in
+one line and offer the smaller route (`plan`, or doing it directly).
+Continue only if the user still wants the concept. Resuming an existing
+concept skips this.
+
 Three levels, never a fourth:
 
 | Level | Artefact | Ships as |
