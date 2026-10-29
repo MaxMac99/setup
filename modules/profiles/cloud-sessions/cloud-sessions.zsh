@@ -63,6 +63,30 @@ _cs_login_az() {
   az login "$@"
 }
 
+# GOOGLE_APPLICATION_CREDENTIALS follows the session's ADC file: exported
+# while it exists, unset when it does not. Not every client library reads
+# CLOUDSDK_CONFIG; all of them read this. Pointing it at a missing file is an
+# error, not a fallback, hence never exported ahead of the file.
+#
+# Runs after the login *and* before every prompt, because a missing export
+# once meant SDKs silently ran without credentials: any path that leaves the
+# file behind - a failed or aborted step, a manual
+# `gcloud auth application-default login`, a nested shell - is picked up at
+# the next prompt. Only touches the variable while CLOUDSDK_CONFIG is a
+# session dir, so a GOOGLE_APPLICATION_CREDENTIALS set elsewhere stays.
+_cs_sync_adc() {
+  [[ $CLOUDSDK_CONFIG == "$_CS_ROOT"/* ]] || return 1
+  local adc=$CLOUDSDK_CONFIG/application_default_credentials.json
+  if [[ -s $adc ]]; then
+    [[ $GOOGLE_APPLICATION_CREDENTIALS == "$adc" ]] ||
+      export GOOGLE_APPLICATION_CREDENTIALS=$adc
+    return 0
+  fi
+  [[ $GOOGLE_APPLICATION_CREDENTIALS == "$_CS_ROOT"/* ]] &&
+    unset GOOGLE_APPLICATION_CREDENTIALS
+  return 1
+}
+
 _cs_login_gcloud() {
   if (( ! $+commands[gcloud] )); then
     print -u2 "cloud-login: gcloud not installed (modules/profiles/gcloud.nix)"
@@ -74,14 +98,10 @@ _cs_login_gcloud() {
   # application-default credentials for SDKs, Terraform, Pulumi - into
   # $CLOUDSDK_CONFIG, not ~/.config/gcloud.
   gcloud auth login --update-adc "$@" || return 1
-  if [[ ! -s $adc ]]; then
+  if ! _cs_sync_adc; then
     print -u2 "cloud-login: gcloud wrote no application-default credentials ($adc)"
     return 1
   fi
-  # Not every client library reads CLOUDSDK_CONFIG; all of them read this.
-  # Only exported once the file exists: pointing it at a missing file is an
-  # error, not a fallback.
-  export GOOGLE_APPLICATION_CREDENTIALS=$adc
 
   # User ADC without a quota project is rejected by many APIs ("requires a
   # quota project, which is not set by default"). The session config starts
@@ -169,8 +189,11 @@ cloud-status() {
   [[ -s $GH_CONFIG_DIR/hosts.yml ]] && print "  gh       logged in"
   [[ -s $AZURE_CONFIG_DIR/msal_token_cache.json ]] && print "  az       logged in"
   [[ -s $CLOUDSDK_CONFIG/credentials.db ]] && print "  gcloud   logged in"
-  [[ -s $GOOGLE_APPLICATION_CREDENTIALS && $GOOGLE_APPLICATION_CREDENTIALS == $_CS_DIR/* ]] &&
+  if [[ -s $GOOGLE_APPLICATION_CREDENTIALS && $GOOGLE_APPLICATION_CREDENTIALS == $_CS_DIR/* ]]; then
     print "  gcloud   application-default credentials, quota project $(jq -r '.quota_project_id // "-"' "$GOOGLE_APPLICATION_CREDENTIALS")"
+  elif [[ -s $CLOUDSDK_CONFIG/credentials.db ]]; then
+    print "  gcloud   ⚠️ GOOGLE_APPLICATION_CREDENTIALS not set - SDKs have no credentials"
+  fi
   [[ -n $STACKIT_CLI_PROFILE ]] && print "  stackit  profile $STACKIT_CLI_PROFILE"
   [[ $KUBECONFIG == $_CS_DIR/* ]] &&
     print "  kube     $(kubectl config current-context 2>/dev/null)"
@@ -270,4 +293,5 @@ compdef '_arguments "1:mode:(--idp)"' ske-kube
 
 autoload -Uz add-zsh-hook
 add-zsh-hook zshexit _cs_cleanup
+add-zsh-hook precmd _cs_sync_adc
 _cs_sweep
