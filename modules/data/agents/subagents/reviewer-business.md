@@ -15,7 +15,7 @@ Find the requirements, in this order, and name the source you used:
 2. `Closes #<n>` in the PR body (`gh pr view --json body`), then
    `gh issue view <n>`.
 3. An issue number in the branch name (`feat/42-…`), then `gh issue view 42`.
-4. A plan in `docs/plans/` that the diff touches, or the one marked
+4. A plan in `docs/planning/plans/` that the diff touches, or the one marked
    `Status: in progress`. Its requirements are the steps this branch covers,
    with their "Done when" lines as acceptance criteria.
 

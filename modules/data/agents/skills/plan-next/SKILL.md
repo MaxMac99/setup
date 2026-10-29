@@ -1,6 +1,6 @@
 ---
 name: plan-next
-description: Only when the user explicitly asks for the plan-next workflow: work off the next open step of a plan in docs/plans/ - implement it, verify it, tick it, stage it, and stop for the commit.
+description: Only when the user explicitly asks for the plan-next workflow: work off the next open step of a plan in docs/planning/plans/ - implement it, verify it, tick it, stage it, and stop for the commit.
 ---
 
 # Plan-next workflow
@@ -9,7 +9,7 @@ Do exactly one step of a plan, then stop.
 
 ## 1. Find the step
 
-The plan is the file the user named, else the one in `docs/plans/` with
+The plan is the file the user named, else the one in `docs/planning/plans/` with
 `Status: in progress`. Several or none: ask which.
 
 Take the first step whose checkbox is open. Read the plan's Decisions and Out

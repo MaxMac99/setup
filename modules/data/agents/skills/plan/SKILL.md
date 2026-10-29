@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Only when the user explicitly asks for the plan workflow: turn one milestone - described directly or taken from a concept in docs/concepts/ - into a step-by-step plan in docs/plans/, shaped by an interview with the user, to be worked off with plan-next or milestone.
+description: Only when the user explicitly asks for the plan workflow: turn one milestone - described directly or taken from a concept in docs/planning/concepts/ - into a step-by-step plan in docs/planning/plans/, shaped by an interview with the user, to be worked off with plan-next or milestone.
 ---
 
 # Plan workflow
@@ -19,7 +19,7 @@ only if the user still wants the plan. Resuming an existing plan skips this.
 The milestone comes from one of two places:
 
 - **A concept** - the user names a concept and a milestone
-  (`<concept> M2`). Read `docs/concepts/<slug>.md` first; its Goals,
+  (`<concept> M2`). Read `docs/planning/concepts/<slug>.md` first; its Goals,
   Decisions, Out of scope and Design bind the plan, and its milestone Outcome
   is the plan's goal.
 - **The user's message** - a task small enough for one PR that needs no
@@ -27,8 +27,8 @@ The milestone comes from one of two places:
 
 ## 1. Start or resume
 
-The path is `docs/plans/<concept-slug>-m<n>.md` for a concept milestone, else
-`docs/plans/<slug>.md` with a slug from the task (lowercase, hyphenated). The
+The path is `docs/planning/plans/<concept-slug>-m<n>.md` for a concept milestone, else
+`docs/planning/plans/<slug>.md` with a slug from the task (lowercase, hyphenated). The
 caller may give another directory (the `milestone` workflow writes into a
 worktree). If the file exists, you are resuming: read it and continue where
 it stopped.
@@ -38,7 +38,7 @@ Otherwise write the skeleton right away, so every answer has a home:
 ```markdown
 Status: draft
 Progress: 0/<n> · next: 1. <title>
-Concept: docs/concepts/<slug>.md, M<n>   (omit without a concept)
+Concept: docs/planning/concepts/<slug>.md, M<n>   (omit without a concept)
 Repos: <owner/name>
 
 # <title>

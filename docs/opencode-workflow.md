@@ -3,7 +3,7 @@
 Design notes for how opencode is set up to work: plan or refine → implement →
 review → small commits → pull request. The wiring lives in
 `modules/apps/opencode/`; the rework that produced this shape is
-[plans/opencode-rework.md](plans/opencode-rework.md).
+[planning/plans/opencode-rework.md](planning/plans/opencode-rework.md).
 
 ## Building blocks
 
@@ -35,8 +35,8 @@ Three levels, like epic → story → subtask:
 
 | Level | Artefact | Ships as | Built by |
 | --- | --- | --- | --- |
-| Concept | `docs/concepts/<slug>.md` | several milestones | `/concept` |
-| Milestone | `docs/plans/<slug>-m<n>.md` | one PR; several only if unavoidable (repos, forced order) | `/plan` |
+| Concept | `docs/planning/concepts/<slug>.md` | several milestones | `/concept` |
+| Milestone | `docs/planning/plans/<slug>-m<n>.md` | one PR; several only if unavoidable (repos, forced order) | `/plan` |
 | Step | checkbox in the plan | one commit | `/plan-next` or `/milestone` |
 
 **Concept** (everywhere): rough idea → interview → goals, decisions, design,
@@ -109,11 +109,11 @@ Settled during design; recorded so they are not re-litigated.
 | --- | --- | --- |
 | Architecture standard | `architecture` skill states preferences (DDD, inward layers, shipping rules) | The model knows DDD, but not that you want it |
 | Questions | One at a time, in chat, never a dialog; background, options, recommendation | A dialog hides the background needed to answer |
-| Plans | Committed in `docs/plans/`, kept with `Status: done` | They record why something was built that way |
+| Plans | Committed in `docs/planning/plans/`, kept with `Status: done` | They record why something was built that way |
 | Plan steps | Checkbox, goal, files, "Done when"; ticked only when verified | A new session has nothing but the file |
 | Tickets at kopf3 | None written by the agent; Jira stays manual | Plans replace tickets for agent work |
 | Hierarchy depth | Three levels: Concept → Milestone → Step; never a fourth | A milestone's PR section is the unit you branch from; PR sections are a delivery split, not a fourth level; a too-long plan means split the milestone |
-| Concepts | Committed in `docs/concepts/`; replace the former `/epic` | Works at kopf3 without issues; issues are an optional export |
+| Concepts | Committed in `docs/planning/concepts/`; replace the former `/epic` | Works at kopf3 without issues; issues are an optional export |
 | Ticket template | Context / Acceptance Criteria / Out of Scope / Design / Open Questions | `reviewer-business` checks against the criteria |
 | Open Questions at creation | Must be empty | Otherwise the thinking is deferred to implementation |
 | Review strictness | Report, blocking marked, never gates | You decide whether to proceed |
@@ -124,8 +124,8 @@ Settled during design; recorded so they are not re-litigated.
 ## Working files
 
 ```
-docs/concepts/<slug>.md  committed concept with milestones, built by /concept
-docs/plans/<slug>.md     committed step plan for one milestone, built by /plan
+docs/planning/concepts/<slug>.md  committed concept with milestones, built by /concept
+docs/planning/plans/<slug>.md     committed step plan for one milestone, built by /plan
 .work/
   <repo>-<branch>/     worktree per milestone, created by /milestone via wt
   refine-<n>.md        story body during /refine
@@ -171,7 +171,7 @@ not. `/review-all code tests` runs a subset.
 
 `reviewer-business` finds requirements itself: what it is handed, else
 `Closes #n` in the PR, else the issue number in the branch, else the plan in
-`docs/plans/`. A Jira key is not readable; it asks for the text instead.
+`docs/planning/plans/`. A Jira key is not readable; it asks for the text instead.
 
 Findings carry a severity (**blocking** / **advisory**), a category (**Gap** /
 **Bug** / **Verification miss** / **Scope drift**, borrowed from
@@ -227,7 +227,7 @@ Surveyed before building. Conclusion: **build our own, steal two ideas.**
 ### Why `visual-plan` / `visual-recap` were rejected
 
 1. **They refuse to produce markdown**, while this workflow's output is
-   markdown in issues, PRs and `docs/plans/`.
+   markdown in issues, PRs and `docs/planning/plans/`.
 2. **Hosted mode uploads the diff** to a third-party database; secret
    redaction is an LLM instruction, not a filter.
 3. **Local mode is not offline and not vendorable.**
@@ -241,6 +241,6 @@ declarative Nix management.
 ## Untested
 
 - The pipelines have not been run end to end since the rework; the pending
-  checks are listed per step in [plans/opencode-rework.md](plans/opencode-rework.md).
+  checks are listed per step in [planning/plans/opencode-rework.md](planning/plans/opencode-rework.md).
 - Whether the description guard reliably stops the model from starting a
   workflow nobody asked for.

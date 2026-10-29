@@ -12,7 +12,7 @@ it in this session.
 
 1. The user names a file — render the mermaid blocks in that file.
 2. The user gives mermaid source — render it directly.
-3. Neither — use the newest file in `docs/plans/` or `docs/concepts/` that
+3. Neither — use the newest file in `docs/planning/plans/` or `docs/planning/concepts/` that
    contains mermaid, else ask which file to use.
 
 If the chosen file contains no ```mermaid blocks, say so and stop. Do not

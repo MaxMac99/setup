@@ -1,6 +1,6 @@
 ---
 name: concept
-description: Only when the user explicitly asks for the concept workflow: turn a rough idea for the next piece of work into a concept in docs/concepts/ - goal, decisions, design and a breakdown into milestones, each one pull request - shaped by an interview with the user.
+description: Only when the user explicitly asks for the concept workflow: turn a rough idea for the next piece of work into a concept in docs/planning/concepts/ - goal, decisions, design and a breakdown into milestones, each one pull request - shaped by an interview with the user.
 ---
 
 # Concept workflow
@@ -21,13 +21,13 @@ Three levels, never a fourth:
 
 | Level | Artefact | Ships as |
 | --- | --- | --- |
-| Concept | `docs/concepts/<slug>.md` | several milestones |
-| Milestone | `docs/plans/<slug>-m<n>.md` | one PR, more only where technically unavoidable |
+| Concept | `docs/planning/concepts/<slug>.md` | several milestones |
+| Milestone | `docs/planning/plans/<slug>-m<n>.md` | one PR, more only where technically unavoidable |
 | Step | checkbox in the plan | one commit |
 
 ## 1. Start or resume
 
-Derive a slug (lowercase, hyphenated) and use `docs/concepts/<slug>.md`. If it
+Derive a slug (lowercase, hyphenated) and use `docs/planning/concepts/<slug>.md`. If it
 exists, you are resuming: read it and continue where it stopped. Otherwise
 write the skeleton right away, so every answer has a home:
 

@@ -24,13 +24,13 @@ it wrong without it?
    New: plan, plan-next. Removed: workspace, business-case.
 6. Review team: `reviewer-code`, `reviewer-tests`, `reviewer-business`. The
    requirements come from `Closes #n` in the PR, else the branch name, else
-   the plan in `docs/plans/` (the only source at kopf3, where tickets live in
+   the plan in `docs/planning/plans/` (the only source at kopf3, where tickets live in
    Jira).
 7. Agents removed: `commit`, `diagram`, `review-all` (forwarders),
    `codebase-locator` (built-in `explore` covers it).
 8. `/pr` and `/review-comments` become global. `/epic`, `/refine`,
    `github-issues`, `github-personal` stay personal (kopf3 uses Jira).
-9. Plans live committed at `docs/plans/<slug>.md`, are built with the interview
+9. Plans live committed at `docs/planning/plans/<slug>.md`, are built with the interview
    format, and are worked off one step per `/plan-next`.
 
 ## Steps
@@ -102,7 +102,7 @@ it wrong without it?
     open opencode in `~/projects/kopf3` and type `/`.
 
 - [ ] **8. Plan and plan-next**
-  - Goal: big tasks get a step plan in `docs/plans/`, worked off one step per
+  - Goal: big tasks get a step plan in `docs/planning/plans/`, worked off one step per
     run.
   - Files: new `global/skills/{plan,plan-next}/` and their commands.
   - Done when: this very file could have been produced by `/plan`, and

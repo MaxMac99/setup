@@ -1,6 +1,6 @@
 ---
 name: milestone
-description: Only when the user explicitly asks for the milestone workflow: implement one milestone - a plan in docs/plans/ or a milestone of a concept in docs/concepts/ - with one worktree and T3 thread per pull request - commit per step, push, open the PR, get the pipeline green, and only then report.
+description: Only when the user explicitly asks for the milestone workflow: implement one milestone - a plan in docs/planning/plans/ or a milestone of a concept in docs/planning/concepts/ - with one worktree and T3 thread per pull request - commit per step, push, open the PR, get the pipeline green, and only then report.
 ---
 
 # Milestone workflow
@@ -29,7 +29,7 @@ Clarifications. Do not guess and do not stop silently.
 
 The user names one of:
 
-- **a plan** - `docs/plans/<slug>.md`, or the one with `Status: in progress`
+- **a plan** - `docs/planning/plans/<slug>.md`, or the one with `Status: in progress`
   when nothing is named;
 - **a concept milestone** - `<concept> M<n>`, or just the concept: then the
   first milestone without `PRs:` whose `Depends on` are merged.

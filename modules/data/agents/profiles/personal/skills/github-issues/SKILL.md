@@ -42,7 +42,7 @@ before working around it.
 
 ```sh
 # Create an epic from a concept
-gh issue create --title "…" --body-file docs/concepts/<slug>.md --label type:epic
+gh issue create --title "…" --body-file docs/planning/concepts/<slug>.md --label type:epic
 
 # Create a story directly under it
 gh issue create --title "…" --body-file - --parent 42 --label type:story

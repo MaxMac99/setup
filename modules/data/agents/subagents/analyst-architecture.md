@@ -11,8 +11,8 @@ Load the `architecture` skill; its preferences are the standard you apply.
 
 ## Input
 
-A draft concept, plan or ticket, usually at `docs/concepts/<slug>.md` or
-`docs/plans/<slug>.md`, plus whatever the caller tells you. Read it first,
+A draft concept, plan or ticket, usually at `docs/planning/concepts/<slug>.md` or
+`docs/planning/plans/<slug>.md`, plus whatever the caller tells you. Read it first,
 then investigate the codebase before forming an opinion. You have read-only tools; use them.
 
 ## What to work out
