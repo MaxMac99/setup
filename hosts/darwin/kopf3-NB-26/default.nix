@@ -19,6 +19,7 @@
     "modules/profiles/full-nvim.nix"
     "modules/profiles/darwin-nvim.nix"
     "modules/profiles/work.nix"
+    "modules/profiles/cloud-sessions"
     "modules/profiles/projects.nix"
     # Applications
     "modules/apps/google-chrome.nix"

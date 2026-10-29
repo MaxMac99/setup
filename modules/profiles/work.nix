@@ -1,4 +1,4 @@
-# Work environment profile - sops secrets, git config, shell env vars
+# Work environment profile - sops setup for the work Mac
 {
   config,
   lib,
@@ -7,13 +7,12 @@
   username = config.hostSpec.username;
   homeDir = config.hostSpec.home;
 in {
-  home-manager.users.${username} = {config, ...}: {
+  home-manager.users.${username} = {
     # Sops secrets for work
     sops = {
       defaultSopsFile = lib.custom.relativeToRoot "secrets/common.yaml";
       defaultSopsFormat = "yaml";
       age.keyFile = "${homeDir}/.config/sops/age/keys.txt";
-      secrets."kopf3/github-token" = {};
     };
 
     # Fix for sops-nix on macOS - ensure launchd agent has correct PATH
@@ -26,9 +25,9 @@ in {
       };
     };
 
-    # Zsh: export work env vars
-    programs.zsh.initContent = lib.mkAfter ''
-      export GITHUB_TOKEN=$(cat ${config.sops.secrets."kopf3/github-token".path})
-    '';
+    # ⚠️ No GITHUB_TOKEN here any more. It used to be exported into every zsh
+    # from the decrypted `kopf3/github-token`, which handed it to every AI
+    # agent's shell too. GitHub is a per-session `cloud-login gh` now
+    # (modules/profiles/cloud-sessions).
   };
 }
