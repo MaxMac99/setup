@@ -39,9 +39,11 @@
 
   # Xcode's tools live in /usr/bin, brew's in /opt/homebrew/bin; launchd hands
   # agents a bare PATH, so set it here like darwin-brew-update.nix does.
+  # home.packages (xcodegen, from xcode.nix) land in ~/.nix-profile, not
+  # /etc/profiles/per-user: useUserPackages stays false (base.nix).
   path = lib.concatStringsSep ":" [
     "/opt/homebrew/bin"
-    "/etc/profiles/per-user/${username}/bin"
+    "${home}/.nix-profile/bin"
     "/run/current-system/sw/bin"
     "/nix/var/nix/profiles/default/bin"
     "/usr/bin"
