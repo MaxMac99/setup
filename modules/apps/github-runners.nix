@@ -41,7 +41,18 @@
   # agents a bare PATH, so set it here like darwin-brew-update.nix does.
   # home.packages (xcodegen, from xcode.nix) land in ~/.nix-profile, not
   # /etc/profiles/per-user: useUserPackages stays false (base.nix).
+  #
+  # ⚠️ Apple's rsync must win. Xcode's IPA export runs /usr/bin/rsync -E,
+  # which spawns its receiving side as whatever `rsync` PATH finds first —
+  # base.nix's GNU rsync 3.x, which rejects --extended-attributes, and the
+  # export fails with a bare "Copy failed". Only rsync is pinned; everything
+  # else keeps the nix-first order.
+  appleRsync = pkgs.runCommand "apple-rsync" {} ''
+    mkdir -p $out/bin
+    ln -s /usr/bin/rsync $out/bin/rsync
+  '';
   path = lib.concatStringsSep ":" [
+    "${appleRsync}/bin"
     "/opt/homebrew/bin"
     "${home}/.nix-profile/bin"
     "/run/current-system/sw/bin"
