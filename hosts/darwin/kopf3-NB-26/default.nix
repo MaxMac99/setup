@@ -41,6 +41,7 @@
     "modules/apps/opencode-desktop.nix"
     "modules/apps/claude-code"
     "modules/apps/t3code.nix"
+    "modules/apps/xcode.nix"
   ];
 
   home-manager.users.maxvissing.home.packages = [pkgs.copier];
