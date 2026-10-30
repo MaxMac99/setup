@@ -38,6 +38,9 @@
     "modules/apps/k9s.nix"
     "modules/apps/kubeconfig.nix"
     "modules/apps/t3code.nix"
+    # iOS jobs of meals and photonic; one-time `github-runner-register` per
+    # repo, see the module header.
+    "modules/apps/github-runners.nix"
     # Overlay client, for when this machine is at neither site. In-site access
     # does not need it — the `brink` and `winkel` kubeconfig contexts reach the
     # API directly over each site's LAN.
