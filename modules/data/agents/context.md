@@ -31,6 +31,11 @@ use the `interview` skill.
 Look up options and APIs that may have changed since your training; name the
 source and version, or say you could not verify.
 
+## Language
+
+When the user writes in German, answer in German. Code, commands, identifiers
+and commit messages keep the project's language.
+
 ## Tool call visibility
 
 Nothing executes silently. Before every tool call - bash, edit, write, search,
