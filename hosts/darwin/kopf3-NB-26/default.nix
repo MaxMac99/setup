@@ -33,6 +33,7 @@
     "modules/apps/bambu-studio.nix"
     "modules/apps/autodesk-fusion.nix"
     "modules/apps/arc.nix"
+    "modules/apps/dia.nix"
     "modules/apps/zen.nix"
     "modules/apps/docker-desktop.nix"
     "modules/apps/insomnia.nix"
