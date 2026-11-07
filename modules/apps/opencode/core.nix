@@ -8,9 +8,17 @@
   pkgs,
   inputs,
 }: let
-  inherit (pkgs.stdenv.hostPlatform) system;
-  meridian = inputs.meridian.packages.${system}.meridian;
-  scrub = inputs.meridian.legacyPackages.${system}.meridianPlugins.opencode-scrub;
+  # Not the flake's packages output: meridian wraps nixpkgs' claude-code,
+  # which is unfree, and the flake's own nixpkgs instance does not set
+  # allowUnfree, so its packages refuse to evaluate. Still meridian's own
+  # nixpkgs, not ours - its node_modules hash is pinned to that bun.
+  meridianPkgs = import inputs.meridian.inputs.nixpkgs {
+    inherit (pkgs.stdenv.hostPlatform) system;
+    config.allowUnfree = true;
+  };
+  meridianScope = meridianPkgs.callPackage "${inputs.meridian}/nix/scope.nix" {self = inputs.meridian;};
+  inherit (meridianScope) meridian;
+  scrub = meridianScope.meridianPlugins.opencode-scrub;
 
   pluginManifest = (pkgs.formats.json {}).generate "plugins.json" {
     plugins = [
