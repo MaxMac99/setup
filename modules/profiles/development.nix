@@ -66,6 +66,15 @@ in {
       config.whitelist.prefix = ["/Users/maxvissing/projects/"];
     };
     home = {
+      # Cargo's intermediate artifacts (deps, incremental, fingerprints - the
+      # bulk of every target/) go to one central dir, one subdir per
+      # workspace path, so every worktree keeps its own cache and its own
+      # lock. Only final binaries stay in <project>/target. Cleanup is one
+      # place: delete ~/.cache/cargo-build, or the parts not touched lately.
+      file.".cargo/config.toml".text = ''
+        [build]
+        build-dir = "${config.hostSpec.home}/.cache/cargo-build/{workspace-path-hash}"
+      '';
       # Chrome is a homebrew cask now (modules/apps/google-chrome.nix) - it
       # lives at the plain /Applications path, not the old "Nix Apps" dir.
       sessionVariables.PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
