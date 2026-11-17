@@ -42,6 +42,7 @@
     "modules/apps/opencode-desktop.nix"
     "modules/apps/claude-code"
     "modules/apps/t3code.nix"
+    "modules/apps/herdr.nix"
     "modules/apps/xcode.nix"
   ];
 
