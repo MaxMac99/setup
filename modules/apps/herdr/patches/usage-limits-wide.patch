@@ -1,0 +1,46 @@
+diff -ruN ul-a/mods/usage-limits/main.js ul-b/mods/usage-limits/main.js
+--- a/mods/usage-limits/main.js	2026-11-17 16:32:46
++++ b/mods/usage-limits/main.js	2026-11-17 16:32:46
+@@ -140,6 +140,8 @@
+     return statusBar({
+       model, numbers, density: chooseDensity(model, room, prefs.showBars),
+       panel: this.drawPanel(t, prefs), onResize: this.act.resize, onHover: this.act.hover,
++      // Local addition: props {wide: true} stretches the bars over the block's whole width.
++      wide: props()?.wide === true, width: this.width,
+     }, t);
+   }
+ }
+diff -ruN ul-a/mods/usage-limits/ui/bar.js ul-b/mods/usage-limits/ui/bar.js
+--- a/mods/usage-limits/ui/bar.js	2026-11-17 16:32:46
++++ b/mods/usage-limits/ui/bar.js	2026-11-17 16:32:46
+@@ -36,6 +36,22 @@
+     .children(numbers.map((n) => div().whitespace_nowrap().text_color(sessionNumberColor(n.level, n.text, t)).child(n.text)));
+ }
+ 
++// Local addition (wide): each limit as one full-width line, its bar taking what the label and
++// number leave, for a bar in a narrow sidebar rather than a status bar.
++function wideSegments({ model, width, onHover }, t) {
++  const inner = Math.max(0, (width || 0) - 24);
++  return h_flex().id("ul-content").w(inner).gap(8).items_center().on_hover(onHover).children(model.groups.flatMap((g) => [
++    providerIcon(g.providerId, g.icon, t.foreground),
++    ...g.segments.map((s) => {
++      const bar = Math.max(30, inner - 14 - 8 - (s.short.length * 6 + 6) - (s.text.length * 5.6 + 6) - 4);
++      return h_flex().flex_1().gap(6).items_center()
++        .child(label(s.short, t))
++        .child(usageBar(bar, s.fill, s.tick, levelColor(s.level, t), t))
++        .child(div().whitespace_nowrap().text_color(limitNumberColor(s.level, s.text, t)).child(s.text));
++    }),
++  ]));
++}
++
+ function limitsTrigger({ model, numbers, density, onHover }, t) {
+   const content = h_flex().id("ul-content").gap(14).items_center().flex_none().on_hover(onHover);
+   if (numbers.length) {
+@@ -55,6 +71,6 @@
+     .bg(t.chrome).border_t(1).border_color(t.border).text_size(11.8).text_color(t.muted)
+     .on_size_change(bar.onResize)
+     .child(HoverCard.new("ul-panel").anchor("bottom_right").open_delay(PANEL_OPEN_DELAY_MS).close_delay(PANEL_CLOSE_DELAY_MS)
+-      .trigger(limitsTrigger(bar, t))
++      .trigger(bar.wide && !bar.model.empty ? wideSegments(bar, t) : limitsTrigger(bar, t))
+       .content(bar.panel));
+ }

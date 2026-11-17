@@ -1,0 +1,5 @@
+{
+  "place": "none",
+  "title": "Meilensteine",
+  "overlay": { "kind": "dialog", "width": 980, "height": 640 }
+}

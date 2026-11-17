@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "home-assistant": { "type": "http", "url": "https://ha-mcp.mvissing.de/mcp" }
+  }
+}

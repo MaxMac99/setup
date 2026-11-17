@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "meals": {
+      "type": "http",
+      "url": "https://meals.mvissing.de/mcp",
+      "oauth": { "clientId": "meals", "callbackPort": 33418 }
+    }
+  }
+}

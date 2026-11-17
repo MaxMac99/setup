@@ -1,0 +1,27 @@
+#!/bin/sh
+# claude with a per-thread MCP profile and extra repos, taken from the
+# environment so a launcher can set them per chat:
+#   CLAUDE_MCP_PROFILE  comma-separated names of ~/.config/claude-profiles/mcp/<name>.json;
+#                       only their servers load (--strict-mcp-config)
+#   CLAUDE_ADD_DIRS     colon-separated folders Claude may also work in
+# Without either it is plain claude.
+real=/opt/homebrew/bin/claude
+if [ -n "${CLAUDE_ADD_DIRS:-}" ]; then
+  old_ifs=$IFS; IFS=:
+  for d in $CLAUDE_ADD_DIRS; do [ -n "$d" ] && set -- --add-dir "$d" "$@"; done
+  IFS=$old_ifs
+fi
+if [ -n "${CLAUDE_MCP_PROFILE:-}" ]; then
+  files=""
+  old_ifs=$IFS; IFS=,
+  for name in $CLAUDE_MCP_PROFILE; do
+    f="$HOME/.config/claude-profiles/mcp/$name.json"
+    [ -f "$f" ] || { echo "claude-profiled: no MCP profile $f" >&2; exit 2; }
+    files="$files${files:+,}$f"
+  done
+  # --mcp-config takes several files; the list ends at the next flag.
+  for f in $files; do set -- "$f" "$@"; done
+  IFS=$old_ifs
+  set -- --strict-mcp-config --mcp-config "$@"
+fi
+exec "$real" "$@"

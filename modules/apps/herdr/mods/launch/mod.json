@@ -1,0 +1,5 @@
+{
+  "place": "none",
+  "title": "Neuer Thread",
+  "overlay": { "kind": "dialog", "width": 680, "height": 600 }
+}

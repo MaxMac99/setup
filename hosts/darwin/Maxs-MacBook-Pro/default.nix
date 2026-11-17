@@ -39,7 +39,7 @@
     "modules/apps/k9s.nix"
     "modules/apps/kubeconfig.nix"
     "modules/apps/t3code.nix"
-    "modules/apps/herdr.nix"
+    "modules/apps/herdr"
     # iOS jobs of meals and photonic; one-time `github-runner-register` per
     # repo, see the module header.
     "modules/apps/github-runners.nix"
