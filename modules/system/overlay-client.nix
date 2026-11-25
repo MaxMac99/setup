@@ -202,6 +202,35 @@ in {
       };
     };
 
+    # ⚠️ **The device binding above has been observed to miss a revert.** On
+    # 2026-11-16 ionos's tailscale0 was back at 1280 while
+    # sys-subsystem-net-devices-tailscale0.device still reported the activation
+    # time of the day before, so nothing re-ran overlay-mtu.service. This
+    # re-asserts the value every minute; `ip link set mtu` to the current value
+    # is a no-op, so the steady-state cost is nil.
+    systemd.services.overlay-mtu-reassert = {
+      description = "Re-assert ${iface} MTU ${toString net.overlay.mtu}";
+      after = ["sys-subsystem-net-devices-${iface}.device"];
+      unitConfig.ConditionPathExists = "/sys/class/net/${iface}";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeShellScript "overlay-mtu-reassert" ''
+          current=$(cat /sys/class/net/${iface}/mtu)
+          if [ "$current" != ${toString net.overlay.mtu} ]; then
+            echo "${iface} MTU was $current, resetting to ${toString net.overlay.mtu}"
+            ${pkgs.iproute2}/bin/ip link set dev ${iface} mtu ${toString net.overlay.mtu}
+          fi
+        '';
+      };
+    };
+    systemd.timers.overlay-mtu-reassert = {
+      wantedBy = ["timers.target"];
+      timerConfig = {
+        OnBootSec = "1min";
+        OnUnitActiveSec = "1min";
+      };
+    };
+
     # Routes are advertised, not granted: they stay inactive until approved on
     # the control server. `headscale nodes approve-routes --identifier <id>
     # --routes <cidr>` — a silent no-op to forget, because the client reports

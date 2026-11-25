@@ -51,6 +51,8 @@
   # ping succeeds and bulk transfer dies.
   flannelMTU = net.overlay.mtu - 70;
 
+  overlayIface = config.services.tailscale.interfaceName;
+
   # ⚠️ Supplying this replaces k3s's *entire* generated net-conf.json, so the
   # pod CIDRs have to be restated here — and if these disagree with the
   # `--cluster-cidr` flag below, flannel and the controller-manager allocate
@@ -223,9 +225,33 @@ in {
     # Cross-module by unit name: the unit is defined in overlay-client.nix,
     # which this module does not import. That coupling is deliberate but
     # invisible, so it is named here rather than assumed.
+    #
+    # ⚠️ **The ordering alone was not enough, and that cost a week of ionos.**
+    # On 2026-11-16 ionos's tailscale0 came back at 1280 without its device
+    # unit ever leaving `active`, so overlay-mtu.service never re-ran. k3s kept
+    # its old flannel devices until it next restarted, then read 1280 and
+    # crashlooped on `failed to add v6 IP address … invalid argument` —
+    # 30 437 restarts, etcd down to two members, and the first unrelated outage
+    # of brink-server (2026-11-25) lost quorum for the whole cluster.
+    #
+    # So k3s re-pins the MTU itself on every start, and removes a flannel-v6.1
+    # left behind at the wrong size: flannel reuses an existing VXLAN device
+    # without touching its MTU, so pinning tailscale0 alone does not heal a
+    # node that has already failed once. Deleting it is safe — flannel
+    # recreates it on the next line of its own startup.
     systemd.services.k3s = {
       after = ["overlay-mtu.service"];
       wants = ["overlay-mtu.service"];
+      serviceConfig.ExecStartPre = [
+        "${pkgs.iproute2}/bin/ip link set dev ${overlayIface} mtu ${toString net.overlay.mtu}"
+        "${pkgs.writeShellScript "k3s-flannel-v6-mtu" ''
+          link=/sys/class/net/flannel-v6.1/mtu
+          if [ -e "$link" ] && [ "$(cat "$link")" != ${toString flannelMTU} ]; then
+            echo "flannel-v6.1 is at MTU $(cat "$link"), want ${toString flannelMTU}; deleting it"
+            ${pkgs.iproute2}/bin/ip link delete flannel-v6.1
+          fi
+        ''}"
+      ];
     };
 
     services.k3s = {
