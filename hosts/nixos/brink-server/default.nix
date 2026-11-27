@@ -98,6 +98,36 @@ in {
       options zfs zfs_arc_max=8589934592
       options zfs zfs_arc_min=1073741824
     '';
+
+    # Turn every lockup the kernel *can* detect into a panic, and every panic
+    # into a reboot 10 s later — with the trace in pstore and the journal
+    # rather than on a monitor nobody is watching. hung_task_panic stays off:
+    # ZFS under IO pressure trips it without anything being wrong.
+    kernel.sysctl = {
+      "kernel.panic" = 10;
+      "kernel.softlockup_panic" = 1;
+      "kernel.hardlockup_panic" = 1;
+    };
+  };
+
+  # Two hard freezes in three days (2026-11-25 11:22, 2026-11-27 11:12 local):
+  # fans and LEDs stayed on, the journal stops mid-routine with no kernel
+  # message, pstore is empty, and load, memory, temperature and the NVMe were
+  # all unremarkable. Root cause is open — suspect firmware/C-states on BIOS
+  # M2WKT4FA (10/2021). The first freeze cost 10.5 h because nothing reboots
+  # a frozen box; the hardware watchdog (iTCO on this Intel board) does, 30 s
+  # after systemd stops petting it. This treats the symptom, not the cause.
+  systemd.watchdog = {
+    runtimeTime = "30s";
+    rebootTime = "5min"; # a shutdown that hangs gets forced too
+  };
+
+  # Headless BIOS updates via UEFI capsule: no monitor or keyboard is attached
+  # to this box. The ESP is pinned because fwupd otherwise asks UDisks2 for it,
+  # which does not run here, and fails with "UEFI ESP partition not detected".
+  services.fwupd = {
+    enable = true;
+    daemonSettings.EspLocation = config.boot.loader.efi.efiSysMountPoint;
   };
 
   # Required by ZFS. Random, and distinct from maxdata's ec7b6b2d and the pi's
